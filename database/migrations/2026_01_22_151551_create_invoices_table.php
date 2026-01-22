@@ -15,12 +15,13 @@ class CreateInvoicesTable extends Migration
     {
         Schema::create('invoices', function (Blueprint $table) {
             $table->id();
-            $table->foreignId('user_id')->constrained();
-            $table->string('invoice_number');
-            $table->date('invoice_date');
-            $table->decimal('total_amount', 10, 2);
-            $table->string('status');
-            $table->json('items');
+            $table->string('invoice_number')->unique();
+            $table->date('invoice_date')->nullable();
+            $table->decimal('total_amount', 12, 2)->nullable();
+            $table->string('status')->default('pending'); // pending, processed, completed
+            $table->json('items')->nullable();
+            $table->json('parsed_data')->nullable(); // JSON for parsed invoice details
+            $table->boolean('processed')->default(false);
             $table->timestamps();
         });
     }

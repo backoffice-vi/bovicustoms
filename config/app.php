@@ -16,7 +16,16 @@ return [
     |
     */
 
-    'name' => env('APP_NAME', 'Laravel'),
+    'name' => env('APP_NAME', 'Customs Pro'),
+    
+    /*
+    |--------------------------------------------------------------------------
+    | Trial Period Configuration
+    |--------------------------------------------------------------------------
+    */
+    
+    'trial_period_days' => env('TRIAL_PERIOD_DAYS', 14),
+    'free_tier_invoice_limit' => env('FREE_TIER_INVOICE_LIMIT', 10),
 
     /*
     |--------------------------------------------------------------------------
