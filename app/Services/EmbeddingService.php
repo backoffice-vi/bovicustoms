@@ -15,7 +15,7 @@ class EmbeddingService
 
     public function __construct()
     {
-        $this->apiKey = config('services.openai_embeddings.api_key') ?? config('services.openai.api_key');
+        $this->apiKey = config('services.openai_embeddings.api_key') ?? config('services.openai.api_key') ?? '';
         $this->model = config('services.openai_embeddings.model', 'text-embedding-3-small');
         $this->dimensions = config('services.openai_embeddings.dimensions', 1536);
         $this->batchSize = config('services.openai_embeddings.batch_size', 100);
