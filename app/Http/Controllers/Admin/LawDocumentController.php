@@ -6,7 +6,7 @@ use App\Http\Controllers\Controller;
 use App\Models\LawDocument;
 use App\Models\Country;
 use App\Models\CustomsCodeHistory;
-use App\Services\LawDocumentProcessor;
+use App\Jobs\ProcessLawDocument;
 use App\Services\ItemClassifier;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Storage;
@@ -95,27 +95,26 @@ class LawDocumentController extends Controller
     }
 
     /**
-     * Process the document with AI
+     * Process the document with AI (dispatches background job)
      */
-    public function process(LawDocument $lawDocument, LawDocumentProcessor $processor, ItemClassifier $classifier)
+    public function process(LawDocument $lawDocument, ItemClassifier $classifier)
     {
         if ($lawDocument->isProcessing()) {
             return redirect()->route('admin.law-documents.show', $lawDocument)
                 ->with('warning', 'Document is already being processed.');
         }
 
-        $result = $processor->process($lawDocument);
+        // Mark as processing immediately
+        $lawDocument->markAsProcessing();
 
-        // Clear the classifier cache since codes may have changed
+        // Clear the classifier cache since codes may change
         $classifier->clearCache($lawDocument->country_id);
 
-        if ($result['success']) {
-            return redirect()->route('admin.law-documents.show', $lawDocument)
-                ->with('success', "Document processed successfully. Created: {$result['created']}, Updated: {$result['updated']} customs codes.");
-        }
+        // Dispatch the background job
+        ProcessLawDocument::dispatch($lawDocument);
 
         return redirect()->route('admin.law-documents.show', $lawDocument)
-            ->with('error', "Processing failed: {$result['error']}");
+            ->with('info', 'Document processing started in the background. This page will automatically update when complete.');
     }
 
     /**
@@ -150,7 +149,7 @@ class LawDocumentController extends Controller
     /**
      * Reprocess the document
      */
-    public function reprocess(LawDocument $lawDocument, LawDocumentProcessor $processor, ItemClassifier $classifier)
+    public function reprocess(LawDocument $lawDocument, ItemClassifier $classifier)
     {
         // Reset status to pending
         $lawDocument->update([
@@ -159,6 +158,40 @@ class LawDocumentController extends Controller
             'processed_at' => null,
         ]);
 
-        return $this->process($lawDocument, $processor, $classifier);
+        return $this->process($lawDocument, $classifier);
+    }
+
+    /**
+     * Get document status (for AJAX polling)
+     */
+    public function status(LawDocument $lawDocument)
+    {
+        $lawDocument->load(['country']);
+        
+        $historyCount = CustomsCodeHistory::where('law_document_id', $lawDocument->id)->count();
+        
+        return response()->json([
+            'id' => $lawDocument->id,
+            'status' => $lawDocument->status,
+            'status_label' => ucfirst($lawDocument->status),
+            'status_class' => $this->getStatusClass($lawDocument->status),
+            'error_message' => $lawDocument->error_message,
+            'processed_at' => $lawDocument->processed_at?->format('M d, H:i'),
+            'history_count' => $historyCount,
+        ]);
+    }
+
+    /**
+     * Get Bootstrap class for status badge
+     */
+    protected function getStatusClass(string $status): string
+    {
+        return match($status) {
+            LawDocument::STATUS_PENDING => 'warning',
+            LawDocument::STATUS_PROCESSING => 'info',
+            LawDocument::STATUS_COMPLETED => 'success',
+            LawDocument::STATUS_FAILED => 'danger',
+            default => 'secondary',
+        };
     }
 }

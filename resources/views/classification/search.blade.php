@@ -45,14 +45,18 @@
                             </div>
                             <div class="col-md-4">
                                 <label for="countrySelect" class="form-label fw-semibold">
-                                    Country (Optional)
+                                    Country <span class="text-danger">*</span>
                                 </label>
-                                <select class="form-select form-select-lg" id="countrySelect" name="country_id">
-                                    <option value="">All Countries</option>
+                                <select class="form-select form-select-lg" id="countrySelect" name="country_id" required>
                                     @foreach($countries as $country)
-                                        <option value="{{ $country->id }}">{{ $country->name }}</option>
+                                        @if($country->code === 'VG')
+                                            <option value="{{ $country->id }}" selected>{{ $country->name }}</option>
+                                        @endif
                                     @endforeach
                                 </select>
+                                <div class="form-text">
+                                    Using British Virgin Islands tariff schedule
+                                </div>
                             </div>
                         </div>
                         <div class="mt-4 text-center">
@@ -118,23 +122,107 @@
                                     <label class="text-muted small text-uppercase d-block mb-2">Duty Rate</label>
                                     <h2 id="resultDutyRate" class="text-success mb-0">-</h2>
                                 </div>
-                                <div id="alternativesSection" class="mt-3 d-none">
-                                    <label class="text-muted small text-uppercase">Alternative Codes</label>
-                                    <ul id="alternativesList" class="list-unstyled mb-0 small">
-                                    </ul>
+                                <div class="mt-3">
+                                    <label class="text-muted small text-uppercase d-block mb-2">Vector Score</label>
+                                    <div class="progress" style="height: 20px;">
+                                        <div id="vectorScoreBar" class="progress-bar bg-info" role="progressbar" style="width: 0%">
+                                            <span id="vectorScoreText">0%</span>
+                                        </div>
+                                    </div>
                                 </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Ambiguity Warning -->
+                        <div id="ambiguityWarning" class="alert alert-warning mt-4 d-none">
+                            <i class="fas fa-exclamation-triangle me-2"></i>
+                            <strong>Multiple Categories Possible:</strong>
+                            <span id="ambiguityNote">This item could fall under multiple categories.</span>
+                        </div>
+                        
+                        <!-- Selected Alternative Notice -->
+                        <div id="selectedAlternativeNotice" class="alert alert-info mt-4 d-none">
+                            <i class="fas fa-check-circle me-2"></i>
+                            <strong>Alternative Selected:</strong> You have selected a different classification. 
+                            <button type="button" class="btn btn-sm btn-outline-primary ms-2" onclick="revertToOriginal()">
+                                <i class="fas fa-undo me-1"></i>Revert to Original
+                            </button>
+                        </div>
+
+                        <!-- Alternatives Section -->
+                        <div id="alternativesSection" class="mt-4 d-none">
+                            <div class="d-flex justify-content-between align-items-center mb-3">
+                                <h6 class="text-muted mb-0">
+                                    <i class="fas fa-list-alt me-2"></i>Alternative Classifications
+                                </h6>
+                                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-toggle="modal" data-bs-target="#alternativesModal">
+                                    <i class="fas fa-expand me-1"></i>View All
+                                </button>
+                            </div>
+                            <div class="table-responsive">
+                                <table class="table table-sm table-hover mb-0">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Code</th>
+                                            <th>Description</th>
+                                            <th>Duty</th>
+                                            <th>Score</th>
+                                            <th style="width: 80px">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="alternativesTableBody">
+                                    </tbody>
+                                </table>
                             </div>
                         </div>
                     </div>
                     <div class="card-footer bg-light">
                         <div class="d-flex justify-content-between align-items-center">
                             <small class="text-muted">
-                                <i class="fas fa-info-circle me-1"></i>
-                                Classification powered by AI. Please verify for official use.
+                                <i class="fas fa-brain me-1"></i>
+                                Classification powered by Qdrant Vector Search. Please verify for official use.
                             </small>
                             <button type="button" class="btn btn-outline-primary btn-sm" onclick="resetForm()">
                                 <i class="fas fa-redo me-1"></i>New Search
                             </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Alternatives Modal -->
+            <div class="modal fade" id="alternativesModal" tabindex="-1" aria-labelledby="alternativesModalLabel" aria-hidden="true">
+                <div class="modal-dialog modal-lg modal-dialog-scrollable">
+                    <div class="modal-content">
+                        <div class="modal-header bg-primary text-white">
+                            <h5 class="modal-title" id="alternativesModalLabel">
+                                <i class="fas fa-list-alt me-2"></i>All Matching Categories
+                            </h5>
+                            <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal" aria-label="Close"></button>
+                        </div>
+                        <div class="modal-body">
+                            <p class="text-muted mb-3">
+                                <i class="fas fa-info-circle me-1"></i>
+                                Click <strong>"Select"</strong> to use a different classification for your item.
+                            </p>
+                            <div class="table-responsive">
+                                <table class="table table-hover">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th style="width: 12%">Code</th>
+                                            <th style="width: 45%">Description</th>
+                                            <th style="width: 12%">Duty Rate</th>
+                                            <th style="width: 16%">Match Score</th>
+                                            <th style="width: 15%">Action</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="allMatchesTableBody">
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
                         </div>
                     </div>
                 </div>
@@ -278,8 +366,19 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
 
+    // Store original result for revert functionality
+    let originalResult = null;
+    let currentResult = null;
+    let allMatchesData = [];
+
     function showResult(data) {
         const match = data.match;
+        
+        // Store original result
+        if (!originalResult) {
+            originalResult = JSON.parse(JSON.stringify(data));
+        }
+        currentResult = data;
         
         document.getElementById('searchedItem').textContent = data.item;
         document.getElementById('resultCode').textContent = match.code || 'N/A';
@@ -304,24 +403,263 @@ document.addEventListener('DOMContentLoaded', function() {
         document.getElementById('resultDutyRate').textContent = 
             dutyRate !== null && dutyRate !== undefined ? dutyRate + '%' : 'N/A';
         
-        // Alternative codes
-        const alternativesSection = document.getElementById('alternativesSection');
-        const alternativesList = document.getElementById('alternativesList');
-        alternativesList.innerHTML = '';
+        // Vector score bar
+        const vectorScore = match.vector_score || 0;
+        const scoreBar = document.getElementById('vectorScoreBar');
+        const scoreText = document.getElementById('vectorScoreText');
+        scoreBar.style.width = vectorScore + '%';
+        scoreText.textContent = vectorScore.toFixed(1) + '%';
         
-        if (match.alternative_codes && match.alternative_codes.length > 0) {
-            match.alternative_codes.forEach(code => {
-                const li = document.createElement('li');
-                li.className = 'text-muted';
-                li.textContent = code;
-                alternativesList.appendChild(li);
+        // Color based on score
+        if (vectorScore >= 40) {
+            scoreBar.className = 'progress-bar bg-success';
+        } else if (vectorScore >= 25) {
+            scoreBar.className = 'progress-bar bg-info';
+        } else {
+            scoreBar.className = 'progress-bar bg-warning';
+        }
+        
+        // Ambiguity warning
+        const ambiguityWarning = document.getElementById('ambiguityWarning');
+        const ambiguityNote = document.getElementById('ambiguityNote');
+        if (match.is_ambiguous && match.ambiguity_note) {
+            ambiguityNote.textContent = match.ambiguity_note;
+            ambiguityWarning.classList.remove('d-none');
+        } else {
+            ambiguityWarning.classList.add('d-none');
+        }
+        
+        // Alternatives table
+        const alternativesSection = document.getElementById('alternativesSection');
+        const alternativesTableBody = document.getElementById('alternativesTableBody');
+        const allMatchesTableBody = document.getElementById('allMatchesTableBody');
+        alternativesTableBody.innerHTML = '';
+        allMatchesTableBody.innerHTML = '';
+        
+        // Combine top match with alternatives for all matches
+        allMatchesData = [];
+        if (match.code) {
+            allMatchesData.push({
+                code: match.code,
+                description: match.description,
+                duty_rate: match.duty_rate,
+                score: match.vector_score || 0,
+                isTop: true,
+                isOriginalTop: true
+            });
+        }
+        
+        if (match.alternatives && match.alternatives.length > 0) {
+            match.alternatives.forEach(alt => {
+                allMatchesData.push({
+                    code: alt.code,
+                    description: alt.description,
+                    duty_rate: alt.duty_rate,
+                    score: alt.score || 0,
+                    isTop: false,
+                    isOriginalTop: false
+                });
+            });
+        }
+        
+        if (allMatchesData.length > 1) {
+            // Show alternatives in card (top 3 alternatives, not including top match)
+            match.alternatives.slice(0, 3).forEach((alt, index) => {
+                const tr = document.createElement('tr');
+                tr.innerHTML = `
+                    <td><code>${alt.code || 'N/A'}</code></td>
+                    <td class="small">${(alt.description || '').substring(0, 50)}...</td>
+                    <td>${alt.duty_rate !== null && alt.duty_rate !== undefined ? alt.duty_rate + '%' : 'N/A'}</td>
+                    <td>
+                        <div class="progress" style="height: 15px; min-width: 60px;">
+                            <div class="progress-bar bg-secondary" style="width: ${alt.score || 0}%">
+                                ${(alt.score || 0).toFixed(0)}%
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        <button type="button" class="btn btn-sm btn-outline-primary" onclick="selectAlternative(${index + 1})">
+                            Select
+                        </button>
+                    </td>
+                `;
+                alternativesTableBody.appendChild(tr);
             });
             alternativesSection.classList.remove('d-none');
+            
+            // Show all matches in modal
+            allMatchesData.forEach((m, index) => {
+                const tr = document.createElement('tr');
+                if (m.isTop) {
+                    tr.className = 'table-success';
+                }
+                tr.id = `modal-row-${index}`;
+                tr.innerHTML = `
+                    <td>
+                        <code class="${m.isTop ? 'fw-bold' : ''}">${m.code || 'N/A'}</code>
+                        ${m.isTop ? '<span class="badge bg-success ms-2">Selected</span>' : ''}
+                        ${m.isOriginalTop && !m.isTop ? '<span class="badge bg-secondary ms-2">Original</span>' : ''}
+                    </td>
+                    <td class="small">${m.description || 'No description'}</td>
+                    <td>${m.duty_rate !== null && m.duty_rate !== undefined ? m.duty_rate + '%' : 'N/A'}</td>
+                    <td>
+                        <div class="progress" style="height: 20px;">
+                            <div class="progress-bar ${m.isTop ? 'bg-success' : 'bg-info'}" style="width: ${m.score}%">
+                                ${m.score.toFixed(1)}%
+                            </div>
+                        </div>
+                    </td>
+                    <td>
+                        ${m.isTop ? 
+                            '<span class="text-success"><i class="fas fa-check-circle"></i> Current</span>' : 
+                            `<button type="button" class="btn btn-sm btn-primary" onclick="selectAlternative(${index})">
+                                <i class="fas fa-check me-1"></i>Select
+                            </button>`
+                        }
+                    </td>
+                `;
+                allMatchesTableBody.appendChild(tr);
+            });
         } else {
             alternativesSection.classList.add('d-none');
         }
         
         resultCard.classList.remove('d-none');
+    }
+
+    window.selectAlternative = function(index) {
+        if (!allMatchesData[index]) return;
+        
+        const selected = allMatchesData[index];
+        
+        // Update the main display
+        document.getElementById('resultCode').textContent = selected.code || 'N/A';
+        document.getElementById('resultDescription').textContent = selected.description || 'No description';
+        document.getElementById('resultDutyRate').textContent = 
+            selected.duty_rate !== null && selected.duty_rate !== undefined ? selected.duty_rate + '%' : 'N/A';
+        
+        // Update vector score bar
+        const vectorScore = selected.score || 0;
+        const scoreBar = document.getElementById('vectorScoreBar');
+        const scoreText = document.getElementById('vectorScoreText');
+        scoreBar.style.width = vectorScore + '%';
+        scoreText.textContent = vectorScore.toFixed(1) + '%';
+        
+        // Update explanation
+        document.getElementById('resultExplanation').textContent = 
+            `Alternative classification selected by user. Original AI suggestion was ${originalResult.match.code}. Selected code: ${selected.code} with ${vectorScore.toFixed(1)}% match score.`;
+        
+        // Update confidence badge
+        const badge = document.getElementById('confidenceBadge');
+        badge.textContent = 'User Selected';
+        badge.className = 'badge bg-white text-primary fs-6';
+        
+        // Update allMatchesData to mark new selection
+        allMatchesData.forEach((m, i) => {
+            m.isTop = (i === index);
+        });
+        
+        // Refresh the modal table
+        refreshModalTable();
+        
+        // Show the "alternative selected" notice
+        document.getElementById('selectedAlternativeNotice').classList.remove('d-none');
+        
+        // Hide ambiguity warning since user made a choice
+        document.getElementById('ambiguityWarning').classList.add('d-none');
+        
+        // Close the modal if open
+        const modal = bootstrap.Modal.getInstance(document.getElementById('alternativesModal'));
+        if (modal) {
+            modal.hide();
+        }
+    }
+
+    function refreshModalTable() {
+        const allMatchesTableBody = document.getElementById('allMatchesTableBody');
+        allMatchesTableBody.innerHTML = '';
+        
+        allMatchesData.forEach((m, index) => {
+            const tr = document.createElement('tr');
+            if (m.isTop) {
+                tr.className = 'table-success';
+            }
+            tr.id = `modal-row-${index}`;
+            tr.innerHTML = `
+                <td>
+                    <code class="${m.isTop ? 'fw-bold' : ''}">${m.code || 'N/A'}</code>
+                    ${m.isTop ? '<span class="badge bg-success ms-2">Selected</span>' : ''}
+                    ${m.isOriginalTop && !m.isTop ? '<span class="badge bg-secondary ms-2">Original</span>' : ''}
+                </td>
+                <td class="small">${m.description || 'No description'}</td>
+                <td>${m.duty_rate !== null && m.duty_rate !== undefined ? m.duty_rate + '%' : 'N/A'}</td>
+                <td>
+                    <div class="progress" style="height: 20px;">
+                        <div class="progress-bar ${m.isTop ? 'bg-success' : 'bg-info'}" style="width: ${m.score}%">
+                            ${m.score.toFixed(1)}%
+                        </div>
+                    </div>
+                </td>
+                <td>
+                    ${m.isTop ? 
+                        '<span class="text-success"><i class="fas fa-check-circle"></i> Current</span>' : 
+                        `<button type="button" class="btn btn-sm btn-primary" onclick="selectAlternative(${index})">
+                            <i class="fas fa-check me-1"></i>Select
+                        </button>`
+                    }
+                </td>
+            `;
+            allMatchesTableBody.appendChild(tr);
+        });
+    }
+
+    window.revertToOriginal = function() {
+        if (!originalResult) return;
+        
+        // Reset allMatchesData
+        allMatchesData.forEach((m, i) => {
+            m.isTop = m.isOriginalTop;
+        });
+        
+        // Restore original display
+        const match = originalResult.match;
+        document.getElementById('resultCode').textContent = match.code || 'N/A';
+        document.getElementById('resultDescription').textContent = match.description || 'No description';
+        document.getElementById('resultExplanation').textContent = match.explanation || 'No explanation provided';
+        document.getElementById('resultDutyRate').textContent = 
+            match.duty_rate !== null && match.duty_rate !== undefined ? match.duty_rate + '%' : 'N/A';
+        
+        // Restore vector score
+        const vectorScore = match.vector_score || 0;
+        const scoreBar = document.getElementById('vectorScoreBar');
+        const scoreText = document.getElementById('vectorScoreText');
+        scoreBar.style.width = vectorScore + '%';
+        scoreText.textContent = vectorScore.toFixed(1) + '%';
+        
+        // Restore confidence badge
+        const confidence = match.confidence || 0;
+        const badge = document.getElementById('confidenceBadge');
+        badge.textContent = confidence + '% Confidence';
+        if (confidence >= 80) {
+            badge.className = 'badge bg-white text-success fs-6';
+        } else if (confidence >= 50) {
+            badge.className = 'badge bg-white text-warning fs-6';
+        } else {
+            badge.className = 'badge bg-white text-danger fs-6';
+        }
+        
+        // Restore ambiguity warning if applicable
+        const ambiguityWarning = document.getElementById('ambiguityWarning');
+        if (match.is_ambiguous && match.ambiguity_note) {
+            document.getElementById('ambiguityNote').textContent = match.ambiguity_note;
+            ambiguityWarning.classList.remove('d-none');
+        }
+        
+        // Hide the notice
+        document.getElementById('selectedAlternativeNotice').classList.add('d-none');
+        
+        // Refresh modal
+        refreshModalTable();
     }
 
     function showError(message) {
@@ -335,6 +673,11 @@ document.addEventListener('DOMContentLoaded', function() {
         resultCard.classList.add('d-none');
         errorState.classList.add('d-none');
         examplesSection.classList.remove('d-none');
+        // Clear stored results
+        originalResult = null;
+        currentResult = null;
+        allMatchesData = [];
+        document.getElementById('selectedAlternativeNotice').classList.add('d-none');
         itemInput.focus();
     };
 });

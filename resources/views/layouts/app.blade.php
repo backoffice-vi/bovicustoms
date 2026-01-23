@@ -3,6 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <meta name="csrf-token" content="{{ csrf_token() }}">
     <title>@yield('title', 'BoVi Customs - Customs Automation Platform')</title>
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -10,6 +11,7 @@
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <!-- Custom CSS -->
     <link href="{{ asset('css/custom.css') }}" rel="stylesheet">
+    @stack('styles')
 </head>
 <body>
     <nav class="navbar navbar-expand-lg navbar-light bg-light">
@@ -42,8 +44,23 @@
                         <a class="nav-link" href="{{ route('declaration-forms.index') }}">Declaration Forms</a>
                     </li>
                     <li class="nav-item">
+                        <a class="nav-link" href="{{ route('legacy-clearances.index') }}">
+                            <i class="fas fa-archive me-1"></i>Legacy Clearances
+                        </a>
+                    </li>
+                    <li class="nav-item">
                         <a class="nav-link" href="{{ route('classification.index') }}">
                             <i class="fas fa-robot me-1"></i>Classify Item
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('trade-contacts.index') }}">
+                            <i class="fas fa-address-book me-1"></i>Trade Contacts
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('shipments.index') }}">
+                            <i class="fas fa-ship me-1"></i>Shipments
                         </a>
                     </li>
                     @if(auth()->user()->organization)
@@ -70,6 +87,12 @@
                             <li><a class="dropdown-item" href="{{ route('admin.law-documents.index') }}">
                                 <i class="fas fa-gavel me-1"></i>Law Documents
                             </a></li>
+                            <li><a class="dropdown-item" href="{{ route('admin.country-documents.index') }}">
+                                <i class="fas fa-file-alt me-1"></i>Country Documents
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ route('admin.country-levies.index') }}">
+                                <i class="fas fa-percentage me-1"></i>Country Levies
+                            </a></li>
                         </ul>
                     </li>
                     @endif
@@ -83,7 +106,9 @@
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
                             <li><a class="dropdown-item" href="#">Profile</a></li>
-                            <li><a class="dropdown-item" href="#">Settings</a></li>
+                            <li><a class="dropdown-item" href="{{ route('settings.classification-rules') }}">
+                                <i class="fas fa-cogs me-1"></i>Classification Rules
+                            </a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <form method="POST" action="{{ route('logout') }}">
@@ -113,5 +138,6 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Custom JS -->
     <script src="{{ asset('js/custom.js') }}"></script>
+    @stack('scripts')
 </body>
 </html>

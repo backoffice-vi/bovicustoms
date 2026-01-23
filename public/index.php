@@ -1,5 +1,9 @@
 <?php
 
+// Increase memory and time limits for large file processing
+ini_set('memory_limit', '512M');
+set_time_limit(900); // 15 minutes for multi-pass document processing
+
 use Illuminate\Contracts\Http\Kernel;
 use Illuminate\Http\Request;
 

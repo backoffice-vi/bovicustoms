@@ -11,10 +11,6 @@
         </a>
     </div>
 
-    @php
-        $declarationForms = \App\Models\DeclarationForm::with(['country', 'invoice'])->latest()->paginate(10);
-    @endphp
-
     @if($declarationForms->count() > 0)
         <div class="card">
             <div class="card-body">
@@ -58,13 +54,13 @@
                                 <td>{{ $form->created_at->format('M d, Y') }}</td>
                                 <td>
                                     <div class="btn-group" role="group">
-                                        <button type="button" class="btn btn-sm btn-outline-primary" title="View">
+                                        <a href="{{ route('declaration-forms.show', $form) }}" class="btn btn-sm btn-outline-primary" title="View">
                                             <i class="fas fa-eye"></i>
-                                        </button>
-                                        <button type="button" class="btn btn-sm btn-outline-success" title="Download">
+                                        </a>
+                                        <button type="button" class="btn btn-sm btn-outline-success" title="Download" disabled>
                                             <i class="fas fa-download"></i>
                                         </button>
-                                        <button type="button" class="btn btn-sm btn-outline-secondary" title="Print">
+                                        <button type="button" class="btn btn-sm btn-outline-secondary" title="Print" disabled>
                                             <i class="fas fa-print"></i>
                                         </button>
                                     </div>

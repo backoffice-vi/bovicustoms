@@ -20,6 +20,13 @@
         </div>
     @endif
 
+    @if(session('info'))
+        <div class="alert alert-info alert-dismissible fade show" role="alert">
+            <i class="fas fa-info-circle me-2"></i>{{ session('info') }}
+            <button type="button" class="btn-close" data-bs-dismiss="alert"></button>
+        </div>
+    @endif
+
     @if(session('warning'))
         <div class="alert alert-warning alert-dismissible fade show" role="alert">
             {{ session('warning') }}
@@ -34,13 +41,26 @@
         </div>
     @endif
 
+    <!-- Processing Progress Banner -->
+    @if($lawDocument->isProcessing())
+        <div class="alert alert-info d-flex align-items-center" id="processing-banner">
+            <div class="spinner-border spinner-border-sm me-3" role="status">
+                <span class="visually-hidden">Processing...</span>
+            </div>
+            <div>
+                <strong>Processing in Background</strong>
+                <p class="mb-0 small">The document is being processed. This page will automatically refresh when complete.</p>
+            </div>
+        </div>
+    @endif
+
     <div class="row">
         <!-- Document Info -->
         <div class="col-lg-8">
             <div class="card mb-4">
                 <div class="card-header d-flex justify-content-between align-items-center">
                     <h5 class="mb-0">Document Information</h5>
-                    <span class="badge {{ $lawDocument->status_badge_class }} fs-6">
+                    <span class="badge bg-{{ $lawDocument->status === 'pending' ? 'warning' : ($lawDocument->status === 'processing' ? 'info' : ($lawDocument->status === 'completed' ? 'success' : 'danger')) }} fs-6" id="status-badge">
                         {{ ucfirst($lawDocument->status) }}
                     </span>
                 </div>
@@ -101,12 +121,12 @@
                 <div class="card">
                     <div class="card-header">
                         <h5 class="mb-0">
-                            <i class="fas fa-history me-2"></i>Changes Made ({{ $historyEntries->count() }})
+                            <i class="fas fa-history me-2"></i>Changes Made (<span id="history-count">{{ $historyEntries->count() }}</span>)
                         </h5>
                     </div>
-                    <div class="table-responsive">
+                    <div class="table-responsive" style="max-height: 500px; overflow-y: auto;">
                         <table class="table table-sm mb-0">
-                            <thead class="table-light">
+                            <thead class="table-light sticky-top">
                                 <tr>
                                     <th>Customs Code</th>
                                     <th>Change</th>
@@ -141,7 +161,7 @@
                     <h5 class="mb-0">Actions</h5>
                 </div>
                 <div class="card-body">
-                    <div class="d-grid gap-2">
+                    <div class="d-grid gap-2" id="action-buttons">
                         <!-- Process Button -->
                         @if($lawDocument->isPending() || $lawDocument->isFailed())
                             <form method="POST" action="{{ route('admin.law-documents.process', $lawDocument) }}">
@@ -193,13 +213,52 @@
                     </p>
                     <ul class="text-muted small mb-0">
                         <li>Extract text from the document</li>
-                        <li>Identify tariff codes and descriptions</li>
-                        <li>Update or create customs codes</li>
+                        <li>Identify tariff sections and chapters</li>
+                        <li>Extract chapter notes and exclusion rules</li>
+                        <li>Extract all tariff codes with duty rates</li>
+                        <li>Extract exemptions and prohibited goods</li>
                         <li>Log all changes for audit</li>
                     </ul>
+                    <hr>
+                    <p class="text-muted small mb-0">
+                        <i class="fas fa-clock me-1"></i> Large documents may take 10-15 minutes to process.
+                    </p>
                 </div>
             </div>
         </div>
     </div>
 </div>
+
+@if($lawDocument->isProcessing())
+<script>
+    // Poll for status updates while processing
+    const statusUrl = "{{ route('admin.law-documents.status', $lawDocument) }}";
+    let pollInterval;
+    
+    function checkStatus() {
+        fetch(statusUrl)
+            .then(response => response.json())
+            .then(data => {
+                // Update history count
+                document.getElementById('history-count').textContent = data.history_count;
+                
+                // If status changed from processing
+                if (data.status !== 'processing') {
+                    clearInterval(pollInterval);
+                    // Reload page to show new status
+                    window.location.reload();
+                }
+            })
+            .catch(error => {
+                console.error('Status check failed:', error);
+            });
+    }
+    
+    // Check every 5 seconds
+    pollInterval = setInterval(checkStatus, 5000);
+    
+    // Also check immediately
+    setTimeout(checkStatus, 1000);
+</script>
+@endif
 @endsection

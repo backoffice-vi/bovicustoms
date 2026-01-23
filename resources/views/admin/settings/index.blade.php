@@ -64,34 +64,59 @@
 
                         <div class="mb-3">
                             <label for="claude_model" class="form-label">Claude Model</label>
-                            <select class="form-select @error('claude_model') is-invalid @enderror" 
-                                    id="claude_model" name="claude_model">
-                                <option value="claude-sonnet-4-20250514" {{ old('claude_model', $settings['claude_model']) == 'claude-sonnet-4-20250514' ? 'selected' : '' }}>
-                                    Claude Sonnet 4 (Recommended)
-                                </option>
-                                <option value="claude-3-5-sonnet-20241022" {{ old('claude_model', $settings['claude_model']) == 'claude-3-5-sonnet-20241022' ? 'selected' : '' }}>
-                                    Claude 3.5 Sonnet
-                                </option>
-                                <option value="claude-3-opus-20240229" {{ old('claude_model', $settings['claude_model']) == 'claude-3-opus-20240229' ? 'selected' : '' }}>
-                                    Claude 3 Opus
-                                </option>
-                            </select>
+                            <input type="text" class="form-control @error('claude_model') is-invalid @enderror" 
+                                   id="claude_model" name="claude_model" 
+                                   value="{{ old('claude_model', $settings['claude_model']) }}"
+                                   placeholder="e.g., claude-sonnet-4-20250514">
                             @error('claude_model')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
+                            <small class="form-text text-muted">
+                                Common models: <strong>claude-sonnet-4-20250514</strong> (Sonnet 4.5), 
+                                <strong>claude-3-5-sonnet-20241022</strong> (3.5 Sonnet), 
+                                <strong>claude-3-opus-20240229</strong> (3 Opus)
+                            </small>
                         </div>
 
                         <div class="mb-3">
-                            <label for="claude_max_tokens" class="form-label">Max Tokens</label>
+                            <label for="claude_max_tokens" class="form-label">Max Output Tokens</label>
                             <input type="number" class="form-control @error('claude_max_tokens') is-invalid @enderror" 
                                    id="claude_max_tokens" name="claude_max_tokens" 
                                    value="{{ old('claude_max_tokens', $settings['claude_max_tokens']) }}"
-                                   min="100" max="200000">
+                                   min="100" max="16384">
                             @error('claude_max_tokens')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
                             <small class="form-text text-muted">
-                                Maximum response length (default: 4096)
+                                Maximum response length (Claude 3.x: 8192, Claude 4.x: check model specs)
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="claude_max_context_tokens" class="form-label">Max Context Window Tokens</label>
+                            <input type="number" class="form-control @error('claude_max_context_tokens') is-invalid @enderror" 
+                                   id="claude_max_context_tokens" name="claude_max_context_tokens" 
+                                   value="{{ old('claude_max_context_tokens', config('services.claude.max_context_tokens', 200000)) }}"
+                                   min="100000" max="500000">
+                            @error('claude_max_context_tokens')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <small class="form-text text-muted">
+                                Max input tokens the model can handle (200k for most models)
+                            </small>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="claude_chunk_size" class="form-label">Document Chunk Size (tokens)</label>
+                            <input type="number" class="form-control @error('claude_chunk_size') is-invalid @enderror" 
+                                   id="claude_chunk_size" name="claude_chunk_size" 
+                                   value="{{ old('claude_chunk_size', config('services.claude.chunk_size', 95000)) }}"
+                                   min="10000" max="200000">
+                            @error('claude_chunk_size')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                            <small class="form-text text-muted">
+                                Split large documents into chunks of this size (default: 95,000 to stay under 100k)
                             </small>
                         </div>
 
@@ -248,6 +273,59 @@ document.addEventListener('DOMContentLoaded', function() {
         .finally(() => {
             btn.disabled = false;
             btn.innerHTML = originalText;
+        });
+    });
+
+    // Handle form submissions via AJAX to avoid connection reset issues
+    document.querySelectorAll('form').forEach(function(form) {
+        form.addEventListener('submit', function(e) {
+            e.preventDefault();
+            
+            const submitBtn = form.querySelector('button[type="submit"]');
+            const originalText = submitBtn.innerHTML;
+            submitBtn.disabled = true;
+            submitBtn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i> Saving...';
+
+            const formData = new FormData(form);
+
+            fetch(form.action, {
+                method: 'POST',
+                headers: {
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest'
+                },
+                body: formData
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.success) {
+                    // Show success message
+                    submitBtn.innerHTML = '<i class="fas fa-check me-1"></i> Saved! Reloading...';
+                    submitBtn.classList.remove('btn-primary');
+                    submitBtn.classList.add('btn-success');
+                    
+                    // Wait for server to restart, then reload
+                    setTimeout(function() {
+                        window.location.reload();
+                    }, 2000);
+                } else {
+                    alert('Error: ' + (data.message || 'Failed to save settings'));
+                    submitBtn.disabled = false;
+                    submitBtn.innerHTML = originalText;
+                }
+            })
+            .catch(error => {
+                // Connection may have been reset due to server restart - this is expected
+                submitBtn.innerHTML = '<i class="fas fa-check me-1"></i> Saved! Reloading...';
+                submitBtn.classList.remove('btn-primary');
+                submitBtn.classList.add('btn-success');
+                
+                // Wait for server to restart, then reload
+                setTimeout(function() {
+                    window.location.reload();
+                }, 2500);
+            });
         });
     });
 });

@@ -19,12 +19,15 @@ class LawDocument extends Model
         'status',
         'processed_at',
         'error_message',
+        'extracted_text',
+        'extracted_at',
         'uploaded_by',
     ];
 
     protected $casts = [
         'file_size' => 'integer',
         'processed_at' => 'datetime',
+        'extracted_at' => 'datetime',
     ];
 
     /**
@@ -155,6 +158,36 @@ class LawDocument extends Model
     public function getFullPath(): string
     {
         return storage_path('app/' . $this->file_path);
+    }
+
+    /**
+     * Check if extracted text is cached
+     */
+    public function hasExtractedText(): bool
+    {
+        return !empty($this->extracted_text);
+    }
+
+    /**
+     * Store extracted text for caching
+     */
+    public function storeExtractedText(string $text): void
+    {
+        $this->update([
+            'extracted_text' => $text,
+            'extracted_at' => now(),
+        ]);
+    }
+
+    /**
+     * Clear cached extracted text (for force re-extraction)
+     */
+    public function clearExtractedText(): void
+    {
+        $this->update([
+            'extracted_text' => null,
+            'extracted_at' => null,
+        ]);
     }
 
     /**

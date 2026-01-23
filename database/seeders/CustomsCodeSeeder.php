@@ -6,13 +6,47 @@ use Illuminate\Database\Seeder;
 use App\Models\CustomsCode;
 use App\Models\Country;
 
+/**
+ * ⚠️ WARNING: DO NOT USE THIS SEEDER ⚠️
+ * 
+ * Classification data (customs codes, tariff chapters, etc.) should NEVER be seeded.
+ * This causes problems because:
+ * - Hardcoded data conflicts with real tariff data from official sources
+ * - Seeder data can overwrite or duplicate legitimate classification entries
+ * - Classification data is complex and hierarchical
+ * 
+ * Instead, use:
+ * - Admin Import Tools - Import official tariff schedules via admin panel
+ * - Law Document Processing - Process official customs legislation documents
+ * - Manual Admin Entry - Add individual codes through admin interface
+ * 
+ * @deprecated This seeder is disabled and should not be used.
+ */
 class CustomsCodeSeeder extends Seeder
 {
     /**
      * Run the database seeds.
+     * 
+     * @deprecated DO NOT RUN - Classification data should not be seeded.
      */
     public function run(): void
     {
+        // ⚠️ DISABLED - DO NOT USE SEEDERS FOR CLASSIFICATION DATA
+        $this->command->error('');
+        $this->command->error('⚠️  CustomsCodeSeeder is DISABLED');
+        $this->command->error('');
+        $this->command->error('Classification data should NOT be seeded.');
+        $this->command->error('Use admin import tools or law document processing instead.');
+        $this->command->error('');
+        
+        return;
+        
+        // ----------------------------------------------------------------
+        // THE CODE BELOW IS INTENTIONALLY DISABLED
+        // DO NOT UNCOMMENT OR RE-ENABLE
+        // ----------------------------------------------------------------
+        
+        /*
         // Get some countries to seed codes for
         $vgb = Country::where('code', 'VGB')->first();
         $usa = Country::where('code', 'USA')->first();
@@ -51,5 +85,6 @@ class CustomsCodeSeeder extends Seeder
         }
 
         $this->command->info('Sample customs codes seeded for VGB, USA, and GBR.');
+        */
     }
 }

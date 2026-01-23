@@ -20,6 +20,10 @@ class Invoice extends Model
         'items',
         'parsed_data',
         'processed',
+        'source_type',
+        'source_file_path',
+        'extracted_text',
+        'extraction_meta',
     ];
 
     protected $casts = [
@@ -28,6 +32,7 @@ class Invoice extends Model
         'items' => 'array',
         'parsed_data' => 'array',
         'processed' => 'boolean',
+        'extraction_meta' => 'array',
     ];
 
     protected static function boot()
@@ -77,5 +82,20 @@ class Invoice extends Model
     public function declarationForms()
     {
         return $this->hasMany(DeclarationForm::class);
+    }
+
+    public function invoiceItems()
+    {
+        return $this->hasMany(InvoiceItem::class);
+    }
+
+    /**
+     * Get shipments that include this invoice
+     */
+    public function shipments()
+    {
+        return $this->belongsToMany(Shipment::class, 'shipment_invoices')
+            ->withPivot(['prorated_freight', 'prorated_insurance', 'invoice_fob'])
+            ->withTimestamps();
     }
 }

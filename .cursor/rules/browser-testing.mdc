@@ -1,0 +1,82 @@
+---
+description: Browser Testing Rule - Test all developments using browser tools
+globs:
+  - "**/*.php"
+  - "**/*.blade.php"
+  - "**/*.js"
+  - "**/*.ts"
+  - "**/*.vue"
+  - "**/*.css"
+  - "**/*.scss"
+alwaysApply: true
+---
+
+# Browser Testing Rule
+
+After implementing any feature, fix, or change that affects the user interface or application behavior, you MUST test it using the browser tools.
+
+## Testing Protocol
+
+### 1. After Every Code Change
+When you complete a code change that affects:
+- Views/templates (Blade, Vue, etc.)
+- Controllers or routes
+- JavaScript/TypeScript functionality
+- CSS/styling changes
+- API endpoints that render pages
+- Form handling or validation
+
+You MUST:
+1. Navigate to the affected page using `browser_navigate`
+2. Take a snapshot using `browser_snapshot` to verify the page loads correctly
+3. Interact with any new/modified elements using `browser_click`, `browser_type`, etc.
+4. Verify the expected behavior occurred
+5. Take a screenshot if visual verification is needed using `browser_take_screenshot`
+
+### 2. Testing Flow
+```
+1. Make code changes
+2. Navigate to the relevant page (http://127.0.0.1:8010/...)
+3. Snapshot the page to get element references
+4. Test interactions (clicks, form submissions, etc.)
+5. Verify results by checking page state or taking screenshots
+6. Report success or fix any issues found
+```
+
+### 3. Common Test Scenarios
+
+#### For New Pages/Views:
+- Verify the page loads without errors
+- Check that all expected elements are present
+- Test any forms or interactive elements
+
+#### For Bug Fixes:
+- Reproduce the original issue first (if possible)
+- Apply the fix
+- Verify the issue is resolved
+- Test related functionality hasn't broken
+
+#### For Form Changes:
+- Fill out the form with test data
+- Submit the form
+- Verify success/error messages appear correctly
+- Check data persistence if applicable
+
+### 4. Error Handling
+If a page shows an error:
+1. Take a screenshot of the error
+2. Read the error message carefully
+3. Fix the underlying issue
+4. Re-test until the page works correctly
+
+### 5. Authentication
+If pages require authentication:
+- Login credentials: `admin@bvicustoms.com` / `admin123`
+- Use `browser_type` to fill login forms
+- Verify successful login before proceeding
+
+## Remember
+- Never skip browser testing for UI-related changes
+- Always verify fixes work before reporting completion
+- Test both happy paths and edge cases when relevant
+- The app runs on `http://127.0.0.1:8010`

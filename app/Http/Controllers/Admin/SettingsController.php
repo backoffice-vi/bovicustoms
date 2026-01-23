@@ -27,14 +27,28 @@ class SettingsController extends Controller
         $validated = $request->validate([
             'claude_api_key' => 'nullable|string',
             'claude_model' => 'nullable|string',
-            'claude_max_tokens' => 'nullable|integer|min:100|max:200000',
+            'claude_max_tokens' => 'nullable|integer|min:100|max:20000',
+            'claude_max_context_tokens' => 'nullable|integer|min:100000|max:500000',
+            'claude_chunk_size' => 'nullable|integer|min:10000|max:200000',
             'openai_api_key' => 'nullable|string',
         ]);
 
         $this->updateEnvFile($validated);
 
-        // Clear config cache
-        Artisan::call('config:clear');
+        // Clear config cache (wrapped in try-catch as server may restart)
+        try {
+            Artisan::call('config:clear');
+        } catch (\Exception $e) {
+            // Server may be restarting, which is fine
+        }
+
+        // If AJAX request, return JSON response
+        if ($request->ajax() || $request->wantsJson()) {
+            return response()->json([
+                'success' => true,
+                'message' => 'Settings saved successfully. Server is restarting...'
+            ]);
+        }
 
         return redirect()->route('admin.settings.index')
             ->with('success', 'AI settings updated successfully. Configuration cache cleared.');
@@ -95,12 +109,15 @@ class SettingsController extends Controller
             'claude_api_key' => config('services.claude.api_key'),
             'claude_model' => config('services.claude.model'),
             'claude_max_tokens' => config('services.claude.max_tokens'),
+            'claude_max_context_tokens' => config('services.claude.max_context_tokens'),
+            'claude_chunk_size' => config('services.claude.chunk_size'),
             'openai_api_key' => config('services.openai.api_key'),
         ];
     }
 
     /**
      * Update .env file with new settings
+     * Only updates values that are present in the settings array (key exists)
      */
     private function updateEnvFile(array $settings)
     {
@@ -112,16 +129,28 @@ class SettingsController extends Controller
 
         $envContent = File::get($envPath);
 
-        $updates = [
-            'CLAUDE_API_KEY' => $settings['claude_api_key'] ?? '',
-            'CLAUDE_MODEL' => $settings['claude_model'] ?? 'claude-sonnet-4-20250514',
-            'CLAUDE_MAX_TOKENS' => $settings['claude_max_tokens'] ?? 4096,
-            'OPENAI_API_KEY' => $settings['openai_api_key'] ?? '',
+        // Map form field names to env variable names with defaults
+        $fieldMapping = [
+            'claude_api_key' => ['env' => 'CLAUDE_API_KEY', 'default' => ''],
+            'claude_model' => ['env' => 'CLAUDE_MODEL', 'default' => 'claude-sonnet-4-20250514'],
+            'claude_max_tokens' => ['env' => 'CLAUDE_MAX_TOKENS', 'default' => 8192],
+            'claude_max_context_tokens' => ['env' => 'CLAUDE_MAX_CONTEXT_TOKENS', 'default' => 200000],
+            'claude_chunk_size' => ['env' => 'CLAUDE_CHUNK_SIZE', 'default' => 95000],
+            'openai_api_key' => ['env' => 'OPENAI_API_KEY', 'default' => ''],
         ];
 
-        foreach ($updates as $key => $value) {
-            $pattern = "/^{$key}=.*/m";
-            $replacement = "{$key}={$value}";
+        // Only update fields that were actually submitted in the form
+        foreach ($fieldMapping as $formField => $config) {
+            // Only update if the key exists in the submitted settings
+            if (!array_key_exists($formField, $settings)) {
+                continue;
+            }
+            
+            $envKey = $config['env'];
+            $value = $settings[$formField] ?? $config['default'];
+            
+            $pattern = "/^{$envKey}=.*/m";
+            $replacement = "{$envKey}={$value}";
             
             if (preg_match($pattern, $envContent)) {
                 // Update existing key

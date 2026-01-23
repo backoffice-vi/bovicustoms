@@ -15,11 +15,40 @@ class CustomsCode extends Model
         'hs_code_version',
         'description',
         'duty_rate',
+        // Hierarchical fields
+        'tariff_chapter_id',
+        'parent_code',
+        'code_level',
+        // Units
+        'unit_of_measurement',
+        'unit_secondary',
+        // Rates
+        'special_rate',
+        'notes',
+        // Classification aids
+        'classification_keywords',
+        'applicable_note_ids',
+        'applicable_exemption_ids',
+        'similar_code_ids',
+        'inclusion_hints',
     ];
 
     protected $casts = [
         'duty_rate' => 'decimal:2',
+        'special_rate' => 'decimal:2',
+        'classification_keywords' => 'array',
+        'applicable_note_ids' => 'array',
+        'applicable_exemption_ids' => 'array',
+        'similar_code_ids' => 'array',
     ];
+
+    /**
+     * Code levels
+     */
+    const LEVEL_CHAPTER = 'chapter';
+    const LEVEL_HEADING = 'heading';
+    const LEVEL_SUBHEADING = 'subheading';
+    const LEVEL_ITEM = 'item';
 
     /**
      * Fields to track for history
@@ -70,6 +99,32 @@ class CustomsCode extends Model
     }
 
     /**
+     * Get the tariff chapter this code belongs to
+     */
+    public function tariffChapter()
+    {
+        return $this->belongsTo(TariffChapter::class);
+    }
+
+    /**
+     * Get the parent code (for hierarchical structure)
+     */
+    public function parent()
+    {
+        return $this->belongsTo(CustomsCode::class, 'parent_code', 'code')
+            ->where('country_id', $this->country_id);
+    }
+
+    /**
+     * Get child codes (for hierarchical structure)
+     */
+    public function children()
+    {
+        return $this->hasMany(CustomsCode::class, 'parent_code', 'code')
+            ->where('country_id', $this->country_id);
+    }
+
+    /**
      * Get the history entries for this code
      */
     public function history()
@@ -95,6 +150,34 @@ class CustomsCode extends Model
     }
 
     /**
+     * Scope to filter by chapter
+     */
+    public function scopeForChapter($query, $chapterId)
+    {
+        return $query->where('tariff_chapter_id', $chapterId);
+    }
+
+    /**
+     * Scope to filter by code level
+     */
+    public function scopeOfLevel($query, $level)
+    {
+        return $query->where('code_level', $level);
+    }
+
+    /**
+     * Scope to search by keywords
+     */
+    public function scopeMatchingKeywords($query, array $keywords)
+    {
+        return $query->where(function ($q) use ($keywords) {
+            foreach ($keywords as $keyword) {
+                $q->orWhereJsonContains('classification_keywords', strtolower($keyword));
+            }
+        });
+    }
+
+    /**
      * Update with history tracking from a law document
      */
     public function updateWithHistory(array $data, ?int $lawDocumentId = null): bool
@@ -117,5 +200,120 @@ class CustomsCode extends Model
         $this->trackingLawDocumentId = $lawDocumentId;
         
         return $this->update($data);
+    }
+
+    /**
+     * Get applicable exemptions for this code
+     */
+    public function getApplicableExemptions(): \Illuminate\Database\Eloquent\Collection
+    {
+        if (!empty($this->applicable_exemption_ids)) {
+            return ExemptionCategory::whereIn('id', $this->applicable_exemption_ids)
+                ->active()
+                ->with('conditions')
+                ->get();
+        }
+
+        // Fallback: find by pattern matching
+        return ExemptionCategory::findForCode($this->code, $this->country_id);
+    }
+
+    /**
+     * Get additional levies for this code's chapter
+     */
+    public function getAdditionalLevies(): \Illuminate\Support\Collection
+    {
+        if (!$this->tariff_chapter_id) {
+            return collect();
+        }
+
+        return AdditionalLevy::findForChapter($this->tariff_chapter_id, $this->country_id);
+    }
+
+    /**
+     * Get all applicable notes (section + chapter)
+     */
+    public function getAllApplicableNotes(): array
+    {
+        if ($this->tariffChapter) {
+            return $this->tariffChapter->getAllApplicableNotes();
+        }
+
+        return [];
+    }
+
+    /**
+     * Calculate total duty including levies
+     */
+    public function calculateTotalDuty(float $value, float $quantity = 1, ?string $organization = null): array
+    {
+        $baseDuty = $this->duty_rate ? $value * ($this->duty_rate / 100) : 0;
+        
+        $levies = [];
+        $totalLevies = 0;
+        
+        foreach ($this->getAdditionalLevies() as $levy) {
+            if ($organization && $levy->isOrganizationExempt($organization)) {
+                continue;
+            }
+            
+            $levyAmount = $levy->calculateAmount($value, $quantity);
+            $levies[] = [
+                'name' => $levy->levy_name,
+                'amount' => $levyAmount,
+                'rate' => $levy->formatted_rate,
+            ];
+            $totalLevies += $levyAmount;
+        }
+
+        return [
+            'base_duty_rate' => $this->duty_rate,
+            'base_duty_amount' => $baseDuty,
+            'additional_levies' => $levies,
+            'total_levies' => $totalLevies,
+            'total_duty' => $baseDuty + $totalLevies,
+        ];
+    }
+
+    /**
+     * Get similar codes
+     */
+    public function getSimilarCodes(): \Illuminate\Database\Eloquent\Collection
+    {
+        if (!empty($this->similar_code_ids)) {
+            return static::whereIn('id', $this->similar_code_ids)->get();
+        }
+
+        return collect();
+    }
+
+    /**
+     * Extract chapter number from code
+     */
+    public function getChapterNumberAttribute(): ?string
+    {
+        if (preg_match('/^(\d{2})/', $this->code, $matches)) {
+            return $matches[1];
+        }
+        return null;
+    }
+
+    /**
+     * Get formatted unit display
+     */
+    public function getFormattedUnitAttribute(): ?string
+    {
+        if ($this->unit_of_measurement && $this->unit_secondary) {
+            return "{$this->unit_of_measurement} and {$this->unit_secondary}";
+        }
+        return $this->unit_of_measurement;
+    }
+
+    /**
+     * Check if code has special rate
+     */
+    public function hasSpecialRate(): bool
+    {
+        return $this->special_rate !== null;
     }
 }

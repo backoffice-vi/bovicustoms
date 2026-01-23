@@ -1,0 +1,141 @@
+# Database Safety Rules
+
+## Migration and Table Protection
+
+**NEVER** run the following dangerous database commands:
+
+1. **`php artisan migrate:fresh`** - This drops all tables and re-runs migrations
+2. **`php artisan migrate:refresh`** - This rolls back all migrations and re-runs them
+3. **`php artisan migrate:reset`** - This rolls back all migrations
+4. **`php artisan db:wipe`** - This drops all tables, views, and types
+5. **Direct DROP TABLE statements** - Never execute SQL commands that drop tables
+6. **Destructive migration rollbacks** - Avoid `php artisan migrate:rollback` unless explicitly requested and confirmed
+
+## Allowed Migration Commands
+
+Only use these safe migration commands:
+- `php artisan migrate` - Run pending migrations (adds new tables/columns)
+- `php artisan migrate:status` - Check migration status
+- `php artisan make:migration` - Create new migration files
+
+## Protection Guidelines
+
+1. **Always use additive migrations** - Add columns, indexes, and tables without dropping existing ones
+2. **Preserve existing data** - When modifying tables, ensure data is not lost
+3. **Use database backups** - Before any risky operation, ensure a backup exists
+4. **Explicit user confirmation** - If the user explicitly requests a destructive operation, warn them about data loss and ask for confirmation before proceeding
+
+## When User Requests Destructive Operations
+
+If the user asks to drop tables or run `migrate:fresh`:
+1. ⚠️ **WARN** them about permanent data loss
+2. Explain what data will be lost
+3. Suggest safer alternatives if available
+4. Only proceed if they explicitly confirm understanding of data loss
+
+---
+
+# No Classification Data Seeders
+
+**NEVER** create or use seeders for classification-related data. This will cause problems.
+
+## Prohibited Actions
+
+1. **Do NOT create seeders** for the following classification data:
+   - Customs Codes (`customs_codes` table)
+   - Tariff Chapters (`tariff_chapters` table)
+   - Tariff Sections (`tariff_sections` table)
+   - Tariff Chapter Notes (`tariff_chapter_notes` table)
+   - Tariff Section Notes (`tariff_section_notes` table)
+   - Classification Exclusions (`classification_exclusions` table)
+   - Customs Code History (`customs_code_histories` table)
+
+2. **Do NOT run** `CustomsCodeSeeder` or any classification-related seeder
+
+3. **Do NOT add** classification data to `DatabaseSeeder.php`
+
+## Why This Rule Exists
+
+- Classification data (HS codes, tariff schedules) is complex and hierarchical
+- Hardcoded seeder data conflicts with real tariff data imported from official sources
+- Seeder data can overwrite or duplicate legitimate classification entries
+- Classification data should ONLY be imported through the proper admin import tools or law document processing
+
+## Proper Ways to Populate Classification Data
+
+1. **Admin Import Tools** - Use the admin panel to import official tariff schedules
+2. **Law Document Processing** - Process official customs legislation documents
+3. **Manual Admin Entry** - Add individual codes through the admin interface
+4. **Migration with official data** - If needed, create a migration that imports from verified official sources
+
+---
+
+# Browser Testing Rule
+
+After implementing any feature, fix, or change that affects the user interface or application behavior, you MUST test it using the browser tools.
+
+## Testing Protocol
+
+### 1. After Every Code Change
+When you complete a code change that affects:
+- Views/templates (Blade, Vue, etc.)
+- Controllers or routes
+- JavaScript/TypeScript functionality
+- CSS/styling changes
+- API endpoints that render pages
+- Form handling or validation
+
+You MUST:
+1. Navigate to the affected page using `browser_navigate`
+2. Take a snapshot using `browser_snapshot` to verify the page loads correctly
+3. Interact with any new/modified elements using `browser_click`, `browser_type`, etc.
+4. Verify the expected behavior occurred
+5. Take a screenshot if visual verification is needed using `browser_take_screenshot`
+
+### 2. Testing Flow
+```
+1. Make code changes
+2. Navigate to the relevant page (http://127.0.0.1:8010/...)
+3. Snapshot the page to get element references
+4. Test interactions (clicks, form submissions, etc.)
+5. Verify results by checking page state or taking screenshots
+6. Report success or fix any issues found
+```
+
+### 3. Common Test Scenarios
+
+#### For New Pages/Views:
+- Verify the page loads without errors
+- Check that all expected elements are present
+- Test any forms or interactive elements
+
+#### For Bug Fixes:
+- Reproduce the original issue first (if possible)
+- Apply the fix
+- Verify the issue is resolved
+- Test related functionality hasn't broken
+
+#### For Form Changes:
+- Fill out the form with test data
+- Submit the form
+- Verify success/error messages appear correctly
+- Check data persistence if applicable
+
+### 4. Error Handling
+If a page shows an error:
+1. Take a screenshot of the error
+2. Read the error message carefully
+3. Fix the underlying issue
+4. Re-test until the page works correctly
+
+### 5. Authentication
+If pages require authentication:
+- Login credentials: `admin@bvicustoms.com` / `admin123`
+- Use `browser_type` to fill login forms
+- Verify successful login before proceeding
+
+## Remember
+- Never skip browser testing for UI-related changes
+- Always verify fixes work before reporting completion
+- Test both happy paths and edge cases when relevant
+- The app runs on `http://127.0.0.1:8010`

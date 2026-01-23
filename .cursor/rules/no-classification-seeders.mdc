@@ -1,0 +1,56 @@
+---
+description: No Classification Seeders - Never create seeders for classification data
+globs:
+  - "**/database/seeders/**"
+  - "**/Models/CustomsCode*"
+  - "**/Models/TariffChapter*"
+  - "**/Models/TariffSection*"
+  - "**/classification/**"
+alwaysApply: true
+---
+
+# No Classification Data Seeders
+
+**NEVER** create or use seeders for classification-related data. This will cause problems.
+
+## Prohibited Actions
+
+1. **Do NOT create seeders** for the following classification data:
+   - Customs Codes (`customs_codes` table)
+   - Tariff Chapters (`tariff_chapters` table)
+   - Tariff Sections (`tariff_sections` table)
+   - Tariff Chapter Notes (`tariff_chapter_notes` table)
+   - Tariff Section Notes (`tariff_section_notes` table)
+   - Classification Exclusions (`classification_exclusions` table)
+   - Customs Code History (`customs_code_histories` table)
+
+2. **Do NOT run** `CustomsCodeSeeder` or any classification-related seeder
+
+3. **Do NOT add** classification data to `DatabaseSeeder.php`
+
+## Why This Rule Exists
+
+- Classification data (HS codes, tariff schedules) is complex and hierarchical
+- Hardcoded seeder data conflicts with real tariff data imported from official sources
+- Seeder data can overwrite or duplicate legitimate classification entries
+- Classification data should ONLY be imported through the proper admin import tools or law document processing
+
+## Proper Ways to Populate Classification Data
+
+1. **Admin Import Tools** - Use the admin panel to import official tariff schedules
+2. **Law Document Processing** - Process official customs legislation documents
+3. **Manual Admin Entry** - Add individual codes through the admin interface
+4. **Migration with official data** - If needed, create a migration that imports from verified official sources
+
+## If Classification Data is Needed for Testing
+
+- Use database factories for testing, not seeders
+- Create minimal test fixtures within the test files themselves
+- Never commit test classification data to seeders
+
+## Existing CustomsCodeSeeder
+
+If `CustomsCodeSeeder.php` exists in the project:
+- ⚠️ **DO NOT RUN IT**
+- It should be removed or left empty
+- Do not add it to `DatabaseSeeder.php`

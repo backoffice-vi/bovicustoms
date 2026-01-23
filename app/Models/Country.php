@@ -16,11 +16,25 @@ class Country extends Model
         'is_active',
         'flag_emoji',
         'customs_form_template',
+        'default_insurance_percentage',
+        'default_insurance_method',
     ];
 
     protected $casts = [
         'is_active' => 'boolean',
+        'default_insurance_percentage' => 'decimal:2',
     ];
+
+    /**
+     * Get the default insurance settings for shipments to this country
+     */
+    public function getInsuranceDefaults(): array
+    {
+        return [
+            'method' => $this->default_insurance_method ?? 'percentage',
+            'percentage' => $this->default_insurance_percentage ?? 1.00,
+        ];
+    }
 
     /**
      * Get all customs codes for this country
@@ -44,6 +58,22 @@ class Country extends Model
     public function invoices()
     {
         return $this->hasMany(Invoice::class);
+    }
+
+    /**
+     * Get all form templates for this country
+     */
+    public function formTemplates()
+    {
+        return $this->hasMany(CountryFormTemplate::class);
+    }
+
+    /**
+     * Get all support documents for this country
+     */
+    public function supportDocuments()
+    {
+        return $this->hasMany(CountrySupportDocument::class);
     }
 
     /**
