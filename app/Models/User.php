@@ -26,6 +26,10 @@ class User extends Authenticatable
         'current_country_id',
         'onboarding_completed',
         'role',
+        'agent_license_number',
+        'agent_company_name',
+        'agent_address',
+        'agent_phone',
     ];
 
     /**
@@ -110,5 +114,77 @@ class User extends Authenticatable
         }
         
         return $this->organizations()->first();
+    }
+
+    // ==========================================
+    // Agent-specific methods and relationships
+    // ==========================================
+
+    /**
+     * Check if user is an agent
+     */
+    public function isAgent(): bool
+    {
+        return $this->role === 'agent';
+    }
+
+    /**
+     * Get organizations this agent represents (for agents only)
+     */
+    public function agentClients()
+    {
+        return $this->belongsToMany(Organization::class, 'agent_organization_clients', 'agent_user_id', 'organization_id')
+                    ->withPivot('status', 'authorized_at', 'revoked_at', 'notes')
+                    ->withTimestamps();
+    }
+
+    /**
+     * Get active client organizations for this agent
+     */
+    public function activeAgentClients()
+    {
+        return $this->agentClients()->wherePivot('status', 'active');
+    }
+
+    /**
+     * Get agents who represent this organization (called on Organization model, but helper here)
+     */
+    public function getAgentClientIds(): array
+    {
+        if (!$this->isAgent()) {
+            return [];
+        }
+
+        return $this->activeAgentClients()->pluck('organizations.id')->toArray();
+    }
+
+    /**
+     * Check if agent has access to a specific organization
+     */
+    public function hasAccessToOrganization(int $organizationId): bool
+    {
+        if ($this->isAdmin()) {
+            return true;
+        }
+
+        if ($this->organization_id === $organizationId) {
+            return true;
+        }
+
+        if ($this->isAgent()) {
+            return $this->activeAgentClients()
+                ->where('organizations.id', $organizationId)
+                ->exists();
+        }
+
+        return false;
+    }
+
+    /**
+     * Get declarations submitted by this user (as agent or regular user)
+     */
+    public function submittedDeclarations()
+    {
+        return $this->hasMany(DeclarationForm::class, 'submitted_by_user_id');
     }
 }

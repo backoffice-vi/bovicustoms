@@ -23,6 +23,8 @@ class InvoiceItem extends Model
         'line_total',
         'currency',
         'customs_code',
+        'duty_rate',
+        'customs_code_description',
         'meta',
     ];
 
@@ -30,6 +32,7 @@ class InvoiceItem extends Model
         'quantity' => 'decimal:3',
         'unit_price' => 'decimal:2',
         'line_total' => 'decimal:2',
+        'duty_rate' => 'decimal:2',
         'meta' => 'array',
     ];
 

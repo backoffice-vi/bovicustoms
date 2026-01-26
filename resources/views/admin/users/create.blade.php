@@ -48,39 +48,82 @@
 
                         <div class="mb-3">
                             <label for="role" class="form-label">Role <span class="text-danger">*</span></label>
-                            <select class="form-select @error('role') is-invalid @enderror" id="role" name="role" required>
+                            <select class="form-select @error('role') is-invalid @enderror" id="role" name="role" required onchange="toggleAgentFields()">
                                 <option value="user" {{ old('role') == 'user' ? 'selected' : '' }}>User</option>
                                 <option value="admin" {{ old('role') == 'admin' ? 'selected' : '' }}>Admin</option>
+                                <option value="agent" {{ old('role') == 'agent' ? 'selected' : '' }}>Agent (Customs Broker)</option>
                             </select>
                             @error('role')
                                 <div class="invalid-feedback">{{ $message }}</div>
                             @enderror
+                            <small class="text-muted">Agents can submit declarations on behalf of multiple organizations.</small>
                         </div>
 
-                        <div class="mb-3">
-                            <label for="is_individual" class="form-label">Account Type <span class="text-danger">*</span></label>
-                            <select class="form-select @error('is_individual') is-invalid @enderror" id="is_individual" name="is_individual" required>
-                                <option value="1" {{ old('is_individual') == '1' ? 'selected' : '' }}>Individual</option>
-                                <option value="0" {{ old('is_individual') == '0' ? 'selected' : '' }}>Organization</option>
-                            </select>
-                            @error('is_individual')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                        <div id="user-fields">
+                            <div class="mb-3">
+                                <label for="is_individual" class="form-label">Account Type <span class="text-danger">*</span></label>
+                                <select class="form-select @error('is_individual') is-invalid @enderror" id="is_individual" name="is_individual" required>
+                                    <option value="1" {{ old('is_individual') == '1' ? 'selected' : '' }}>Individual</option>
+                                    <option value="0" {{ old('is_individual') == '0' ? 'selected' : '' }}>Organization</option>
+                                </select>
+                                @error('is_individual')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+
+                            <div class="mb-3">
+                                <label for="organization_id" class="form-label">Organization (optional)</label>
+                                <select class="form-select @error('organization_id') is-invalid @enderror" id="organization_id" name="organization_id">
+                                    <option value="">None</option>
+                                    @foreach($organizations as $org)
+                                        <option value="{{ $org->id }}" {{ old('organization_id') == $org->id ? 'selected' : '' }}>
+                                            {{ $org->name }}
+                                        </option>
+                                    @endforeach
+                                </select>
+                                @error('organization_id')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
                         </div>
 
-                        <div class="mb-3">
-                            <label for="organization_id" class="form-label">Organization (optional)</label>
-                            <select class="form-select @error('organization_id') is-invalid @enderror" id="organization_id" name="organization_id">
-                                <option value="">None</option>
-                                @foreach($organizations as $org)
-                                    <option value="{{ $org->id }}" {{ old('organization_id') == $org->id ? 'selected' : '' }}>
-                                        {{ $org->name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            @error('organization_id')
-                                <div class="invalid-feedback">{{ $message }}</div>
-                            @enderror
+                        <div id="agent-fields" style="display: none;">
+                            <div class="alert alert-info">
+                                <i class="fas fa-info-circle me-2"></i>
+                                Agent-specific fields. You can assign client organizations after creating the agent.
+                            </div>
+                            <div class="mb-3">
+                                <label for="agent_company_name" class="form-label">Company Name</label>
+                                <input type="text" class="form-control @error('agent_company_name') is-invalid @enderror" 
+                                       id="agent_company_name" name="agent_company_name" value="{{ old('agent_company_name') }}">
+                                @error('agent_company_name')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="mb-3">
+                                <label for="agent_license_number" class="form-label">License Number</label>
+                                <input type="text" class="form-control @error('agent_license_number') is-invalid @enderror" 
+                                       id="agent_license_number" name="agent_license_number" value="{{ old('agent_license_number') }}">
+                                @error('agent_license_number')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="mb-3">
+                                <label for="agent_phone" class="form-label">Phone</label>
+                                <input type="text" class="form-control @error('agent_phone') is-invalid @enderror" 
+                                       id="agent_phone" name="agent_phone" value="{{ old('agent_phone') }}">
+                                @error('agent_phone')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
+                            <div class="mb-3">
+                                <label for="agent_address" class="form-label">Address</label>
+                                <textarea class="form-control @error('agent_address') is-invalid @enderror" 
+                                          id="agent_address" name="agent_address" rows="2">{{ old('agent_address') }}</textarea>
+                                @error('agent_address')
+                                    <div class="invalid-feedback">{{ $message }}</div>
+                                @enderror
+                            </div>
                         </div>
 
                         <div class="d-flex justify-content-between">
@@ -96,3 +139,28 @@
     </div>
 </div>
 @endsection
+
+@push('scripts')
+<script>
+function toggleAgentFields() {
+    const role = document.getElementById('role').value;
+    const userFields = document.getElementById('user-fields');
+    const agentFields = document.getElementById('agent-fields');
+    
+    if (role === 'agent') {
+        userFields.style.display = 'none';
+        agentFields.style.display = 'block';
+        document.getElementById('is_individual').value = '0';
+        document.getElementById('organization_id').value = '';
+    } else {
+        userFields.style.display = 'block';
+        agentFields.style.display = 'none';
+    }
+}
+
+// Run on page load
+document.addEventListener('DOMContentLoaded', function() {
+    toggleAgentFields();
+});
+</script>
+@endpush

@@ -160,7 +160,14 @@ class DutyCalculationService
                 $dutyAmount = 0;
                 $tariffDescription = null;
 
-                if ($tariffCode) {
+                // First, use the rate stored on the item (from classification)
+                if ($item->duty_rate !== null) {
+                    $dutyRate = (float) $item->duty_rate;
+                    $tariffDescription = $item->customs_code_description;
+                    $dutyAmount = $itemCif * ($dutyRate / 100);
+                }
+                // Fall back to lookup in customs_codes table
+                elseif ($tariffCode) {
                     $customsCode = CustomsCode::forCountry($countryId)
                         ->where('code', 'like', $tariffCode . '%')
                         ->first();

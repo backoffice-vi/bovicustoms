@@ -45,6 +45,9 @@
 
     <form action="{{ route('invoices.finalize') }}" method="POST" id="assignCodesForm">
         @csrf
+        @if(isset($invoice))
+        <input type="hidden" name="invoice_id" value="{{ $invoice->id }}">
+        @endif
 
         {{-- Items List --}}
         <div class="row">
@@ -302,14 +305,20 @@
                                         <small class="text-muted">Alternative codes:</small>
                                         <div class="d-flex flex-wrap gap-1 mt-1">
                                             @foreach($classification['alternatives'] as $alt)
-                                            <label class="btn btn-sm btn-outline-secondary">
+                                            @php
+                                                // Handle both string and array formats for alternatives
+                                                $altCode = is_array($alt) ? ($alt['code'] ?? '') : $alt;
+                                                $altDesc = is_array($alt) ? ($alt['description'] ?? '') : '';
+                                                $altScore = is_array($alt) ? ($alt['score'] ?? null) : null;
+                                            @endphp
+                                            <label class="btn btn-sm btn-outline-secondary" title="{{ $altDesc }}{{ $altScore ? ' (' . $altScore . '%)' : '' }}">
                                                 <input type="radio" 
                                                        class="btn-check code-selection" 
                                                        name="items[{{ $index }}][code_source]" 
-                                                       value="alt_{{ $alt }}"
-                                                       data-code="{{ $alt }}"
+                                                       value="alt_{{ $altCode }}"
+                                                       data-code="{{ $altCode }}"
                                                        data-target="code_{{ $index }}">
-                                                {{ $alt }}
+                                                {{ $altCode }}
                                             </label>
                                             @endforeach
                                         </div>
@@ -330,6 +339,18 @@
                                             Enter code manually or search
                                         </label>
                                     </div>
+
+                                    {{-- Classification Memory Search --}}
+                                    <div class="mb-2">
+                                        <button type="button" class="btn btn-sm btn-outline-info memory-search-btn" 
+                                                data-description="{{ $item['description'] }}"
+                                                data-target="{{ $index }}"
+                                                data-country="{{ $country->id ?? '' }}">
+                                            <i class="fas fa-brain me-1"></i>Find Similar (Memory)
+                                        </button>
+                                        <small class="text-muted ms-2">Search previous classifications</small>
+                                    </div>
+                                    <div class="memory-search-results mb-2" id="memory_results_{{ $index }}" style="display: none;"></div>
 
                                     {{-- Code Search/Input Field --}}
                                     <div class="input-group">
@@ -356,6 +377,15 @@
                                     <input type="hidden" name="items[{{ $index }}][sku]" value="{{ $item['sku'] ?? '' }}">
                                     <input type="hidden" name="items[{{ $index }}][item_number]" value="{{ $item['item_number'] ?? '' }}">
                                     <input type="hidden" name="items[{{ $index }}][line_number]" value="{{ $item['line_number'] ?? $index + 1 }}">
+                                    {{-- Hidden fields for duty rate and description (populated by JS when code is selected) --}}
+                                    <input type="hidden" 
+                                           name="items[{{ $index }}][duty_rate]" 
+                                           id="duty_rate_{{ $index }}"
+                                           value="{{ $classification['duty_rate'] ?? '' }}">
+                                    <input type="hidden" 
+                                           name="items[{{ $index }}][customs_code_description]" 
+                                           id="code_desc_{{ $index }}"
+                                           value="{{ $classification['description'] ?? '' }}">
                                 </div>
 
                                 {{-- Override Indicator --}}
@@ -457,6 +487,15 @@
 .code-search-results .search-result-item:last-child {
     border-bottom: none;
 }
+.memory-search-results {
+    max-height: 250px;
+    overflow-y: auto;
+    border: 1px solid #17a2b8;
+    border-radius: 0.375rem;
+}
+.memory-search-results .list-group-item:hover {
+    background-color: #e8f4f8;
+}
 details summary {
     cursor: pointer;
 }
@@ -545,7 +584,11 @@ document.addEventListener('DOMContentLoaded', function() {
                     let html = '';
                     data.codes.forEach(code => {
                         html += `
-                            <div class="search-result-item" data-code="${code.code}" data-target="${targetId}">
+                            <div class="search-result-item" 
+                                 data-code="${code.code}" 
+                                 data-target="${targetId}"
+                                 data-duty-rate="${code.duty_rate || ''}"
+                                 data-description="${(code.description || '').replace(/"/g, '&quot;')}">
                                 <code class="fw-bold">${code.code}</code>
                                 <small class="d-block text-muted">${code.description}</small>
                                 ${code.duty_rate ? `<small class="badge bg-secondary">Duty: ${code.duty_rate}%</small>` : ''}
@@ -558,12 +601,20 @@ document.addEventListener('DOMContentLoaded', function() {
                     resultsDiv.querySelectorAll('.search-result-item').forEach(item => {
                         item.addEventListener('click', function() {
                             const code = this.dataset.code;
+                            const dutyRate = this.dataset.dutyRate;
+                            const description = this.dataset.description;
                             const targetInput = document.getElementById(this.dataset.target);
                             targetInput.value = code;
                             resultsDiv.style.display = 'none';
                             
-                            // Select manual radio
+                            // Update hidden fields for duty rate and description
                             const index = this.dataset.target.replace('code_', '');
+                            const dutyRateInput = document.getElementById('duty_rate_' + index);
+                            const descInput = document.getElementById('code_desc_' + index);
+                            if (dutyRateInput) dutyRateInput.value = dutyRate;
+                            if (descInput) descInput.value = description;
+                            
+                            // Select manual radio
                             const manualRadio = document.getElementById('manual_' + index);
                             if (manualRadio) manualRadio.checked = true;
                         });
@@ -585,7 +636,124 @@ document.addEventListener('DOMContentLoaded', function() {
                 div.style.display = 'none';
             });
         }
+        if (!e.target.closest('.memory-search-results') && !e.target.closest('.memory-search-btn')) {
+            document.querySelectorAll('.memory-search-results').forEach(div => {
+                div.style.display = 'none';
+            });
+        }
     });
+
+    // Classification Memory Search
+    document.querySelectorAll('.memory-search-btn').forEach(btn => {
+        btn.addEventListener('click', function() {
+            const description = this.dataset.description;
+            const targetIndex = this.dataset.target;
+            const countryId = this.dataset.country;
+            
+            searchClassificationMemory(description, countryId, targetIndex);
+        });
+    });
+
+    function searchClassificationMemory(description, countryId, targetIndex) {
+        const resultsDiv = document.getElementById('memory_results_' + targetIndex);
+        resultsDiv.innerHTML = '<div class="p-2 text-center"><i class="fas fa-spinner fa-spin"></i> Searching classification memory...</div>';
+        resultsDiv.style.display = 'block';
+        
+        // Extract keywords from description for search
+        const searchQuery = description.substring(0, 50);
+        
+        fetch(`/api/classification-memory/search?q=${encodeURIComponent(searchQuery)}&country_id=${countryId}`)
+            .then(response => response.json())
+            .then(data => {
+                if (data.success && data.results && data.results.length > 0) {
+                    let html = '<div class="list-group list-group-flush">';
+                    html += '<div class="list-group-item bg-info text-white py-1 small"><i class="fas fa-brain me-1"></i>Previously Classified Similar Items</div>';
+                    
+                    data.results.forEach(item => {
+                        const timesUsed = item.times_used > 1 ? `<span class="badge bg-success ms-1">${item.times_used}x</span>` : '';
+                        const dutyRate = item.duty_rate !== null ? `<span class="badge bg-secondary">${item.duty_rate}%</span>` : '';
+                        
+                        html += `
+                            <div class="list-group-item list-group-item-action memory-result-item py-2" 
+                                 data-code="${item.customs_code}"
+                                 data-duty-rate="${item.duty_rate || ''}"
+                                 data-description="${(item.customs_code_description || '').replace(/"/g, '&quot;')}"
+                                 data-target="${targetIndex}"
+                                 style="cursor: pointer;">
+                                <div class="d-flex justify-content-between align-items-start">
+                                    <div class="flex-grow-1">
+                                        <small class="text-muted d-block">${item.description}</small>
+                                        <code class="fw-bold text-primary">${item.customs_code}</code>
+                                        ${dutyRate}
+                                        ${timesUsed}
+                                    </div>
+                                    <button type="button" class="btn btn-sm btn-outline-success use-memory-btn">
+                                        <i class="fas fa-check"></i> Use
+                                    </button>
+                                </div>
+                                ${item.customs_code_description ? `<small class="text-muted">${item.customs_code_description}</small>` : ''}
+                            </div>
+                        `;
+                    });
+                    
+                    html += '</div>';
+                    resultsDiv.innerHTML = html;
+                    
+                    // Add click handlers
+                    resultsDiv.querySelectorAll('.memory-result-item').forEach(item => {
+                        item.addEventListener('click', function(e) {
+                            if (e.target.closest('.use-memory-btn')) {
+                                applyMemoryClassification(this);
+                            }
+                        });
+                        
+                        item.querySelector('.use-memory-btn').addEventListener('click', function(e) {
+                            e.stopPropagation();
+                            applyMemoryClassification(item);
+                        });
+                    });
+                } else {
+                    resultsDiv.innerHTML = '<div class="alert alert-info mb-0 py-2 small"><i class="fas fa-info-circle me-1"></i>No similar items found in classification memory.</div>';
+                }
+            })
+            .catch(error => {
+                console.error('Memory search error:', error);
+                resultsDiv.innerHTML = '<div class="alert alert-danger mb-0 py-2 small">Search failed. Please try again.</div>';
+            });
+    }
+
+    function applyMemoryClassification(element) {
+        const code = element.dataset.code;
+        const dutyRate = element.dataset.dutyRate;
+        const description = element.dataset.description;
+        const targetIndex = element.dataset.target;
+        
+        // Update the code input
+        const codeInput = document.getElementById('code_' + targetIndex);
+        if (codeInput) codeInput.value = code;
+        
+        // Update hidden fields
+        const dutyRateInput = document.getElementById('duty_rate_' + targetIndex);
+        const descInput = document.getElementById('code_desc_' + targetIndex);
+        if (dutyRateInput) dutyRateInput.value = dutyRate;
+        if (descInput) descInput.value = description;
+        
+        // Select manual radio
+        const manualRadio = document.getElementById('manual_' + targetIndex);
+        if (manualRadio) manualRadio.checked = true;
+        
+        // Show override indicator
+        const overrideIndicator = document.getElementById('override_' + targetIndex);
+        if (overrideIndicator) overrideIndicator.style.display = 'block';
+        
+        // Hide the memory results
+        const resultsDiv = document.getElementById('memory_results_' + targetIndex);
+        if (resultsDiv) resultsDiv.style.display = 'none';
+        
+        // Visual feedback
+        codeInput.classList.add('is-valid');
+        setTimeout(() => codeInput.classList.remove('is-valid'), 2000);
+    }
 
     // Form validation
     document.getElementById('assignCodesForm').addEventListener('submit', function(e) {

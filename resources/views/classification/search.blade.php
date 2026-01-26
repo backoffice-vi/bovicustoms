@@ -48,11 +48,18 @@
                                     Country <span class="text-danger">*</span>
                                 </label>
                                 <select class="form-select form-select-lg" id="countrySelect" name="country_id" required>
-                                    @foreach($countries as $country)
-                                        @if($country->code === 'VG')
-                                            <option value="{{ $country->id }}" selected>{{ $country->name }}</option>
-                                        @endif
-                                    @endforeach
+                                    @php
+                                        $defaultCountryId = optional($countries->firstWhere('code', 'VG'))->id
+                                            ?? optional($countries->first())->id;
+                                    @endphp
+
+                                    @forelse($countries as $country)
+                                        <option value="{{ $country->id }}" {{ $country->id === $defaultCountryId ? 'selected' : '' }}>
+                                            {{ $country->name }}
+                                        </option>
+                                    @empty
+                                        <option value="" selected disabled>No countries available</option>
+                                    @endforelse
                                 </select>
                                 <div class="form-text">
                                     Using British Virgin Islands tariff schedule
@@ -462,13 +469,16 @@ document.addEventListener('DOMContentLoaded', function() {
             });
         }
         
-        if (allMatchesData.length > 1) {
-            // Show alternatives in card (top 3 alternatives, not including top match)
-            match.alternatives.slice(0, 3).forEach((alt, index) => {
+        // Filter out alternatives that have no valid code
+        const validAlternatives = match.alternatives ? match.alternatives.filter(alt => alt.code && alt.code.trim() !== '') : [];
+        
+        if (allMatchesData.length > 1 && validAlternatives.length > 0) {
+            // Show alternatives in card (top 3 valid alternatives, not including top match)
+            validAlternatives.slice(0, 3).forEach((alt, index) => {
                 const tr = document.createElement('tr');
                 tr.innerHTML = `
-                    <td><code>${alt.code || 'N/A'}</code></td>
-                    <td class="small">${(alt.description || '').substring(0, 50)}...</td>
+                    <td><code>${alt.code}</code></td>
+                    <td class="small">${(alt.description || 'No description').substring(0, 50)}${alt.description && alt.description.length > 50 ? '...' : ''}</td>
                     <td>${alt.duty_rate !== null && alt.duty_rate !== undefined ? alt.duty_rate + '%' : 'N/A'}</td>
                     <td>
                         <div class="progress" style="height: 15px; min-width: 60px;">
@@ -521,8 +531,12 @@ document.addEventListener('DOMContentLoaded', function() {
                 allMatchesTableBody.appendChild(tr);
             });
         } else {
+            // Hide alternatives section if no valid alternatives
             alternativesSection.classList.add('d-none');
         }
+        
+        // Also filter allMatchesData to only include valid entries for the modal
+        allMatchesData = allMatchesData.filter(m => m.code && m.code.trim() !== '');
         
         resultCard.classList.remove('d-none');
     }

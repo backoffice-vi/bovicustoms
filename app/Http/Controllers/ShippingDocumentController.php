@@ -271,22 +271,125 @@ class ShippingDocumentController extends Controller
     public function destroy(ShippingDocument $shippingDocument)
     {
         $shipment = $shippingDocument->shipment;
+        $documentType = $shippingDocument->document_type;
         
         // Delete the file
         $shippingDocument->deleteFile();
         
         // Delete the record
         $shippingDocument->delete();
+        
+        // Recalculate shipment values from remaining documents
+        $this->recalculateShipmentFromDocuments($shipment, $documentType);
 
         if (request()->ajax()) {
             return response()->json([
                 'success' => true,
-                'message' => 'Document deleted.',
+                'message' => 'Document deleted and shipment values recalculated.',
             ]);
         }
 
         return redirect()->route('shipments.show', $shipment)
-            ->with('success', 'Document deleted successfully.');
+            ->with('success', 'Document deleted successfully. Shipment values have been recalculated.');
+    }
+    
+    /**
+     * Recalculate shipment values from remaining documents after deletion
+     */
+    protected function recalculateShipmentFromDocuments(Shipment $shipment, string $deletedDocumentType): void
+    {
+        // Refresh shipment to get updated document list
+        $shipment->refresh();
+        
+        $updates = [];
+        
+        // Check if we need to clear B/L or AWB number
+        if ($deletedDocumentType === ShippingDocument::TYPE_BILL_OF_LADING) {
+            // Look for another B/L document
+            $newBol = $shipment->shippingDocuments()
+                ->where('document_type', ShippingDocument::TYPE_BILL_OF_LADING)
+                ->first();
+            
+            if ($newBol) {
+                // Use values from the remaining B/L
+                $updates['bill_of_lading_number'] = $newBol->document_number;
+                if ($newBol->freight_charges) {
+                    $updates['freight_total'] = $newBol->freight_charges;
+                }
+                if ($newBol->carrier_name) {
+                    $updates['carrier_name'] = $newBol->carrier_name;
+                }
+                if ($newBol->vessel_name) {
+                    $updates['vessel_name'] = $newBol->vessel_name;
+                }
+                if ($newBol->voyage_number) {
+                    $updates['voyage_number'] = $newBol->voyage_number;
+                }
+                if ($newBol->port_of_loading) {
+                    $updates['port_of_loading'] = $newBol->port_of_loading;
+                }
+                if ($newBol->port_of_discharge) {
+                    $updates['port_of_discharge'] = $newBol->port_of_discharge;
+                }
+                if ($newBol->total_packages) {
+                    $updates['total_packages'] = $newBol->total_packages;
+                }
+                if ($newBol->gross_weight_kg) {
+                    $updates['gross_weight_kg'] = $newBol->gross_weight_kg;
+                }
+            } else {
+                // No B/L documents left - clear B/L-related fields
+                $updates['bill_of_lading_number'] = null;
+                $updates['freight_total'] = 0;
+                $updates['carrier_name'] = null;
+                $updates['vessel_name'] = null;
+                $updates['voyage_number'] = null;
+                $updates['port_of_loading'] = null;
+                $updates['port_of_discharge'] = null;
+                $updates['total_packages'] = null;
+                $updates['gross_weight_kg'] = null;
+            }
+        } elseif ($deletedDocumentType === ShippingDocument::TYPE_AIR_WAYBILL) {
+            // Look for another AWB document
+            $newAwb = $shipment->shippingDocuments()
+                ->where('document_type', ShippingDocument::TYPE_AIR_WAYBILL)
+                ->first();
+            
+            if ($newAwb) {
+                $updates['awb_number'] = $newAwb->document_number;
+                if ($newAwb->freight_charges) {
+                    $updates['freight_total'] = $newAwb->freight_charges;
+                }
+            } else {
+                // No AWB documents left - only clear AWB number (not freight if there's a B/L)
+                $updates['awb_number'] = null;
+                
+                // Only clear freight if no B/L exists either
+                $existingBol = $shipment->shippingDocuments()
+                    ->where('document_type', ShippingDocument::TYPE_BILL_OF_LADING)
+                    ->first();
+                
+                if (!$existingBol) {
+                    $updates['freight_total'] = 0;
+                }
+            }
+        } elseif ($deletedDocumentType === ShippingDocument::TYPE_INSURANCE_CERTIFICATE) {
+            // Look for another insurance document
+            $newInsurance = $shipment->shippingDocuments()
+                ->where('document_type', ShippingDocument::TYPE_INSURANCE_CERTIFICATE)
+                ->first();
+            
+            if (!$newInsurance && $shipment->insurance_method === Shipment::INSURANCE_DOCUMENT) {
+                // No insurance documents left - reset to percentage method
+                $updates['insurance_method'] = Shipment::INSURANCE_PERCENTAGE;
+                $updates['insurance_percentage'] = 1; // Default 1%
+            }
+        }
+        
+        if (!empty($updates)) {
+            $shipment->update($updates);
+            $shipment->recalculateTotals();
+        }
     }
 
     /**

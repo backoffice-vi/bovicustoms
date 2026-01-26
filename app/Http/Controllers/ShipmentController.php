@@ -247,6 +247,8 @@ class ShipmentController extends Controller
             'consignee_contact_id' => $shipment->consignee_contact_id,
             'form_number' => 'DEC-' . now()->format('Ymd') . '-' . strtoupper(Str::random(6)),
             'declaration_date' => now(),
+            'total_duty' => 0, // Will be updated by applyToDeclaration
+            'items' => [], // Required field, will be populated later
             'source_type' => 'shipment',
         ]);
 
@@ -271,7 +273,7 @@ class ShipmentController extends Controller
                 'unit_price' => $itemDuty['unit_price'],
                 'line_total' => $itemDuty['fob_value'],
                 'hs_code' => $itemDuty['tariff_code'],
-                'hs_description' => $itemDuty['tariff_description'],
+                'hs_description' => Str::limit($itemDuty['tariff_description'] ?? '', 250, '...'),
             ]);
         }
 

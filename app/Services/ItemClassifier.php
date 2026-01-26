@@ -23,7 +23,8 @@ class ItemClassifier
     protected DocumentChunker $chunker;
     protected ?VectorClassifier $vectorClassifier = null;
     protected bool $useVectorVerification = true;
-    protected bool $useVectorOnly = true; // Temporarily use Qdrant only, bypassing database/Claude
+    protected bool $useVectorOnly = false; // Use Qdrant only, bypassing database/Claude
+    protected bool $useHybridMode = true; // Use Qdrant for candidates, Claude for reasoning (recommended)
 
     public function __construct(DocumentChunker $chunker, ?VectorClassifier $vectorClassifier = null)
     {
@@ -50,20 +51,142 @@ class ItemClassifier
     public function setVectorOnly(bool $enabled): self
     {
         $this->useVectorOnly = $enabled;
+        if ($enabled) {
+            $this->useHybridMode = false; // Vector-only takes precedence
+        }
         return $this;
     }
 
     /**
-     * Classify an item using the 9-step algorithm
+     * Enable or disable hybrid mode (Qdrant candidates + Claude reasoning)
+     */
+    public function setHybridMode(bool $enabled): self
+    {
+        $this->useHybridMode = $enabled;
+        if ($enabled) {
+            $this->useVectorOnly = false; // Hybrid mode takes precedence over vector-only
+        }
+        return $this;
+    }
+
+    /**
+     * Classify an item using tiered search:
+     * Tier 1: Exact code match (if user types a code)
+     * Tier 2: Database keyword search (fast, free)
+     * Tier 3: Qdrant + Claude (only if database search fails)
      */
     public function classify(string $itemDescription, ?int $countryId = null, ?int $organizationId = null): array
     {
-        // Use vector-only mode if enabled and vector classifier is available
-        if ($this->useVectorOnly && $this->vectorClassifier) {
-            return $this->classifyWithVectorOnly($itemDescription, $countryId, $organizationId);
+        $classificationPath = ['Using tiered classification approach'];
+        
+        // TIER 1: Check if input is an exact code (e.g., "02.07" or "0207")
+        $exactCodeResult = $this->tryExactCodeMatch($itemDescription, $countryId);
+        if ($exactCodeResult) {
+            $classificationPath[] = "Tier 1: Exact code match found";
+            $exactCodeResult['classification_path'] = $classificationPath;
+            return $exactCodeResult;
         }
-
-        $classificationPath = [];
+        
+        // TIER 2: Database keyword search (the original 9-step algorithm)
+        $classificationPath[] = "Tier 2: Attempting database keyword search";
+        $databaseResult = $this->classifyWithDatabaseSearch($itemDescription, $countryId, $organizationId, $classificationPath);
+        
+        if ($databaseResult && $databaseResult['success']) {
+            $classificationPath[] = "Tier 2: Database search successful";
+            $databaseResult['classification_path'] = $classificationPath;
+            return $databaseResult;
+        }
+        
+        // TIER 3: Fall back to Qdrant + Claude if database search fails
+        if ($this->vectorClassifier) {
+            $classificationPath[] = "Tier 3: Falling back to Qdrant + Claude";
+            
+            if ($this->useHybridMode) {
+                $result = $this->classifyWithVectorAndClaude($itemDescription, $countryId, $organizationId);
+            } elseif ($this->useVectorOnly) {
+                $result = $this->classifyWithVectorOnly($itemDescription, $countryId, $organizationId);
+            } else {
+                $result = $this->classifyWithVectorAndClaude($itemDescription, $countryId, $organizationId);
+            }
+            
+            // IMPORTANT: Always look up rates from database, not Qdrant
+            if ($result['success'] && !empty($result['code'])) {
+                $result = $this->enrichResultFromDatabase($result, $countryId);
+            }
+            
+            $result['classification_path'] = array_merge($classificationPath, $result['classification_path'] ?? []);
+            return $result;
+        }
+        
+        // No results from any tier
+        return [
+            'success' => false,
+            'error' => 'Could not classify item - no matches found in database or vector search',
+            'classification_path' => $classificationPath,
+        ];
+    }
+    
+    /**
+     * Tier 1: Try exact code match (user typed a code directly)
+     */
+    protected function tryExactCodeMatch(string $input, ?int $countryId): ?array
+    {
+        // Clean input - remove spaces, check if it looks like a code
+        $cleanInput = trim($input);
+        
+        // Check if input looks like an HS code (e.g., "02.07", "0207", "8703.10")
+        if (!preg_match('/^[\d\.]+$/', $cleanInput)) {
+            return null; // Not a code, it's a description
+        }
+        
+        // Try exact match
+        $code = CustomsCode::where('code', $cleanInput)
+            ->when($countryId, fn($q) => $q->where('country_id', $countryId))
+            ->first();
+        
+        // Try with dots removed
+        if (!$code) {
+            $withoutDots = str_replace('.', '', $cleanInput);
+            $code = CustomsCode::where(function($q) use ($cleanInput, $withoutDots) {
+                $q->where('code', 'like', $cleanInput . '%')
+                  ->orWhereRaw("REPLACE(code, '.', '') LIKE ?", [$withoutDots . '%']);
+            })
+            ->when($countryId, fn($q) => $q->where('country_id', $countryId))
+            ->orderByRaw('LENGTH(code) DESC')
+            ->first();
+        }
+        
+        if (!$code) {
+            return null;
+        }
+        
+        return [
+            'success' => true,
+            'item' => $input,
+            'code' => $code->code,
+            'description' => $code->description,
+            'duty_rate' => $code->duty_rate,
+            'unit_of_measurement' => $code->formatted_unit,
+            'special_rate' => $code->special_rate,
+            'confidence' => 100,
+            'explanation' => "Direct code lookup - exact match found in database.",
+            'alternatives' => [],
+            'customs_code_id' => $code->id,
+            'chapter' => $code->tariffChapter?->formatted_identifier,
+            'restricted' => false,
+            'restricted_items' => [],
+            'exemptions_available' => $code->getApplicableExemptions()->toArray(),
+            'duty_calculation' => $code->calculateTotalDuty(100, 1),
+            'source' => 'exact_match',
+        ];
+    }
+    
+    /**
+     * Tier 2: Database keyword search (original algorithm)
+     */
+    protected function classifyWithDatabaseSearch(string $itemDescription, ?int $countryId, ?int $organizationId, array &$classificationPath): ?array
+    {
+        $internalPath = [];
         
         try {
             // Step 1: Keyword Extraction
@@ -99,7 +222,8 @@ class ItemClassifier
                 
                 $chapterResult = $this->classifyByChapter($keywords, $itemDescription, $countryId, $classificationPath);
                 if ($chapterResult) {
-                    return $chapterResult;
+                    // Enrich with database rates
+                    return $this->enrichResultFromDatabase($chapterResult, $countryId);
                 }
                 
                 return [
@@ -140,9 +264,49 @@ class ItemClassifier
             $aiResult = $this->classifyWithClaude($itemDescription, $context, $classificationPath, $precedents);
             
             if (empty($aiResult['code'])) {
+                // No code from AI - try chapter-based search with keyword expansion
+                $classificationPath[] = "AI couldn't classify from candidates, trying expanded search";
+                $chapterResult = $this->classifyByChapter($keywords, $itemDescription, $countryId, $classificationPath);
+                if ($chapterResult) {
+                    // Enrich with database rates
+                    return $this->enrichResultFromDatabase($chapterResult, $countryId);
+                }
+                
                 return [
                     'success' => false,
                     'error' => 'AI could not determine classification',
+                    'classification_path' => $classificationPath,
+                ];
+            }
+            
+            // Check AI status field for non-success responses
+            $aiStatus = $aiResult['status'] ?? 'success';
+            $needsFallback = in_array($aiStatus, ['insufficient', 'ambiguous', 'not_found']);
+            
+            // Also check for legacy pattern responses (backward compatibility)
+            if (!$needsFallback) {
+                $unablePatterns = ['UNABLE_TO_CLASSIFY', 'CANNOT_CLASSIFY', 'NOT_FOUND', 'NO_MATCH', 'CLASSIFICATION_NOT_POSSIBLE', 'NOT_POSSIBLE', 'INSUFFICIENT'];
+                foreach ($unablePatterns as $pattern) {
+                    if (stripos($aiResult['code'], $pattern) !== false) {
+                        $needsFallback = true;
+                        break;
+                    }
+                }
+            }
+            
+            if ($needsFallback) {
+                // AI says candidates don't match - try expanded keyword search
+                $classificationPath[] = "AI status: '{$aiStatus}' - trying expanded keyword search";
+                $chapterResult = $this->classifyByChapter($keywords, $itemDescription, $countryId, $classificationPath);
+                if ($chapterResult) {
+                    // Enrich with database rates
+                    return $this->enrichResultFromDatabase($chapterResult, $countryId);
+                }
+                
+                // Still no match - this is a genuine failure
+                return [
+                    'success' => false,
+                    'error' => "Item '{$itemDescription}' cannot be classified under the available codes. AI noted: " . ($aiResult['explanation'] ?? 'No explanation'),
                     'classification_path' => $classificationPath,
                 ];
             }
@@ -230,7 +394,15 @@ class ItemClassifier
                 }
             }
 
-            // Step 9: Return Result
+            // Step 9: Build alternatives from database candidates
+            $alternatives = $this->buildAlternativesFromCandidates(
+                $candidates ?? collect(),
+                $aiResult['code'],
+                $aiResult['alternatives'] ?? [],
+                5 // max alternatives
+            );
+
+            // Step 10: Return Result
             return [
                 'success' => true,
                 'item' => $itemDescription,
@@ -241,7 +413,7 @@ class ItemClassifier
                 'special_rate' => $matchedCode?->special_rate,
                 'confidence' => $aiResult['confidence'],
                 'explanation' => $aiResult['explanation'],
-                'alternatives' => $aiResult['alternatives'] ?? [],
+                'alternatives' => $alternatives,
                 'classification_path' => $classificationPath,
                 'customs_code_id' => $matchedCode?->id,
                 'chapter' => $matchedCode?->tariffChapter?->formatted_identifier,
@@ -269,6 +441,183 @@ class ItemClassifier
                 'classification_path' => $classificationPath,
             ];
         }
+    }
+
+    /**
+     * Enrich Qdrant/Claude results with authoritative database data
+     * IMPORTANT: Rates must ALWAYS come from the database, not Qdrant
+     */
+    protected function enrichResultFromDatabase(array $result, ?int $countryId): array
+    {
+        if (empty($result['code'])) {
+            return $result;
+        }
+        
+        // Look up the main code in database (exact match first)
+        $mainCode = CustomsCode::where('code', $result['code'])
+            ->when($countryId, fn($q) => $q->where('country_id', $countryId))
+            ->first();
+        
+        // If no exact match, try to find a parent/similar code
+        if (!$mainCode) {
+            $searchCode = $result['code'];
+            $normalizedCode = str_replace('.', '', $searchCode);
+            
+            // Try finding codes that start with the suggested code prefix
+            $matchingCodes = CustomsCode::where(function($q) use ($searchCode, $normalizedCode) {
+                    $q->where('code', 'like', substr($searchCode, 0, 4) . '%')
+                      ->orWhereRaw("REPLACE(code, '.', '') LIKE ?", [substr($normalizedCode, 0, 4) . '%']);
+                })
+                ->when($countryId, fn($q) => $q->where('country_id', $countryId))
+                ->get();
+            
+            if ($matchingCodes->isNotEmpty()) {
+                // Find the best match (longest code that is a prefix of or matches the suggested code)
+                $mainCode = $matchingCodes->sortByDesc(function($code) use ($normalizedCode) {
+                    $dbCode = str_replace('.', '', $code->code);
+                    // Score by how much of the suggested code matches
+                    $matchLen = 0;
+                    for ($i = 0; $i < min(strlen($dbCode), strlen($normalizedCode)); $i++) {
+                        if ($dbCode[$i] === $normalizedCode[$i]) {
+                            $matchLen++;
+                        } else {
+                            break;
+                        }
+                    }
+                    return $matchLen * 100 + strlen($dbCode);
+                })->first();
+                
+                // Update the result code to the actual database code
+                if ($mainCode) {
+                    $result['code'] = $mainCode->code;
+                }
+            }
+        }
+        
+        if ($mainCode) {
+            // Override with database values (source of truth)
+            $result['duty_rate'] = $mainCode->duty_rate;
+            $result['description'] = $mainCode->description;
+            $result['unit_of_measurement'] = $mainCode->formatted_unit;
+            $result['special_rate'] = $mainCode->special_rate;
+            $result['customs_code_id'] = $mainCode->id;
+            $result['chapter'] = $mainCode->tariffChapter?->formatted_identifier;
+            $result['exemptions_available'] = $mainCode->getApplicableExemptions()->toArray();
+            $result['duty_calculation'] = $mainCode->calculateTotalDuty(100, 1);
+        }
+        
+        // Enrich alternatives with database rates
+        if (!empty($result['alternatives'])) {
+            $result['alternatives'] = array_map(function($alt) use ($countryId) {
+                if (empty($alt['code'])) {
+                    return $alt;
+                }
+                
+                $altCode = CustomsCode::where('code', $alt['code'])
+                    ->when($countryId, fn($q) => $q->where('country_id', $countryId))
+                    ->first();
+                
+                if ($altCode) {
+                    $alt['duty_rate'] = $altCode->duty_rate;
+                    $alt['description'] = $altCode->description;
+                    $alt['customs_code_id'] = $altCode->id;
+                }
+                
+                return $alt;
+            }, $result['alternatives']);
+        }
+        
+        return $result;
+    }
+
+    /**
+     * Build alternatives from database candidates
+     * Prioritizes codes in the same heading/section as the selected code
+     */
+    protected function buildAlternativesFromCandidates(
+        $candidates,
+        string $selectedCode,
+        array $aiAlternatives = [],
+        int $maxAlternatives = 5
+    ): array {
+        $alternatives = [];
+        
+        // Normalize selected code for comparison
+        $normalizedSelected = str_replace('.', '', $selectedCode);
+        
+        // Extract heading prefix (first 4 digits) for prioritization
+        $selectedHeading = substr($normalizedSelected, 0, 4);
+        $selectedChapter = substr($normalizedSelected, 0, 2);
+        
+        // First, add any alternatives Claude suggested (if they exist in candidates)
+        foreach ($aiAlternatives as $altCode) {
+            if (is_string($altCode) && count($alternatives) < $maxAlternatives) {
+                $normalizedAlt = str_replace('.', '', $altCode);
+                
+                // Find this code in candidates
+                $match = $candidates->first(function($c) use ($altCode, $normalizedAlt) {
+                    $dbCode = str_replace('.', '', $c->code);
+                    return $c->code === $altCode || $dbCode === $normalizedAlt;
+                });
+                
+                if ($match && str_replace('.', '', $match->code) !== $normalizedSelected) {
+                    $alternatives[] = [
+                        'code' => $match->code,
+                        'description' => $match->description,
+                        'duty_rate' => $match->duty_rate,
+                        'customs_code_id' => $match->id,
+                    ];
+                }
+            }
+        }
+        
+        $addedCodes = array_column($alternatives, 'code');
+        $addedCodes[] = $selectedCode;
+        
+        // Sort candidates by relevance: same heading > same chapter > others
+        $sortedCandidates = $candidates->sortBy(function($candidate) use ($selectedHeading, $selectedChapter, $normalizedSelected) {
+            $normalizedCandidate = str_replace('.', '', $candidate->code);
+            $candidateHeading = substr($normalizedCandidate, 0, 4);
+            $candidateChapter = substr($normalizedCandidate, 0, 2);
+            
+            // Priority: 0 = same heading, 1 = same chapter, 2 = other
+            if ($candidateHeading === $selectedHeading) {
+                return '0_' . $candidate->code;
+            } elseif ($candidateChapter === $selectedChapter) {
+                return '1_' . $candidate->code;
+            }
+            return '2_' . $candidate->code;
+        });
+        
+        // Then add other candidates from sorted list
+        foreach ($sortedCandidates as $candidate) {
+            if (count($alternatives) >= $maxAlternatives) {
+                break;
+            }
+            
+            $normalizedCandidate = str_replace('.', '', $candidate->code);
+            
+            // Skip if already added or is the selected code
+            $isAlreadyAdded = false;
+            foreach ($addedCodes as $added) {
+                if ($candidate->code === $added || $normalizedCandidate === str_replace('.', '', $added)) {
+                    $isAlreadyAdded = true;
+                    break;
+                }
+            }
+            
+            if (!$isAlreadyAdded) {
+                $alternatives[] = [
+                    'code' => $candidate->code,
+                    'description' => $candidate->description,
+                    'duty_rate' => $candidate->duty_rate,
+                    'customs_code_id' => $candidate->id,
+                ];
+                $addedCodes[] = $candidate->code;
+            }
+        }
+        
+        return $alternatives;
     }
 
     /**
@@ -433,11 +782,18 @@ INSTRUCTIONS:
 
 Return ONLY a JSON object (no other text):
 {
+    "status": "success",
     "code": "2204.21",
     "description": "Brief description of why this code fits",
     "confidence": 90,
     "explanation": "Detailed explanation of the classification"
 }
+
+STATUS VALUES:
+- "success" = Found a matching code
+- "insufficient" = Item doesn't match any provided codes
+- "ambiguous" = Multiple codes could apply equally
+- "not_found" = Cannot determine classification
 PROMPT;
 
                 try {
@@ -485,6 +841,14 @@ PROMPT;
                                 if ($matchedCode) {
                                     $classificationPath[] = "AI selected code: {$matchedCode->code}";
                                     
+                                    // Build alternatives from other candidates
+                                    $alternatives = $this->buildAlternativesFromCandidates(
+                                        $directCodeMatches,
+                                        $matchedCode->code,
+                                        [],
+                                        5
+                                    );
+                                    
                                     return [
                                         'success' => true,
                                         'item' => $itemDescription,
@@ -498,7 +862,7 @@ PROMPT;
                                         'chapter' => $matchedCode->tariffChapter?->formatted_identifier ?? "Chapter " . substr($matchedCode->code, 0, 2),
                                         'classification_path' => $classificationPath,
                                         'is_chapter_level' => false,
-                                        'alternatives' => [],
+                                        'alternatives' => $alternatives,
                                         'customs_code_id' => $matchedCode->id,
                                         'restricted' => false,
                                         'restricted_items' => [],
@@ -538,8 +902,21 @@ PROMPT;
 
         // If we found codes in the chapters, use AI to pick the best one
         if ($codesInChapters->isNotEmpty()) {
+            // Prioritize codes from title-matched chapters over note-matched chapters
+            $titleMatchedChapterNumbers = $chapters->pluck('chapter_number')->toArray();
+            
+            // Sort codes: title-matched chapters first, then by code
+            $sortedCodes = $codesInChapters->sortBy(function($code) use ($titleMatchedChapterNumbers) {
+                $chapterNum = (int) substr(str_replace('.', '', $code->code), 0, 2);
+                $isTitleMatch = in_array($chapterNum, $titleMatchedChapterNumbers) ? 0 : 1;
+                return $isTitleMatch . '_' . $code->code;
+            });
+            
+            // Limit codes sent to AI to avoid token issues
+            $codesToSend = $sortedCodes->take(100);
+            
             $codesContext = "";
-            foreach ($codesInChapters as $code) {
+            foreach ($codesToSend as $code) {
                 $rate = $code->duty_rate !== null ? " (Duty: {$code->duty_rate}%)" : "";
                 $codesContext .= "- {$code->code}: {$code->description}{$rate}\n";
             }
@@ -559,11 +936,18 @@ INSTRUCTIONS:
 
 Return ONLY a JSON object (no other text):
 {
+    "status": "success",
     "code": "2204.21",
     "description": "Brief description of why this code fits",
     "confidence": 90,
     "explanation": "Detailed explanation of the classification"
 }
+
+STATUS VALUES:
+- "success" = Found a matching code
+- "insufficient" = Item doesn't match any provided codes
+- "ambiguous" = Multiple codes could apply equally
+- "not_found" = Cannot determine classification
 PROMPT;
 
             try {
@@ -617,6 +1001,14 @@ PROMPT;
                             if ($matchedCode) {
                                 $classificationPath[] = "AI selected code: {$matchedCode->code} (confidence: " . ($result['confidence'] ?? 'N/A') . "%)";
                                 
+                                // Build alternatives from priority-sorted codes (title-matched chapters first)
+                                $alternatives = $this->buildAlternativesFromCandidates(
+                                    $sortedCodes,
+                                    $matchedCode->code,
+                                    [],
+                                    5
+                                );
+                                
                                 return [
                                     'success' => true,
                                     'item' => $itemDescription,
@@ -630,13 +1022,48 @@ PROMPT;
                                     'chapter' => $matchedCode->tariffChapter?->formatted_identifier ?? "Chapter " . substr($matchedCode->code, 0, 2),
                                     'classification_path' => $classificationPath,
                                     'is_chapter_level' => false,
-                                    'alternatives' => [],
+                                    'alternatives' => $alternatives,
                                     'customs_code_id' => $matchedCode->id,
                                     'restricted' => false,
                                     'restricted_items' => [],
                                     'exemptions_available' => $matchedCode->getApplicableExemptions()->toArray(),
                                     'duty_calculation' => $matchedCode->calculateTotalDuty(100, 1),
                                 ];
+                            } else {
+                                // AI suggested a code not in our chapters - use first available code and provide alternatives
+                                $classificationPath[] = "AI suggested {$aiCode} not found in available codes, using best available";
+                                
+                                // Use the first code from the chapters as primary
+                                $firstCode = $codesInChapters->first();
+                                if ($firstCode) {
+                                    $alternatives = $this->buildAlternativesFromCandidates(
+                                        $codesInChapters,
+                                        $firstCode->code,
+                                        [],
+                                        5
+                                    );
+                                    
+                                    return [
+                                        'success' => true,
+                                        'item' => $itemDescription,
+                                        'code' => $firstCode->code,
+                                        'description' => $result['description'] ?? $firstCode->description,
+                                        'duty_rate' => $firstCode->duty_rate,
+                                        'unit_of_measurement' => $firstCode->formatted_unit,
+                                        'special_rate' => $firstCode->special_rate,
+                                        'confidence' => max(($result['confidence'] ?? 70) - 20, 50), // Lower confidence
+                                        'explanation' => ($result['explanation'] ?? '') . " Note: AI suggested {$aiCode} but this code was not found in the matched chapters. Using closest available code.",
+                                        'chapter' => $firstCode->tariffChapter?->formatted_identifier ?? "Chapter " . substr($firstCode->code, 0, 2),
+                                        'classification_path' => $classificationPath,
+                                        'is_chapter_level' => false,
+                                        'alternatives' => $alternatives,
+                                        'customs_code_id' => $firstCode->id,
+                                        'restricted' => false,
+                                        'restricted_items' => [],
+                                        'exemptions_available' => $firstCode->getApplicableExemptions()->toArray(),
+                                        'duty_calculation' => $firstCode->calculateTotalDuty(100, 1),
+                                    ];
+                                }
                             }
                         }
                     }
@@ -992,11 +1419,12 @@ PROMPT;
         $precedentText = '';
         if (!empty($precedents)) {
             $precedentText .= "## TENANT APPROVED REFERENCE (PRIOR APPROVALS)\n";
-            $precedentText .= "These are real prior approvals in this tenant. Use them as precedent if relevant.\n\n";
+            $precedentText .= "These are real prior approvals. Items marked [LEGACY] are from official historical clearances and should be given strong weight as authoritative precedent.\n\n";
             foreach ($precedents as $p) {
                 $hs = $p['hs_code'] ?? '';
                 $desc = $p['description'] ?? '';
-                $precedentText .= "- {$hs}: {$desc}\n";
+                $legacyTag = !empty($p['is_legacy']) ? ' [LEGACY]' : '';
+                $precedentText .= "- {$hs}: {$desc}{$legacyTag}\n";
             }
             $precedentText .= "\n";
         }
@@ -1033,8 +1461,9 @@ These notes contain critical rules for classification. Read them carefully:
 4. Consider the item's primary function and composition
 
 ## RESPONSE FORMAT
-Return a JSON object:
+Return a JSON object with a status field:
 {
+    "status": "success",
     "code": "8417.10",
     "description": "Brief description of why this code fits",
     "duty_rate": 15,
@@ -1043,12 +1472,21 @@ Return a JSON object:
     "alternatives": ["8417.20", "8418.10"]
 }
 
+STATUS VALUES:
+- "success" = Found a matching code from the list
+- "insufficient" = The item doesn't match any of the provided codes (e.g., looking for electronics but only food codes provided)
+- "ambiguous" = Multiple codes could apply equally well, need more item details
+- "not_found" = Cannot determine classification from provided information
+
+If status is NOT "success", still provide your best explanation of why and what type of code would be appropriate.
+
 Only return the JSON object, no other text.
 PROMPT;
     }
 
     /**
-     * Pull a few recent tenant-approved HS code precedents from imported declarations.
+     * Pull tenant-approved HS code precedents from imported declarations.
+     * Prioritizes legacy clearances (external historical data) as the authoritative source.
      */
     protected function findApprovedReferencePrecedents(string $itemDescription, ?int $countryId): array
     {
@@ -1061,11 +1499,19 @@ PROMPT;
             return [];
         }
 
+        // Query declaration items with their form's source_type to prioritize legacy clearances
         $candidates = \App\Models\DeclarationFormItem::query()
-            ->where('country_id', $countryId)
-            ->whereNotNull('hs_code')
-            ->orderBy('created_at', 'desc')
-            ->limit(200)
+            ->join('declaration_forms', 'declaration_form_items.declaration_form_id', '=', 'declaration_forms.id')
+            ->where('declaration_form_items.country_id', $countryId)
+            ->whereNotNull('declaration_form_items.hs_code')
+            ->select([
+                'declaration_form_items.description',
+                'declaration_form_items.hs_code',
+                'declaration_forms.source_type',
+            ])
+            ->orderByRaw("CASE WHEN declaration_forms.source_type = 'legacy' THEN 0 ELSE 1 END")
+            ->orderBy('declaration_form_items.created_at', 'desc')
+            ->limit(300)
             ->get();
 
         $scored = [];
@@ -1079,10 +1525,16 @@ PROMPT;
             }
 
             if ($hits > 0) {
+                // Give legacy clearance items a significant score boost (they are authoritative)
+                $isLegacy = $c->source_type === 'legacy';
+                $baseScore = $hits;
+                $finalScore = $isLegacy ? ($baseScore * 2) + 10 : $baseScore;
+
                 $scored[] = [
-                    'score' => $hits,
+                    'score' => $finalScore,
                     'hs_code' => (string) $c->hs_code,
                     'description' => (string) $c->description,
+                    'is_legacy' => $isLegacy,
                 ];
             }
         }
@@ -1093,6 +1545,7 @@ PROMPT;
         return array_map(fn ($r) => [
             'hs_code' => $r['hs_code'],
             'description' => $r['description'],
+            'is_legacy' => $r['is_legacy'] ?? false,
         ], $top);
     }
 
@@ -1119,6 +1572,7 @@ PROMPT;
         }
 
         return [
+            'status' => $result['status'] ?? 'success',  // Default to success for backward compatibility
             'code' => $result['code'] ?? null,
             'description' => $result['description'] ?? null,
             'duty_rate' => $result['duty_rate'] ?? null,
@@ -1391,5 +1845,456 @@ PROMPT;
                 'classification_path' => $classificationPath,
             ];
         }
+    }
+
+    /**
+     * Classify using Qdrant vector search for candidates + Claude for reasoning
+     * This hybrid approach combines semantic search with AI reasoning
+     */
+    protected function classifyWithVectorAndClaude(string $itemDescription, ?int $countryId = null, ?int $organizationId = null): array
+    {
+        $classificationPath = ['Using hybrid mode: Qdrant candidates + Claude reasoning'];
+        
+        try {
+            // Step 0: Check for custom classification rules first
+            $ruleResult = $this->applyClassificationRules($itemDescription, $organizationId, $countryId);
+            if ($ruleResult) {
+                $classificationPath[] = "Custom rule applied: {$ruleResult['rule_name']}";
+                
+                // If rule specifies a target code, use it directly
+                if (!empty($ruleResult['target_code'])) {
+                    $matchedCode = CustomsCode::where('code', 'like', $ruleResult['target_code'] . '%')
+                        ->when($countryId, fn($q) => $q->where('country_id', $countryId))
+                        ->first();
+
+                    if ($matchedCode) {
+                        $classificationPath[] = "Rule assigned code: {$matchedCode->code}";
+                        
+                        return [
+                            'success' => true,
+                            'item' => $itemDescription,
+                            'code' => $matchedCode->code,
+                            'description' => $matchedCode->description,
+                            'duty_rate' => $matchedCode->duty_rate,
+                            'unit_of_measurement' => $matchedCode->formatted_unit,
+                            'special_rate' => $matchedCode->special_rate,
+                            'confidence' => 95,
+                            'explanation' => "Classified by custom rule: {$ruleResult['rule_name']}. " . ($ruleResult['instruction'] ?? ''),
+                            'alternatives' => [],
+                            'classification_path' => $classificationPath,
+                            'customs_code_id' => $matchedCode->id,
+                            'chapter' => $matchedCode->tariffChapter?->formatted_identifier,
+                            'restricted' => false,
+                            'restricted_items' => [],
+                            'exemptions_available' => $matchedCode->getApplicableExemptions()->toArray(),
+                            'duty_calculation' => $matchedCode->calculateTotalDuty(100, 1),
+                            'source' => 'rule',
+                            'rule_applied' => $ruleResult,
+                        ];
+                    }
+                }
+                
+                // Rule has instruction but no target code - include in Claude context
+                $classificationPath[] = "Rule instruction will be included in AI context";
+            }
+            
+            // Step 1: Check prohibited/restricted
+            $prohibitedCheck = $this->checkProhibitedRestricted($itemDescription, $countryId);
+            
+            if ($prohibitedCheck['is_prohibited']) {
+                return [
+                    'success' => false,
+                    'error' => 'Item is prohibited for import',
+                    'prohibited' => true,
+                    'prohibited_items' => $prohibitedCheck['prohibited_matches'],
+                    'classification_path' => $classificationPath,
+                ];
+            }
+
+            // Step 2: Use Qdrant to find semantically similar codes (candidates)
+            $vectorResult = $this->vectorClassifier->searchSimilarCodes($itemDescription, $countryId, 15);
+            
+            if (!$vectorResult['success'] || empty($vectorResult['results'])) {
+                $classificationPath[] = "Vector search returned no results, falling back to database search";
+                // Fall back to full classification mode
+                return $this->classifyWithFullMode($itemDescription, $countryId, $organizationId, $classificationPath);
+            }
+            
+            $classificationPath[] = "Qdrant found " . count($vectorResult['results']) . " semantically similar codes";
+
+            // Step 3: Use Qdrant to find relevant chapter notes
+            $notesResult = $this->vectorClassifier->searchRelevantNotes($itemDescription, $countryId, 10);
+            $relevantNotes = $notesResult['results'] ?? [];
+            $classificationPath[] = "Qdrant found " . count($relevantNotes) . " relevant chapter notes";
+
+            // Step 4: Search for exclusion rules that might apply
+            $exclusionsResult = $this->vectorClassifier->searchExclusionRules($itemDescription, $countryId, 5);
+            $relevantExclusions = $exclusionsResult['results'] ?? [];
+            
+            // Step 5: Build context for Claude from Qdrant results
+            $context = $this->buildVectorContext(
+                $vectorResult['results'],
+                $relevantNotes,
+                $relevantExclusions,
+                $ruleResult
+            );
+
+            // Step 6: Get tenant precedents (prior approved classifications)
+            $precedents = $this->findApprovedReferencePrecedents($itemDescription, $countryId);
+            if (!empty($precedents)) {
+                $classificationPath[] = "Found " . count($precedents) . " tenant reference precedents";
+            }
+
+            // Step 7: Call Claude with the Qdrant-sourced context
+            $aiResult = $this->classifyWithClaudeHybrid($itemDescription, $context, $classificationPath, $precedents);
+            
+            if (empty($aiResult['code'])) {
+                // Fall back to best vector match if Claude fails
+                $classificationPath[] = "Claude could not determine classification, using best vector match";
+                $bestMatch = $vectorResult['results'][0];
+                $aiResult = [
+                    'code' => $bestMatch['code'],
+                    'description' => $bestMatch['description'],
+                    'confidence' => max(50, (int)$bestMatch['score'] - 10),
+                    'explanation' => 'Classification based on semantic similarity (AI reasoning unavailable)',
+                ];
+            }
+
+            $classificationPath[] = "Claude classified as: {$aiResult['code']} (confidence: {$aiResult['confidence']}%)";
+
+            // Step 8: Find the matched code in database
+            $matchedCode = CustomsCode::where('code', $aiResult['code'])
+                ->when($countryId, fn($q) => $q->where('country_id', $countryId))
+                ->first();
+            
+            // If no exact match, find the most specific code that starts with AI's suggestion
+            if (!$matchedCode && !empty($aiResult['code'])) {
+                $aiCode = $aiResult['code'];
+                $normalizedAiCode = str_replace('.', '', $aiCode);
+                
+                $matchingCodes = CustomsCode::where(function ($q) use ($aiCode, $normalizedAiCode) {
+                        $q->where('code', 'like', $aiCode . '%')
+                          ->orWhere('code', 'like', $normalizedAiCode . '%');
+                    })
+                    ->when($countryId, fn($q) => $q->where('country_id', $countryId))
+                    ->get();
+                
+                if ($matchingCodes->isNotEmpty()) {
+                    $matchedCode = $matchingCodes->sortByDesc(function ($code) {
+                        return strlen(str_replace('.', '', $code->code));
+                    })->first();
+                    
+                    $classificationPath[] = "AI suggested {$aiCode}, found more specific code: {$matchedCode->code}";
+                }
+            }
+
+            // Step 9: Get exemptions
+            $exemptions = [];
+            if ($matchedCode) {
+                $exemptions = $matchedCode->getApplicableExemptions()->map(function ($exemption) {
+                    return [
+                        'id' => $exemption->id,
+                        'name' => $exemption->name,
+                        'description' => $exemption->description,
+                        'legal_reference' => $exemption->legal_reference,
+                        'conditions' => $exemption->conditions->map(function ($cond) {
+                            return [
+                                'type' => $cond->condition_type,
+                                'description' => $cond->description,
+                                'requirement' => $cond->requirement_text,
+                                'mandatory' => $cond->is_mandatory,
+                            ];
+                        })->toArray(),
+                    ];
+                })->toArray();
+            }
+
+            // Step 10: Calculate duty
+            $dutyCalculation = null;
+            if ($matchedCode) {
+                $dutyCalculation = $matchedCode->calculateTotalDuty(100, 1);
+            }
+
+            // Build alternatives from vector results (excluding the selected code)
+            $alternatives = [];
+            foreach ($vectorResult['results'] as $result) {
+                if ($result['code'] !== $aiResult['code'] && count($alternatives) < 5) {
+                    $alternatives[] = [
+                        'code' => $result['code'],
+                        'description' => $result['description'],
+                        'score' => $result['score'],
+                    ];
+                }
+            }
+
+            return [
+                'success' => true,
+                'item' => $itemDescription,
+                'code' => $aiResult['code'],
+                'description' => $aiResult['description'] ?? $matchedCode?->description,
+                'duty_rate' => $matchedCode?->duty_rate ?? $aiResult['duty_rate'] ?? null,
+                'unit_of_measurement' => $matchedCode?->formatted_unit,
+                'special_rate' => $matchedCode?->special_rate,
+                'confidence' => $aiResult['confidence'],
+                'explanation' => $aiResult['explanation'] ?? 'Classified using hybrid Qdrant + Claude reasoning',
+                'alternatives' => array_merge($aiResult['alternatives'] ?? [], $alternatives),
+                'classification_path' => $classificationPath,
+                'customs_code_id' => $matchedCode?->id,
+                'chapter' => $matchedCode?->tariffChapter?->formatted_identifier,
+                'restricted' => $prohibitedCheck['is_restricted'],
+                'restricted_items' => $prohibitedCheck['restricted_matches'] ?? [],
+                'exemptions_available' => $exemptions,
+                'duty_calculation' => $dutyCalculation,
+                'source' => 'hybrid',
+                'vector_candidates' => array_slice($vectorResult['results'], 0, 5),
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Hybrid classification failed', [
+                'item' => $itemDescription,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            return [
+                'success' => false,
+                'error' => 'Hybrid classification failed: ' . $e->getMessage(),
+                'classification_path' => $classificationPath,
+            ];
+        }
+    }
+
+    /**
+     * Build context for Claude from Qdrant search results
+     */
+    protected function buildVectorContext(array $codes, array $notes, array $exclusions, ?array $ruleResult = null): array
+    {
+        $context = [
+            'codes' => [],
+            'notes' => [],
+            'exclusions' => [],
+            'rule_instruction' => null,
+        ];
+
+        // Format codes from vector search
+        foreach ($codes as $code) {
+            $context['codes'][] = [
+                'code' => $code['code'],
+                'description' => $code['description'],
+                'duty_rate' => $code['duty_rate'],
+                'chapter_number' => $code['chapter_number'],
+                'chapter_title' => $code['chapter_title'],
+                'similarity_score' => $code['score'],
+            ];
+        }
+
+        // Format chapter notes
+        foreach ($notes as $note) {
+            $context['notes'][] = [
+                'reference' => "Chapter {$note['chapter_number']} - {$note['note_type']}",
+                'text' => $note['note_text'],
+                'relevance_score' => $note['score'],
+            ];
+        }
+
+        // Format exclusion rules
+        foreach ($exclusions as $exclusion) {
+            $context['exclusions'][] = [
+                'from_chapter' => $exclusion['source_chapter'],
+                'to_chapter' => $exclusion['target_chapter'],
+                'pattern' => $exclusion['description_pattern'],
+                'reference' => $exclusion['note_reference'],
+            ];
+        }
+
+        // Include rule instruction if present
+        if ($ruleResult && !empty($ruleResult['instruction'])) {
+            $context['rule_instruction'] = $ruleResult['instruction'];
+        }
+
+        return $context;
+    }
+
+    /**
+     * Classify with Claude using hybrid context (Qdrant-sourced candidates)
+     */
+    protected function classifyWithClaudeHybrid(string $itemDescription, array $context, array &$classificationPath, array $precedents = []): array
+    {
+        $prompt = $this->buildHybridClassificationPrompt($itemDescription, $context, $precedents);
+        $estimatedTokens = $this->chunker->estimateTokens($prompt);
+        
+        $classificationPath[] = "Hybrid AI prompt: {$estimatedTokens} estimated tokens";
+
+        // If too large, reduce codes
+        if ($estimatedTokens > 90000) {
+            $context['codes'] = array_slice($context['codes'], 0, 10);
+            $context['notes'] = array_slice($context['notes'], 0, 5);
+            $prompt = $this->buildHybridClassificationPrompt($itemDescription, $context, []);
+            $classificationPath[] = "Reduced context due to token limit";
+        }
+
+        $response = Http::withoutVerifying()
+            ->withHeaders([
+                'x-api-key' => $this->apiKey,
+                'anthropic-version' => '2023-06-01',
+                'Content-Type' => 'application/json',
+            ])
+            ->timeout(60)
+            ->post('https://api.anthropic.com/v1/messages', [
+                'model' => $this->model,
+                'max_tokens' => $this->maxTokens,
+                'messages' => [
+                    ['role' => 'user', 'content' => $prompt],
+                ],
+            ]);
+
+        if (!$response->successful()) {
+            throw new \Exception('Claude API request failed: ' . $response->body());
+        }
+
+        $result = $response->json();
+        $content = $result['content'][0]['text'] ?? '';
+
+        return $this->parseClassificationResponse($content);
+    }
+
+    /**
+     * Build the hybrid classification prompt with Qdrant-sourced context
+     */
+    protected function buildHybridClassificationPrompt(string $itemDescription, array $context, array $precedents = []): string
+    {
+        // Format chapter notes (sorted by relevance)
+        $notesText = '';
+        if (!empty($context['notes'])) {
+            $notesText = "## RELEVANT CHAPTER NOTES (by semantic relevance)\n";
+            $notesText .= "These notes were found by semantic search and may contain important classification rules:\n\n";
+            foreach ($context['notes'] as $note) {
+                $score = $note['relevance_score'] ?? 0;
+                $notesText .= "### {$note['reference']} (relevance: {$score}%)\n{$note['text']}\n\n";
+            }
+        }
+
+        // Format exclusion rules
+        $exclusionText = '';
+        if (!empty($context['exclusions'])) {
+            $exclusionText = "## EXCLUSION RULES\n";
+            $exclusionText .= "These rules redirect certain items from one chapter to another:\n\n";
+            foreach ($context['exclusions'] as $ex) {
+                $exclusionText .= "- Items matching \"{$ex['pattern']}\" are excluded from Chapter {$ex['from_chapter']} ";
+                $exclusionText .= "and should be classified in Chapter {$ex['to_chapter']}";
+                if ($ex['reference']) {
+                    $exclusionText .= " (ref: {$ex['reference']})";
+                }
+                $exclusionText .= "\n";
+            }
+            $exclusionText .= "\n";
+        }
+
+        // Format rule instruction if present
+        $ruleInstructionText = '';
+        if (!empty($context['rule_instruction'])) {
+            $ruleInstructionText = "## CLASSIFICATION GUIDANCE\n";
+            $ruleInstructionText .= "The following instruction should be considered:\n";
+            $ruleInstructionText .= "> {$context['rule_instruction']}\n\n";
+        }
+
+        // Format tenant precedents
+        $precedentText = '';
+        if (!empty($precedents)) {
+            $precedentText .= "## PRIOR APPROVED CLASSIFICATIONS\n";
+            $precedentText .= "These are real prior approvals for similar items. Items marked [LEGACY] are from official historical clearances:\n\n";
+            foreach ($precedents as $p) {
+                $hs = $p['hs_code'] ?? '';
+                $desc = $p['description'] ?? '';
+                $legacyTag = !empty($p['is_legacy']) ? ' [LEGACY]' : '';
+                $precedentText .= "- {$hs}: {$desc}{$legacyTag}\n";
+            }
+            $precedentText .= "\n";
+        }
+
+        // Format candidate codes (from semantic search)
+        $codesText = "## CANDIDATE TARIFF CODES (by semantic similarity)\n";
+        $codesText .= "These codes were found by semantic search based on description similarity:\n\n";
+        foreach ($context['codes'] as $code) {
+            $rate = $code['duty_rate'] !== null ? " (Duty: {$code['duty_rate']}%)" : "";
+            $chapter = $code['chapter_title'] ? " [Chapter: {$code['chapter_title']}]" : "";
+            $score = $code['similarity_score'] ?? 0;
+            $codesText .= "- **{$code['code']}** (similarity: {$score}%): {$code['description']}{$rate}{$chapter}\n";
+        }
+
+        return <<<PROMPT
+You are a customs classification expert. Your task is to classify the item below using the Harmonized System (HS) codes.
+
+## IMPORTANT CONTEXT
+The candidate codes below were found by **semantic similarity search**, not keyword matching. This means:
+- A product description like "Liver Detox 60 caps" might match codes for organ extracts (because "liver" is similar to "glands/organs")
+- BUT you must use **reasoning** to determine the item's TRUE nature
+- Dietary/nutritional supplements, vitamins, and health products in capsule/tablet form are typically classified under:
+  - **21.06** - Food preparations not elsewhere specified (for supplements without medicinal claims)
+  - **30.04** - Medicaments (if they make therapeutic claims and contain active pharmaceutical ingredients)
+
+{$ruleInstructionText}
+{$notesText}
+{$exclusionText}
+{$precedentText}
+{$codesText}
+
+## ITEM TO CLASSIFY
+"{$itemDescription}"
+
+## YOUR TASK
+1. **Analyze the item's true nature** - What is this product actually? (e.g., a dietary supplement, medicine, food, chemical, etc.)
+2. **Consider the form** - Capsules, tablets, powders suggest supplements or medicines; raw materials suggest different chapters
+3. **Apply chapter notes** - Check if any exclusion rules redirect this item
+4. **Select the most appropriate code** - Choose based on the item's nature, not just word similarity
+
+## RESPONSE FORMAT
+Return a JSON object with a status field:
+{
+    "status": "success",
+    "code": "21.06",
+    "description": "Dietary supplement in capsule form for liver health support",
+    "duty_rate": 15,
+    "confidence": 85,
+    "explanation": "This is a dietary supplement (detox product in capsule form) rather than an organ extract. Supplements are classified under 21.06 as food preparations not elsewhere specified.",
+    "alternatives": ["30.04", "30.01"]
+}
+
+STATUS VALUES:
+- "success" = Found a matching code from the list
+- "insufficient" = The item doesn't match any of the provided codes (e.g., looking for electronics but only food codes provided)
+- "ambiguous" = Multiple codes could apply equally well, need more item details
+- "not_found" = Cannot determine classification from provided information
+
+If status is NOT "success", still provide your best explanation of why and what type of code would be appropriate.
+
+Only return the JSON object, no other text.
+PROMPT;
+    }
+
+    /**
+     * Fall back to full classification mode when hybrid mode fails
+     */
+    protected function classifyWithFullMode(string $itemDescription, ?int $countryId, ?int $organizationId, array $classificationPath = []): array
+    {
+        // Temporarily disable hybrid mode to use the original full classification
+        $originalHybridMode = $this->useHybridMode;
+        $originalVectorOnly = $this->useVectorOnly;
+        
+        $this->useHybridMode = false;
+        $this->useVectorOnly = false;
+        
+        $result = $this->classify($itemDescription, $countryId, $organizationId);
+        
+        // Restore settings
+        $this->useHybridMode = $originalHybridMode;
+        $this->useVectorOnly = $originalVectorOnly;
+        
+        // Merge classification paths
+        if (!empty($classificationPath)) {
+            $result['classification_path'] = array_merge($classificationPath, $result['classification_path'] ?? []);
+        }
+        
+        return $result;
     }
 }

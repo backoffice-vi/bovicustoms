@@ -12,7 +12,9 @@ use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Services\InvoiceDocumentExtractor;
 use App\Services\ItemClassifier;
+use App\Jobs\ClassifyInvoiceItems;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Facades\Cache;
 
 class InvoiceController extends Controller
 {
@@ -133,42 +135,14 @@ class InvoiceController extends Controller
         ]);
 
         $countryId = session('invoice_country_id');
+        $filePath = session('invoice_file_path');
+        $extractedData = session('extracted_invoice_data', []);
         
         if (!$countryId) {
             return redirect()->route('invoices.create')->with('error', 'Session expired. Please upload the invoice again.');
         }
 
-        // Classify each item using the AI classifier
-        $itemsWithClassifications = [];
-        
-        foreach ($validatedData['items'] as $index => $item) {
-            $description = $item['description'];
-            
-            // Run classification
-            $classificationResult = $this->itemClassifier->classify($description, $countryId);
-            
-            // Find historical precedents for comparison
-            $precedents = $this->findPrecedentsForItem($description, $countryId);
-            
-            $itemsWithClassifications[] = [
-                // Original item data
-                'description' => $description,
-                'quantity' => $item['quantity'] ?? null,
-                'unit_price' => $item['unit_price'] ?? null,
-                'sku' => $item['sku'] ?? null,
-                'item_number' => $item['item_number'] ?? null,
-                'line_number' => $index + 1,
-                
-                // Classification result
-                'classification' => $classificationResult,
-                
-                // Historical precedents
-                'precedents' => $precedents,
-                
-                // Determine if there's a conflict
-                'has_conflict' => $this->hasConflict($classificationResult, $precedents),
-            ];
-        }
+        $user = auth()->user();
 
         // Store invoice header info
         $invoiceHeader = [
@@ -178,17 +152,216 @@ class InvoiceController extends Controller
             'currency' => session('extracted_invoice_data.currency'),
         ];
 
-        // Store the classified items in the session
+        // Calculate total amount
+        $totalAmount = collect($validatedData['items'])->sum(function ($item) {
+            $qty = $item['quantity'] ?? 1;
+            $price = $item['unit_price'] ?? 0;
+            return $qty * $price;
+        });
+
+        // Generate invoice number
+        $invoiceNumber = $invoiceHeader['invoice_number'] ?? ('INV-' . now()->format('Ymd') . '-' . rand(1000, 9999));
+
+        // Check if an invoice with this number already exists for this user/organization
+        $existingInvoice = Invoice::withoutGlobalScopes()
+            ->where('invoice_number', $invoiceNumber)
+            ->where(function ($query) use ($user) {
+                if ($user->organization_id) {
+                    $query->where('organization_id', $user->organization_id);
+                } else {
+                    $query->where('user_id', $user->id);
+                }
+            })
+            ->first();
+
+        if ($existingInvoice) {
+            // If the existing invoice is still in classifying or draft status, update it
+            if (in_array($existingInvoice->status, ['classifying', 'draft', 'pending'])) {
+                $existingInvoice->update([
+                    'country_id' => $countryId,
+                    'invoice_date' => $invoiceHeader['invoice_date'] ?? now(),
+                    'total_amount' => $totalAmount ?: ($invoiceHeader['total_amount'] ?? 0),
+                    'status' => 'classifying',
+                    'processed' => false,
+                    'items' => $validatedData['items'],
+                    'source_file_path' => $filePath,
+                    'extracted_text' => $extractedData['extracted_text'] ?? null,
+                    'extraction_meta' => $extractedData['extraction_meta'] ?? null,
+                ]);
+                $invoice = $existingInvoice;
+            } else {
+                // Invoice already processed, create a new one with a suffix
+                $suffix = 1;
+                $baseNumber = $invoiceNumber;
+                while (Invoice::withoutGlobalScopes()
+                    ->where('invoice_number', $invoiceNumber)
+                    ->where(function ($query) use ($user) {
+                        if ($user->organization_id) {
+                            $query->where('organization_id', $user->organization_id);
+                        } else {
+                            $query->where('user_id', $user->id);
+                        }
+                    })
+                    ->exists()) {
+                    $invoiceNumber = $baseNumber . '-' . $suffix;
+                    $suffix++;
+                }
+                
+                $invoice = Invoice::create([
+                    'organization_id' => $user->organization_id,
+                    'country_id' => $countryId,
+                    'user_id' => $user->id,
+                    'invoice_number' => $invoiceNumber,
+                    'invoice_date' => $invoiceHeader['invoice_date'] ?? now(),
+                    'total_amount' => $totalAmount ?: ($invoiceHeader['total_amount'] ?? 0),
+                    'status' => 'classifying',
+                    'processed' => false,
+                    'items' => $validatedData['items'],
+                    'source_type' => 'uploaded',
+                    'source_file_path' => $filePath,
+                    'extracted_text' => $extractedData['extracted_text'] ?? null,
+                    'extraction_meta' => $extractedData['extraction_meta'] ?? null,
+                ]);
+            }
+        } else {
+            // Create a new invoice
+            $invoice = Invoice::create([
+                'organization_id' => $user->organization_id,
+                'country_id' => $countryId,
+                'user_id' => $user->id,
+                'invoice_number' => $invoiceNumber,
+                'invoice_date' => $invoiceHeader['invoice_date'] ?? now(),
+                'total_amount' => $totalAmount ?: ($invoiceHeader['total_amount'] ?? 0),
+                'status' => 'classifying',
+                'processed' => false,
+                'items' => $validatedData['items'],
+                'source_type' => 'uploaded',
+                'source_file_path' => $filePath,
+                'extracted_text' => $extractedData['extracted_text'] ?? null,
+                'extraction_meta' => $extractedData['extraction_meta'] ?? null,
+            ]);
+        }
+
+        // Store the invoice ID in session for later retrieval
         session([
-            'items_with_codes' => $itemsWithClassifications,
+            'classifying_invoice_id' => $invoice->id,
+            'invoice_country_id' => $countryId,
             'invoice_header' => $invoiceHeader,
         ]);
 
-        return redirect()->route('invoices.assign_codes');
+        // Initialize the classification status in cache
+        Cache::put("invoice_classification_{$invoice->id}", [
+            'status' => 'queued',
+            'progress' => 0,
+            'message' => 'Classification job queued...',
+            'started_at' => now()->toIso8601String(),
+        ], now()->addHours(2));
+
+        // Dispatch background job for classification
+        ClassifyInvoiceItems::dispatch(
+            $invoice,
+            $user,
+            $validatedData['items'],
+            $countryId,
+            $invoiceHeader
+        );
+
+        Log::info('Invoice classification job dispatched', [
+            'invoice_id' => $invoice->id,
+            'item_count' => count($validatedData['items']),
+        ]);
+
+        return redirect()->route('invoices.classification_status', ['invoice' => $invoice->id]);
+    }
+
+    /**
+     * Show the classification status page with progress updates.
+     */
+    public function classificationStatus(Invoice $invoice)
+    {
+        // Verify the user owns this invoice
+        $user = auth()->user();
+        if ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id) {
+            abort(403, 'Unauthorized access to this invoice.');
+        }
+
+        $countryId = session('invoice_country_id') ?? $invoice->country_id;
+        $country = Country::find($countryId);
+
+        return view('invoices.classification_status', compact('invoice', 'country'));
+    }
+
+    /**
+     * API endpoint to get classification progress.
+     */
+    public function classificationProgress(Invoice $invoice): JsonResponse
+    {
+        // Verify the user owns this invoice
+        $user = auth()->user();
+        if ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $cacheKey = "invoice_classification_{$invoice->id}";
+        $status = Cache::get($cacheKey);
+
+        if (!$status) {
+            return response()->json([
+                'status' => 'unknown',
+                'progress' => 0,
+                'message' => 'Classification status not found. It may have expired.',
+            ]);
+        }
+
+        return response()->json($status);
+    }
+
+    /**
+     * Show the classification results after background processing completes.
+     */
+    public function assignCodesResults(Invoice $invoice)
+    {
+        // Verify the user owns this invoice
+        $user = auth()->user();
+        if ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id) {
+            abort(403, 'Unauthorized access to this invoice.');
+        }
+
+        $cacheKey = "invoice_classification_{$invoice->id}";
+        $classificationData = Cache::get($cacheKey);
+
+        if (!$classificationData || $classificationData['status'] !== 'completed') {
+            return redirect()->route('invoices.classification_status', ['invoice' => $invoice->id])
+                ->with('info', 'Classification is still in progress. Please wait.');
+        }
+
+        $itemsWithCodes = $classificationData['items_with_codes'];
+        $invoiceHeader = $classificationData['invoice_header'];
+        $countryId = $classificationData['country_id'];
+        $country = Country::find($countryId);
+
+        // Store in session for the finalize step
+        session([
+            'items_with_codes' => $itemsWithCodes,
+            'invoice_header' => $invoiceHeader,
+            'invoice_country_id' => $countryId,
+            'classifying_invoice_id' => $invoice->id,
+        ]);
+
+        return view('invoices.assign_codes', compact('itemsWithCodes', 'invoiceHeader', 'country', 'invoice'));
     }
 
     public function assignCodes()
     {
+        // Check if there's an invoice being classified in the background
+        $invoiceId = session('classifying_invoice_id');
+        if ($invoiceId) {
+            $invoice = Invoice::find($invoiceId);
+            if ($invoice && $invoice->status === 'classifying') {
+                return redirect()->route('invoices.classification_status', ['invoice' => $invoice->id]);
+            }
+        }
+
         $itemsWithCodes = session('items_with_codes');
         if (!$itemsWithCodes) {
             return redirect()->route('invoices.create')->with('error', 'No invoice data found. Please upload an invoice first.');
@@ -197,8 +370,9 @@ class InvoiceController extends Controller
         $invoiceHeader = session('invoice_header', []);
         $countryId = session('invoice_country_id');
         $country = Country::find($countryId);
+        $invoice = $invoiceId ? Invoice::find($invoiceId) : null;
 
-        return view('invoices.assign_codes', compact('itemsWithCodes', 'invoiceHeader', 'country'));
+        return view('invoices.assign_codes', compact('itemsWithCodes', 'invoiceHeader', 'country', 'invoice'));
     }
 
     public function finalize(Request $request)
@@ -209,6 +383,8 @@ class InvoiceController extends Controller
             'items.*.quantity' => 'nullable|numeric',
             'items.*.unit_price' => 'nullable|numeric',
             'items.*.customs_code' => 'required|string',
+            'items.*.duty_rate' => 'nullable|numeric',
+            'items.*.customs_code_description' => 'nullable|string',
             'items.*.sku' => 'nullable|string',
             'items.*.item_number' => 'nullable|string',
             'items.*.line_number' => 'nullable|integer',
@@ -217,8 +393,7 @@ class InvoiceController extends Controller
         $user = auth()->user();
         $countryId = session('invoice_country_id');
         $invoiceHeader = session('invoice_header', []);
-        $filePath = session('invoice_file_path');
-        $extractedData = session('extracted_invoice_data', []);
+        $existingInvoiceId = session('classifying_invoice_id');
 
         if (!$countryId) {
             return redirect()->route('invoices.create')->with('error', 'Session expired. Please upload the invoice again.');
@@ -231,22 +406,47 @@ class InvoiceController extends Controller
             return $qty * $price;
         });
 
-        // Create the invoice
-        $invoice = Invoice::create([
-            'organization_id' => $user->organization_id,
-            'country_id' => $countryId,
-            'user_id' => $user->id,
-            'invoice_number' => $invoiceHeader['invoice_number'] ?? ('INV-' . now()->format('Ymd') . '-' . rand(1000, 9999)),
-            'invoice_date' => $invoiceHeader['invoice_date'] ?? now(),
-            'total_amount' => $totalAmount ?: ($invoiceHeader['total_amount'] ?? 0),
-            'status' => 'processed',
-            'processed' => true,
-            'items' => $validatedData['items'],
-            'source_type' => 'uploaded',
-            'source_file_path' => $filePath,
-            'extracted_text' => $extractedData['extracted_text'] ?? null,
-            'extraction_meta' => $extractedData['extraction_meta'] ?? null,
-        ]);
+        // Check if we have an existing invoice from background processing
+        if ($existingInvoiceId) {
+            $invoice = Invoice::find($existingInvoiceId);
+            if ($invoice) {
+                // Update the existing invoice
+                $invoice->update([
+                    'status' => 'processed',
+                    'processed' => true,
+                    'items' => $validatedData['items'],
+                    'total_amount' => $totalAmount ?: $invoice->total_amount,
+                ]);
+
+                // Clear any cached classification data
+                Cache::forget("invoice_classification_{$invoice->id}");
+            }
+        }
+
+        // If no existing invoice, create a new one
+        if (!isset($invoice) || !$invoice) {
+            $filePath = session('invoice_file_path');
+            $extractedData = session('extracted_invoice_data', []);
+
+            $invoice = Invoice::create([
+                'organization_id' => $user->organization_id,
+                'country_id' => $countryId,
+                'user_id' => $user->id,
+                'invoice_number' => $invoiceHeader['invoice_number'] ?? ('INV-' . now()->format('Ymd') . '-' . rand(1000, 9999)),
+                'invoice_date' => $invoiceHeader['invoice_date'] ?? now(),
+                'total_amount' => $totalAmount ?: ($invoiceHeader['total_amount'] ?? 0),
+                'status' => 'processed',
+                'processed' => true,
+                'items' => $validatedData['items'],
+                'source_type' => 'uploaded',
+                'source_file_path' => $filePath,
+                'extracted_text' => $extractedData['extracted_text'] ?? null,
+                'extraction_meta' => $extractedData['extraction_meta'] ?? null,
+            ]);
+        }
+
+        // Delete existing invoice items if updating
+        InvoiceItem::where('invoice_id', $invoice->id)->delete();
 
         // Create individual InvoiceItem records
         foreach ($validatedData['items'] as $index => $item) {
@@ -264,8 +464,14 @@ class InvoiceController extends Controller
                 'line_total' => ($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0),
                 'currency' => $invoiceHeader['currency'] ?? 'USD',
                 'customs_code' => $item['customs_code'],
+                'duty_rate' => $item['duty_rate'] ?? null,
+                'customs_code_description' => $item['customs_code_description'] ?? null,
             ]);
         }
+
+        // Delete any existing declaration forms for this invoice (if re-processing)
+        DeclarationForm::where('invoice_id', $invoice->id)->delete();
+        DeclarationFormItem::where('invoice_id', $invoice->id)->delete();
 
         // Create the Declaration Form
         $declarationForm = DeclarationForm::create([
@@ -277,9 +483,9 @@ class InvoiceController extends Controller
             'total_duty' => 0, // Will be calculated when duty rates are applied
             'items' => $validatedData['items'],
             'source_type' => 'invoice',
-            'source_file_path' => $filePath,
-            'extracted_text' => $extractedData['extracted_text'] ?? null,
-            'extraction_meta' => $extractedData['extraction_meta'] ?? null,
+            'source_file_path' => $invoice->source_file_path,
+            'extracted_text' => $invoice->extracted_text,
+            'extraction_meta' => $invoice->extraction_meta,
         ]);
 
         // Create Declaration Form Items (for historical precedent tracking)
@@ -299,7 +505,7 @@ class InvoiceController extends Controller
                 'line_total' => ($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0),
                 'currency' => $invoiceHeader['currency'] ?? 'USD',
                 'hs_code' => $item['customs_code'],
-                'hs_description' => null, // Can be populated from customs_codes table if needed
+                'hs_description' => $item['customs_code_description'] ?? null,
             ]);
         }
 
@@ -310,6 +516,7 @@ class InvoiceController extends Controller
             'invoice_country_id',
             'invoice_header',
             'invoice_file_path',
+            'classifying_invoice_id',
         ]);
 
         return redirect()->route('invoices.show', $invoice)->with('success', 'Invoice processed successfully with ' . count($validatedData['items']) . ' items. Declaration form generated.');
@@ -489,6 +696,99 @@ class InvoiceController extends Controller
                     'unit' => $code->unit_of_measurement,
                 ];
             }),
+        ]);
+    }
+
+    /**
+     * Search classification memory for previously classified items
+     * This helps reuse prior classifications for similar/identical products
+     */
+    public function searchClassificationMemory(Request $request): JsonResponse
+    {
+        $request->validate([
+            'q' => 'required|string|min:2|max:200',
+            'country_id' => 'nullable|integer|exists:countries,id',
+        ]);
+
+        $query = strtolower(trim($request->input('q')));
+        $countryId = $request->input('country_id');
+
+        // Search in invoice_items for previously classified items
+        $itemsQuery = InvoiceItem::query()
+            ->whereNotNull('customs_code')
+            ->where('customs_code', '!=', '');
+
+        // Filter by country if provided
+        if ($countryId) {
+            $itemsQuery->where('country_id', $countryId);
+        }
+
+        // Search by description (case-insensitive)
+        $itemsQuery->whereRaw('LOWER(description) LIKE ?', ["%{$query}%"]);
+
+        // Get recent items, grouped by description to avoid duplicates
+        $items = $itemsQuery
+            ->select('description', 'customs_code', 'duty_rate', 'customs_code_description')
+            ->orderBy('created_at', 'desc')
+            ->limit(100)
+            ->get();
+
+        // Group by description and customs_code to find unique classifications
+        $grouped = $items->groupBy(function ($item) {
+            return strtolower($item->description) . '|' . $item->customs_code;
+        });
+
+        // Score and sort by relevance
+        $results = [];
+        foreach ($grouped as $key => $group) {
+            $item = $group->first();
+            $desc = strtolower($item->description);
+            
+            // Calculate relevance score
+            $score = 0;
+            
+            // Exact match gets highest score
+            if ($desc === $query) {
+                $score = 100;
+            }
+            // Starts with query
+            elseif (str_starts_with($desc, $query)) {
+                $score = 90;
+            }
+            // Contains query as whole word
+            elseif (preg_match('/\b' . preg_quote($query, '/') . '\b/i', $desc)) {
+                $score = 80;
+            }
+            // Contains query
+            else {
+                $score = 60;
+            }
+            
+            // Boost if item has been classified multiple times (more reliable)
+            $count = $group->count();
+            if ($count > 1) {
+                $score += min(10, $count);
+            }
+
+            $results[] = [
+                'description' => $item->description,
+                'customs_code' => $item->customs_code,
+                'duty_rate' => $item->duty_rate,
+                'customs_code_description' => $item->customs_code_description,
+                'times_used' => $count,
+                'score' => $score,
+            ];
+        }
+
+        // Sort by score descending
+        usort($results, fn($a, $b) => $b['score'] <=> $a['score']);
+
+        // Take top 10 results
+        $results = array_slice($results, 0, 10);
+
+        return response()->json([
+            'success' => true,
+            'results' => $results,
         ]);
     }
 }

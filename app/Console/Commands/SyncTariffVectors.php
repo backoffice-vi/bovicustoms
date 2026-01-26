@@ -47,6 +47,10 @@ class SyncTariffVectors extends Command
      */
     public function handle(): int
     {
+        // Allow long execution time and more memory
+        set_time_limit(0);
+        ini_set('memory_limit', '1G');
+        
         $this->batchSize = (int) $this->option('batch-size');
         $this->dryRun = (bool) $this->option('dry-run');
         $countryId = $this->option('country');

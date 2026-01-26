@@ -60,18 +60,67 @@ class ClaudeJsonClient
         return $this->parseJsonResponse($text);
     }
 
+    /**
+     * Vision: send a PDF document and ask Claude to return JSON only. Returns an array, or [] on parse failure.
+     * Claude's API supports PDF files directly via the "document" type.
+     */
+    public function promptForJsonWithPdf(string $prompt, string $pdfBinary, int $timeoutSeconds = 300): array
+    {
+        $b64 = base64_encode($pdfBinary);
+
+        $text = $this->callClaude([
+            [
+                'role' => 'user',
+                'content' => [
+                    [
+                        'type' => 'document',
+                        'source' => [
+                            'type' => 'base64',
+                            'media_type' => 'application/pdf',
+                            'data' => $b64,
+                        ],
+                    ],
+                    ['type' => 'text', 'text' => $prompt],
+                ],
+            ],
+        ], $timeoutSeconds);
+
+        return $this->parseJsonResponse($text);
+    }
+
     protected function callClaude(array $messages, int $timeoutSeconds): string
     {
         if (empty($this->apiKey)) {
             throw new \RuntimeException('CLAUDE_API_KEY is not configured');
         }
 
+        // Check if any message contains a PDF document (requires beta header)
+        $hasPdf = false;
+        foreach ($messages as $message) {
+            $content = $message['content'] ?? [];
+            if (is_array($content)) {
+                foreach ($content as $part) {
+                    if (($part['type'] ?? '') === 'document') {
+                        $hasPdf = true;
+                        break 2;
+                    }
+                }
+            }
+        }
+
+        $headers = [
+            'x-api-key' => $this->apiKey,
+            'anthropic-version' => '2023-06-01',
+            'Content-Type' => 'application/json',
+        ];
+
+        // Add beta header for PDF support
+        if ($hasPdf) {
+            $headers['anthropic-beta'] = 'pdfs-2024-09-25';
+        }
+
         $response = Http::withoutVerifying()
-            ->withHeaders([
-                'x-api-key' => $this->apiKey,
-                'anthropic-version' => '2023-06-01',
-                'Content-Type' => 'application/json',
-            ])
+            ->withHeaders($headers)
             ->timeout($timeoutSeconds)
             ->post('https://api.anthropic.com/v1/messages', [
                 'model' => $this->model,

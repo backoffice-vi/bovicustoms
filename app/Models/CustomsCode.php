@@ -15,6 +15,9 @@ class CustomsCode extends Model
         'hs_code_version',
         'description',
         'duty_rate',
+        'duty_type',
+        'specific_duty_amount',
+        'specific_duty_unit',
         // Hierarchical fields
         'tariff_chapter_id',
         'parent_code',
@@ -36,11 +39,19 @@ class CustomsCode extends Model
     protected $casts = [
         'duty_rate' => 'decimal:2',
         'special_rate' => 'decimal:2',
+        'specific_duty_amount' => 'decimal:2',
         'classification_keywords' => 'array',
         'applicable_note_ids' => 'array',
         'applicable_exemption_ids' => 'array',
         'similar_code_ids' => 'array',
     ];
+
+    /**
+     * Duty types
+     */
+    const DUTY_TYPE_AD_VALOREM = 'ad_valorem';  // Percentage of value
+    const DUTY_TYPE_SPECIFIC = 'specific';      // Fixed amount per unit
+    const DUTY_TYPE_COMPOUND = 'compound';      // Both percentage and fixed amount
 
     /**
      * Code levels
@@ -315,5 +326,54 @@ class CustomsCode extends Model
     public function hasSpecialRate(): bool
     {
         return $this->special_rate !== null;
+    }
+
+    /**
+     * Check if this is a specific duty (fixed amount)
+     */
+    public function isSpecificDuty(): bool
+    {
+        return $this->duty_type === self::DUTY_TYPE_SPECIFIC;
+    }
+
+    /**
+     * Check if this is an ad valorem duty (percentage)
+     */
+    public function isAdValoremDuty(): bool
+    {
+        return $this->duty_type === self::DUTY_TYPE_AD_VALOREM;
+    }
+
+    /**
+     * Check if this is a compound duty (both)
+     */
+    public function isCompoundDuty(): bool
+    {
+        return $this->duty_type === self::DUTY_TYPE_COMPOUND;
+    }
+
+    /**
+     * Get formatted duty rate display
+     */
+    public function getFormattedDutyAttribute(): string
+    {
+        if ($this->duty_type === self::DUTY_TYPE_SPECIFIC) {
+            $amount = number_format($this->specific_duty_amount, 2);
+            $unit = $this->specific_duty_unit ?? 'each';
+            return "\${$amount} {$unit}";
+        }
+        
+        if ($this->duty_type === self::DUTY_TYPE_COMPOUND) {
+            $percentage = number_format($this->duty_rate, 1) . '%';
+            $amount = number_format($this->specific_duty_amount, 2);
+            $unit = $this->specific_duty_unit ?? 'each';
+            return "{$percentage} + \${$amount} {$unit}";
+        }
+        
+        // Ad valorem (percentage)
+        if ($this->duty_rate == 0) {
+            return 'Free';
+        }
+        return number_format($this->duty_rate, 1) . '%';
     }
 }

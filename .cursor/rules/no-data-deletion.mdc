@@ -1,0 +1,55 @@
+# No Data Deletion Rule
+
+**NEVER** delete data from any database without explicit user confirmation. This includes:
+
+## Protected Data Sources
+
+1. **Vector Databases (Qdrant, Pinecone, etc.)**
+   - Do NOT use `--recreate` flags
+   - Do NOT delete collections
+   - Do NOT run bulk delete operations
+   - Do NOT use `deleteByFilter` or similar methods
+
+2. **SQL/SQLite Databases**
+   - Do NOT truncate tables
+   - Do NOT drop tables
+   - Do NOT run DELETE statements without WHERE clauses
+   - Do NOT run migrations that drop columns/tables without confirmation
+
+3. **External APIs and Services**
+   - Do NOT delete resources via API calls
+   - Do NOT overwrite existing data without confirmation
+
+## Before Any Destructive Operation
+
+**ALWAYS** ask the user for explicit confirmation before:
+- Deleting any records
+- Recreating collections or tables
+- Running migrations that modify existing data
+- Syncing data that might overwrite existing entries
+- Using any flag like `--fresh`, `--recreate`, `--force-delete`
+
+## Safe Alternatives
+
+Instead of deleting, prefer:
+- **Adding** new data alongside existing data
+- **Updating** specific records
+- **Creating backups** before modifications
+- **Using soft deletes** when available
+
+## Example Violations
+
+```bash
+# NEVER run without asking first:
+php artisan tariff:sync-vectors --recreate  # Deletes collection!
+php artisan migrate:fresh                    # Drops all tables!
+php artisan db:wipe                          # Wipes database!
+```
+
+## When User Requests Deletion
+
+If the user explicitly asks to delete data:
+1. Confirm what will be deleted
+2. Ask if they have a backup
+3. Warn about irreversibility
+4. Only proceed after explicit "yes" confirmation

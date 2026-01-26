@@ -60,8 +60,33 @@ class InvoiceDocumentExtractor
         if ($isPdf) {
             $fileSize = $file->getSize() ?? 0;
             
-            // For large PDFs or when Unstructured API is available, use it
-            if ($fileSize > 2_000_000 && $this->unstructuredApi) {
+            // For PDFs under 30MB, use Claude's PDF vision mode (best for invoices)
+            // Claude supports up to 100 pages per PDF for vision
+            if ($fileSize <= 30_000_000) {
+                try {
+                    Log::info('Attempting PDF vision extraction', ['size' => $fileSize]);
+                    $prompt = $this->buildInvoiceVisionPrompt();
+                    $json = $this->claude->promptForJsonWithPdf($prompt, $file->get());
+                    
+                    // Check if we got meaningful results
+                    if (!empty($json['items']) && count($json['items']) > 0) {
+                        Log::info('PDF extracted via Claude Vision', [
+                            'size' => $fileSize,
+                            'items_count' => count($json['items']),
+                        ]);
+                        return $this->normalizeInvoiceResult($json, null, array_merge($meta, ['mode' => 'pdf_vision']));
+                    }
+                    
+                    Log::warning('PDF vision returned no items, trying text extraction', ['json' => $json]);
+                } catch (\Throwable $e) {
+                    Log::warning('PDF vision extraction failed, falling back to text extraction', [
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+            
+            // For very large PDFs or if vision failed, use text extraction
+            if ($fileSize > 30_000_000 && $this->unstructuredApi) {
                 try {
                     $text = $this->unstructuredApi->extractText($file, 'hi_res');
                     $text = trim($text);
@@ -82,11 +107,11 @@ class InvoiceDocumentExtractor
                 // If Unstructured API failed for large file
                 return $this->normalizeInvoiceResult([], null, array_merge($meta, [
                     'mode' => 'pdf_rejected_large',
-                    'error' => 'PDF too large for text extraction; upload as image (JPG/PNG) or Excel.',
+                    'error' => 'PDF too large for processing. Please split into smaller files or upload as images.',
                 ]));
             }
 
-            // For smaller PDFs, try standard extraction first
+            // Fallback: try text extraction
             $text = $this->textExtractor->extractText($file->getPathname(), 'pdf');
             $text = trim($text);
             
@@ -112,7 +137,7 @@ class InvoiceDocumentExtractor
             if (mb_strlen($text) < 50) {
                 return $this->normalizeInvoiceResult([], $text, array_merge($meta, [
                     'mode' => 'pdf_empty_text',
-                    'error' => 'PDF appears scanned or has no readable text; upload as image (JPG/PNG) or Excel.',
+                    'error' => 'PDF appears scanned or has no readable text. Please try uploading again.',
                 ]));
             }
 

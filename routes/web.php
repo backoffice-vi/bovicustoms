@@ -20,9 +20,13 @@ use App\Http\Controllers\Admin\ProhibitedRestrictedController;
 use App\Http\Controllers\Admin\ClassificationTesterController;
 use App\Http\Controllers\Admin\CountryDocumentController;
 use App\Http\Controllers\Admin\CountryLevyController;
+use App\Http\Controllers\Admin\TariffDatabaseController;
 use App\Http\Controllers\TradeContactController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\ShippingDocumentController;
+use App\Http\Controllers\Agent\AgentDashboardController;
+use App\Http\Controllers\Agent\AgentDeclarationController;
+use App\Http\Controllers\Agent\AgentClientController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -78,6 +82,12 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         Route::post('invoices', [InvoiceController::class, 'store'])->name('invoices.store');
         Route::post('invoices/confirm', [InvoiceController::class, 'confirm'])->name('invoices.confirm');
         Route::post('invoices/finalize', [InvoiceController::class, 'finalize'])->name('invoices.finalize');
+        
+        // Background classification status routes
+        Route::get('invoices/{invoice}/classification-status', [InvoiceController::class, 'classificationStatus'])->name('invoices.classification_status');
+        Route::get('invoices/{invoice}/classification-progress', [InvoiceController::class, 'classificationProgress'])->name('invoices.classification_progress');
+        Route::get('invoices/{invoice}/assign-codes-results', [InvoiceController::class, 'assignCodesResults'])->name('invoices.assign_codes_results');
+        
         // Resource route for index and show (must be last to avoid catching /create, /review, etc)
         Route::resource('invoices', InvoiceController::class)->only(['index', 'show']);
     });
@@ -150,11 +160,15 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
     
     // API-style routes for AJAX requests
     Route::get('/api/customs-codes/search', [InvoiceController::class, 'searchCustomsCodes'])->name('api.customs-codes.search');
+    Route::get('/api/classification-memory/search', [InvoiceController::class, 'searchClassificationMemory'])->name('api.classification-memory.search');
     
     // Admin routes (admin role only)
     Route::middleware(['admin'])->prefix('admin')->name('admin.')->group(function () {
         // User Management
         Route::resource('users', UserManagementController::class);
+        Route::post('users/{user}/assign-client', [UserManagementController::class, 'assignClient'])->name('users.assign-client');
+        Route::delete('users/{user}/clients/{organization}', [UserManagementController::class, 'removeClient'])->name('users.remove-client');
+        Route::patch('users/{user}/clients/{organization}/toggle', [UserManagementController::class, 'toggleClientStatus'])->name('users.toggle-client');
         
         // AI Settings
         Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
@@ -214,5 +228,41 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         
         // Country Levies (Wharfage, etc.)
         Route::resource('country-levies', CountryLevyController::class);
+        
+        // Tariff Database Viewer
+        Route::prefix('tariff-database')->name('tariff-database.')->group(function () {
+            Route::get('/', [TariffDatabaseController::class, 'index'])->name('index');
+            Route::get('/codes', [TariffDatabaseController::class, 'codes'])->name('codes');
+            Route::get('/notes', [TariffDatabaseController::class, 'notes'])->name('notes');
+            Route::get('/structure', [TariffDatabaseController::class, 'structure'])->name('structure');
+            Route::get('/exclusions', [TariffDatabaseController::class, 'exclusions'])->name('exclusions');
+        });
+    });
+
+    // Agent routes (agent role only)
+    Route::middleware(['agent'])->prefix('agent')->name('agent.')->group(function () {
+        // Dashboard
+        Route::get('/', [AgentDashboardController::class, 'index'])->name('dashboard');
+        Route::get('/dashboard', [AgentDashboardController::class, 'index'])->name('dashboard.index');
+        
+        // Client context switching
+        Route::get('/switch-client/{organization}', [AgentDashboardController::class, 'switchClient'])->name('switch-client');
+        Route::get('/clear-client', [AgentDashboardController::class, 'clearClientContext'])->name('clear-client');
+        
+        // Clients list
+        Route::get('/clients', [AgentClientController::class, 'index'])->name('clients.index');
+        Route::get('/clients/{organization}', [AgentClientController::class, 'show'])->name('clients.show');
+        
+        // Declarations
+        Route::get('/declarations', [AgentDeclarationController::class, 'index'])->name('declarations.index');
+        Route::get('/declarations/{declaration}', [AgentDeclarationController::class, 'show'])->name('declarations.show');
+        Route::post('/declarations/{declaration}/mark-ready', [AgentDeclarationController::class, 'markReady'])->name('declarations.mark-ready');
+        Route::get('/declarations/{declaration}/submit', [AgentDeclarationController::class, 'showSubmitForm'])->name('declarations.submit-form');
+        Route::post('/declarations/{declaration}/submit', [AgentDeclarationController::class, 'submit'])->name('declarations.submit');
+        
+        // Attachments
+        Route::post('/declarations/{declaration}/attachments', [AgentDeclarationController::class, 'uploadAttachment'])->name('declarations.upload-attachment');
+        Route::delete('/attachments/{attachment}', [AgentDeclarationController::class, 'deleteAttachment'])->name('attachments.delete');
+        Route::get('/attachments/{attachment}/download', [AgentDeclarationController::class, 'downloadAttachment'])->name('attachments.download');
     });
 });

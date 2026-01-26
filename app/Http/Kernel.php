@@ -68,5 +68,6 @@ class Kernel extends HttpKernel
         'subscription' => \App\Http\Middleware\CheckSubscription::class,
         'onboarded' => \App\Http\Middleware\EnsureOnboarded::class,
         'admin' => \App\Http\Middleware\AdminMiddleware::class,
+        'agent' => \App\Http\Middleware\AgentMiddleware::class,
     ];
 }

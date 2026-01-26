@@ -34,6 +34,25 @@
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav me-auto">
                     @auth
+                    @if(auth()->user()->isAgent())
+                    {{-- Agent Navigation --}}
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('agent.dashboard') }}">
+                            <i class="fas fa-tachometer-alt me-1"></i>Agent Dashboard
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('agent.clients.index') }}">
+                            <i class="fas fa-building me-1"></i>My Clients
+                        </a>
+                    </li>
+                    <li class="nav-item">
+                        <a class="nav-link" href="{{ route('agent.declarations.index') }}">
+                            <i class="fas fa-file-alt me-1"></i>Declarations
+                        </a>
+                    </li>
+                    @else
+                    {{-- Regular User Navigation --}}
                     <li class="nav-item">
                         <a class="nav-link" href="{{ route('dashboard') }}">Dashboard</a>
                     </li>
@@ -68,6 +87,7 @@
                         <a class="nav-link" href="{{ route('subscription.index') }}">Subscription</a>
                     </li>
                     @endif
+                    @endif
                     @if(auth()->user()->isAdmin())
                     <li class="nav-item dropdown">
                         <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
@@ -83,6 +103,9 @@
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ route('admin.countries.index') }}">Countries</a></li>
                             <li><a class="dropdown-item" href="{{ route('admin.customs-codes.index') }}">Customs Codes</a></li>
+                            <li><a class="dropdown-item" href="{{ route('admin.tariff-database.index') }}">
+                                <i class="fas fa-database me-1"></i>Tariff Database
+                            </a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ route('admin.law-documents.index') }}">
                                 <i class="fas fa-gavel me-1"></i>Law Documents

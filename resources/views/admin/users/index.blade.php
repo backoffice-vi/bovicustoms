@@ -41,6 +41,7 @@
                         <option value="">All Roles</option>
                         <option value="admin" {{ request('role') == 'admin' ? 'selected' : '' }}>Admin</option>
                         <option value="user" {{ request('role') == 'user' ? 'selected' : '' }}>User</option>
+                        <option value="agent" {{ request('role') == 'agent' ? 'selected' : '' }}>Agent</option>
                     </select>
                 </div>
                 <div class="col-md-2 d-flex align-items-end">
@@ -80,6 +81,8 @@
                             <td>
                                 @if($user->role === 'admin')
                                     <span class="badge bg-danger">Admin</span>
+                                @elseif($user->role === 'agent')
+                                    <span class="badge bg-primary">Agent</span>
                                 @else
                                     <span class="badge bg-secondary">User</span>
                                 @endif
