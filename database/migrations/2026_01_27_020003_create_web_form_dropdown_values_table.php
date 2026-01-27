@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('web_form_dropdown_values')) {
+            return; // Table already exists, skip creation
+        }
+        
         Schema::create('web_form_dropdown_values', function (Blueprint $table) {
             $table->id();
             $table->foreignId('web_form_field_mapping_id')->constrained()->onDelete('cascade');
