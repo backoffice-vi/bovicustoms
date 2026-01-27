@@ -51,9 +51,14 @@
                             <div class="mb-2"><strong>Country:</strong> {{ $declarationForm->country?->name ?? 'N/A' }}</div>
                         </div>
                         <div class="col-md-6">
-                            <div class="mb-2"><strong>Invoice:</strong>
-                                @if($declarationForm->invoice)
-                                    <a href="{{ route('invoices.show', $declarationForm->invoice) }}">#{{ $declarationForm->invoice->invoice_number }}</a>
+                            @php
+                                $allInvoices = $declarationForm->getAllInvoices();
+                            @endphp
+                            <div class="mb-2"><strong>Invoice{{ $allInvoices->count() > 1 ? 's' : '' }}:</strong>
+                                @if($allInvoices->count() > 0)
+                                    @foreach($allInvoices as $inv)
+                                        <a href="{{ route('invoices.show', $inv) }}">#{{ $inv->invoice_number }}</a>@if(!$loop->last), @endif
+                                    @endforeach
                                 @else
                                     <span class="text-muted">N/A</span>
                                 @endif
@@ -354,9 +359,17 @@
                         <dt>Available Templates</dt>
                         <dd>{{ $availableTemplatesCount }} form(s) for {{ $declarationForm->country?->name ?? 'N/A' }}</dd>
                         
-                        @if($declarationForm->invoice)
-                            <dt>Invoice Total</dt>
-                            <dd>${{ number_format((float)$declarationForm->invoice->total_amount, 2) }}</dd>
+                        @php
+                            $quickInfoInvoices = $declarationForm->getAllInvoices();
+                            $invoiceTotal = $quickInfoInvoices->sum('total_amount');
+                        @endphp
+                        @if($quickInfoInvoices->count() > 0)
+                            <dt>Invoice{{ $quickInfoInvoices->count() > 1 ? 's' : '' }} Total</dt>
+                            <dd>${{ number_format((float)$invoiceTotal, 2) }}
+                                @if($quickInfoInvoices->count() > 1)
+                                    <small class="text-muted">({{ $quickInfoInvoices->count() }} invoices)</small>
+                                @endif
+                            </dd>
                         @endif
                     </dl>
                 </div>

@@ -36,6 +36,7 @@ class ShippingDocument extends Model
         'document_type',
         'document_number',
         'manifest_number',
+        'container_id',
         'filename',
         'original_filename',
         'file_path',

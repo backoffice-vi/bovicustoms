@@ -204,7 +204,7 @@ class DutyCalculationService
     }
 
     /**
-     * Group duties by tariff code for summary
+     * Group duties by tariff code for summary with detailed breakdown
      */
     protected function groupDutiesByTariff(array $itemDuties): array
     {
@@ -218,21 +218,52 @@ class DutyCalculationService
                     'tariff_code' => $code,
                     'tariff_description' => $item['tariff_description'],
                     'duty_rate' => $item['duty_rate'],
+                    'total_quantity' => 0,
+                    'total_fob' => 0,
+                    'total_freight' => 0,
+                    'total_insurance' => 0,
                     'total_cif' => 0,
                     'total_duty' => 0,
                     'item_count' => 0,
+                    'items' => [],
+                    'descriptions' => [],
                 ];
             }
 
+            $grouped[$code]['total_quantity'] += $item['quantity'] ?? 1;
+            $grouped[$code]['total_fob'] += $item['fob_value'];
+            $grouped[$code]['total_freight'] += $item['freight_share'];
+            $grouped[$code]['total_insurance'] += $item['insurance_share'];
             $grouped[$code]['total_cif'] += $item['cif_value'];
             $grouped[$code]['total_duty'] += $item['duty_amount'];
             $grouped[$code]['item_count']++;
+            
+            // Collect unique item descriptions
+            if (!empty($item['description']) && !in_array($item['description'], $grouped[$code]['descriptions'])) {
+                $grouped[$code]['descriptions'][] = $item['description'];
+            }
+            
+            // Store individual items for detailed view
+            $grouped[$code]['items'][] = [
+                'description' => $item['description'],
+                'quantity' => $item['quantity'],
+                'unit_price' => $item['unit_price'],
+                'fob_value' => $item['fob_value'],
+                'cif_value' => $item['cif_value'],
+            ];
         }
 
-        // Round totals
+        // Round totals and create general description
         foreach ($grouped as &$group) {
+            $group['total_quantity'] = round($group['total_quantity'], 3);
+            $group['total_fob'] = round($group['total_fob'], 2);
+            $group['total_freight'] = round($group['total_freight'], 2);
+            $group['total_insurance'] = round($group['total_insurance'], 2);
             $group['total_cif'] = round($group['total_cif'], 2);
             $group['total_duty'] = round($group['total_duty'], 2);
+            
+            // Generate a general description from common product category terms
+            $group['general_description'] = $this->deriveGeneralDescription($group['descriptions'], $group['tariff_description']);
         }
 
         return array_values($grouped);
@@ -245,6 +276,74 @@ class DutyCalculationService
     {
         return $invoices->flatMap(fn($inv) => $inv->invoiceItems ?? collect())
             ->sum('quantity') ?? 1;
+    }
+
+    /**
+     * Derive a general description from item descriptions
+     * Looks for common category keywords to create a summary
+     */
+    protected function deriveGeneralDescription(array $descriptions, ?string $tariffDescription): string
+    {
+        if (empty($descriptions)) {
+            return $tariffDescription ?? 'General Merchandise';
+        }
+
+        // Combine all descriptions into one string for analysis
+        $allText = strtolower(implode(' ', $descriptions));
+        
+        // Common product category keywords with their general descriptions
+        $categories = [
+            'supplement' => 'Dietary Supplements',
+            'vitamin' => 'Vitamins & Supplements',
+            'herbal' => 'Herbal Products',
+            'detox' => 'Health & Wellness Products',
+            'cleanse' => 'Health & Wellness Products',
+            'capsule' => 'Dietary Supplements',
+            'tablet' => 'Pharmaceutical/Health Products',
+            'food' => 'Food Products',
+            'beverage' => 'Beverages',
+            'clothing' => 'Apparel & Clothing',
+            'shirt' => 'Apparel & Clothing',
+            'electronic' => 'Electronics',
+            'computer' => 'Computer Equipment',
+            'phone' => 'Electronics & Telecommunications',
+            'tool' => 'Tools & Equipment',
+            'furniture' => 'Furniture',
+            'appliance' => 'Household Appliances',
+            'cosmetic' => 'Cosmetics & Beauty Products',
+            'beauty' => 'Cosmetics & Beauty Products',
+            'soap' => 'Personal Care Products',
+            'shampoo' => 'Personal Care Products',
+            'oil' => 'Oils & Lubricants',
+            'machine' => 'Machinery & Equipment',
+            'part' => 'Parts & Components',
+            'toy' => 'Toys & Games',
+            'book' => 'Books & Publications',
+            'paper' => 'Paper Products',
+            'plastic' => 'Plastic Products',
+            'metal' => 'Metal Products',
+            'textile' => 'Textile Products',
+            'fabric' => 'Textile Products',
+        ];
+
+        // Find matching categories
+        $matchedCategories = [];
+        foreach ($categories as $keyword => $category) {
+            if (strpos($allText, $keyword) !== false) {
+                $matchedCategories[$category] = ($matchedCategories[$category] ?? 0) + 1;
+            }
+        }
+
+        // Return the most common matched category
+        if (!empty($matchedCategories)) {
+            arsort($matchedCategories);
+            return array_key_first($matchedCategories);
+        }
+
+        // Fallback to tariff description or generic
+        return $tariffDescription && $tariffDescription !== 'Other' 
+            ? $tariffDescription 
+            : 'General Merchandise';
     }
 
     /**

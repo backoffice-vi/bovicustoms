@@ -45,7 +45,11 @@ class Shipment extends Model
         'carrier_name',
         'vessel_name',
         'voyage_number',
+        'container_id',
         'port_of_loading',
+        'city_of_direct_shipment',
+        'country_of_direct_shipment_id',
+        'country_of_origin_id',
         'port_of_discharge',
         'final_destination',
         'estimated_arrival_date',
@@ -131,6 +135,16 @@ class Shipment extends Model
     public function country()
     {
         return $this->belongsTo(Country::class);
+    }
+
+    public function countryOfDirectShipment()
+    {
+        return $this->belongsTo(Country::class, 'country_of_direct_shipment_id');
+    }
+
+    public function countryOfOrigin()
+    {
+        return $this->belongsTo(Country::class, 'country_of_origin_id');
     }
 
     public function shipperContact()
@@ -222,6 +236,38 @@ class Shipment extends Model
     public function getPrimaryDocumentNumberAttribute(): ?string
     {
         return $this->bill_of_lading_number ?? $this->awb_number ?? $this->manifest_number;
+    }
+
+    /**
+     * Get city of direct shipment, falling back to port of loading
+     */
+    public function getCityOfDirectShipmentOrDefaultAttribute(): ?string
+    {
+        return $this->city_of_direct_shipment ?? $this->port_of_loading;
+    }
+
+    /**
+     * Get country of direct shipment, falling back to shipper's country
+     */
+    public function getCountryOfDirectShipmentOrDefaultAttribute(): ?Country
+    {
+        if ($this->country_of_direct_shipment_id) {
+            return $this->countryOfDirectShipment;
+        }
+        // Fall back to shipper's country
+        return $this->shipperContact?->country;
+    }
+
+    /**
+     * Get country of origin, falling back to shipper's country
+     */
+    public function getCountryOfOriginOrDefaultAttribute(): ?Country
+    {
+        if ($this->country_of_origin_id) {
+            return $this->countryOfOrigin;
+        }
+        // Fall back to shipper's country (assumes goods originate where shipped from)
+        return $this->shipperContact?->country;
     }
 
     // ==========================================
@@ -366,6 +412,9 @@ class Shipment extends Model
         if ($document->manifest_number) {
             $updates['manifest_number'] = $document->manifest_number;
         }
+        if ($document->container_id) {
+            $updates['container_id'] = $document->container_id;
+        }
         if ($document->carrier_name) {
             $updates['carrier_name'] = $document->carrier_name;
         }
@@ -392,6 +441,9 @@ class Shipment extends Model
         }
         if ($document->gross_weight_kg) {
             $updates['gross_weight_kg'] = $document->gross_weight_kg;
+        }
+        if ($document->estimated_arrival) {
+            $updates['estimated_arrival_date'] = $document->estimated_arrival;
         }
 
         if (!empty($updates)) {

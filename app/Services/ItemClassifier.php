@@ -169,7 +169,7 @@ class ItemClassifier
             'unit_of_measurement' => $code->formatted_unit,
             'special_rate' => $code->special_rate,
             'confidence' => 100,
-            'explanation' => "Direct code lookup - exact match found in database.",
+            'explanation' => "Direct code lookup - exact match found in database. This code is for: {$code->description}",
             'alternatives' => [],
             'customs_code_id' => $code->id,
             'chapter' => $code->tariffChapter?->formatted_identifier,

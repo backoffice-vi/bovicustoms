@@ -107,6 +107,7 @@ Return ONLY valid JSON in this format:
 {
   "document_number": "string or null (B/L number, AWB number, etc.)",
   "manifest_number": "string or null",
+  "container_id": "string or null (container number like MSCU1234567, may be empty for LCL shipments)",
   
   "shipper": {
     "company_name": "string or null",
@@ -193,6 +194,7 @@ Return ONLY valid JSON in this format:
 {
   "document_number": "string or null (B/L number, AWB number, etc.)",
   "manifest_number": "string or null",
+  "container_id": "string or null (container number like MSCU1234567, may be empty for LCL shipments)",
   
   "shipper": {
     "company_name": "string or null",
@@ -317,6 +319,7 @@ PROMPT;
         return [
             'document_number' => $this->normalizeString($json['document_number'] ?? null),
             'manifest_number' => $this->normalizeString($json['manifest_number'] ?? null),
+            'container_id' => $this->normalizeString($json['container_id'] ?? null),
             
             'shipper_details' => $shipper,
             'consignee_details' => $consignee,
@@ -456,6 +459,7 @@ PROMPT;
         $document->update([
             'document_number' => $extracted['document_number'],
             'manifest_number' => $extracted['manifest_number'],
+            'container_id' => $extracted['container_id'],
             'shipper_details' => $extracted['shipper_details'],
             'consignee_details' => $extracted['consignee_details'],
             'notify_party_details' => $extracted['notify_party_details'],

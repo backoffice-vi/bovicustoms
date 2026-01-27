@@ -36,6 +36,7 @@ class TradeContact extends Model
         'email',
         'tax_id',
         'license_number',
+        'customs_registration_id', // Importer ID for consignees, Declarant ID for brokers
         'bank_name',
         'bank_account',
         'bank_routing',
@@ -250,6 +251,7 @@ class TradeContact extends Model
             'email' => $this->email,
             'tax_id' => $this->tax_id,
             'license_number' => $this->license_number,
+            'customs_registration_id' => $this->customs_registration_id,
             'bank_name' => $this->bank_name,
             'bank_account' => $this->bank_account,
             'bank_routing' => $this->bank_routing,

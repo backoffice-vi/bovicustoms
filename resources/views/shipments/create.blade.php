@@ -129,33 +129,10 @@
                             @enderror
                         </div>
 
-                        <div class="mb-3">
-                            <label for="shipper_contact_id" class="form-label">Shipper (optional)</label>
-                            <select name="shipper_contact_id" id="shipper_contact_id" class="form-select">
-                                <option value="">Select Shipper...</option>
-                                @foreach($shippers as $shipper)
-                                    <option value="{{ $shipper->id }}" {{ old('shipper_contact_id') == $shipper->id ? 'selected' : '' }}>
-                                        {{ $shipper->company_name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <small class="text-muted">Will be auto-detected from B/L</small>
+                        <div class="alert alert-info small mb-3">
+                            <i class="fas fa-info-circle me-1"></i>
+                            <strong>Shipper & Consignee:</strong> These will be auto-detected when you upload a Bill of Lading after creating the shipment.
                         </div>
-
-                        <div class="mb-3">
-                            <label for="consignee_contact_id" class="form-label">Consignee (optional)</label>
-                            <select name="consignee_contact_id" id="consignee_contact_id" class="form-select">
-                                <option value="">Select Consignee...</option>
-                                @foreach($consignees as $consignee)
-                                    <option value="{{ $consignee->id }}" {{ old('consignee_contact_id') == $consignee->id ? 'selected' : '' }}>
-                                        {{ $consignee->company_name }}
-                                    </option>
-                                @endforeach
-                            </select>
-                            <small class="text-muted">Will be auto-detected from B/L</small>
-                        </div>
-
-                        <hr>
 
                         <div class="mb-3">
                             <label for="insurance_method" class="form-label">Insurance Calculation</label>

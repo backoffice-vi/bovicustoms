@@ -250,30 +250,127 @@
                     @if(!empty($calculation['duty_breakdown']))
                     <hr>
                     <h6 class="text-muted mb-3">Breakdown by Tariff Code</h6>
-                    <div class="table-responsive">
-                        <table class="table table-sm">
-                            <thead>
-                                <tr>
-                                    <th>Tariff Code</th>
-                                    <th>Description</th>
-                                    <th class="text-center">Rate</th>
-                                    <th class="text-end">CIF</th>
-                                    <th class="text-end">Duty</th>
-                                </tr>
-                            </thead>
-                            <tbody>
-                                @foreach($calculation['duty_breakdown'] as $row)
-                                <tr>
-                                    <td><code>{{ $row['tariff_code'] }}</code></td>
-                                    <td>{{ Str::limit($row['tariff_description'] ?? '-', 40) }}</td>
-                                    <td class="text-center">{{ number_format($row['duty_rate'], 1) }}%</td>
-                                    <td class="text-end">${{ number_format($row['total_cif'], 2) }}</td>
-                                    <td class="text-end">${{ number_format($row['total_duty'], 2) }}</td>
-                                </tr>
-                                @endforeach
-                            </tbody>
-                        </table>
+                    
+                    @foreach($calculation['duty_breakdown'] as $index => $row)
+                    <div class="card mb-3 border">
+                        <div class="card-header bg-light py-2">
+                            <div class="d-flex justify-content-between align-items-center">
+                                <div>
+                                    <span class="badge bg-secondary me-2">Record #{{ str_pad($index + 1, 4, '0', STR_PAD_LEFT) }}</span>
+                                    <strong>Tariff:</strong> <code class="text-primary">{{ $row['tariff_code'] ?? 'Unclassified' }}</code>
+                                </div>
+                                <span class="badge bg-success">{{ $row['item_count'] }} item(s)</span>
+                            </div>
+                        </div>
+                        <div class="card-body py-2">
+                            <div class="row">
+                                {{-- Left Column - Item Details --}}
+                                <div class="col-md-6">
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td class="text-muted" style="width: 40%;">Description:</td>
+                                            <td><strong>{{ $row['general_description'] ?? $row['tariff_description'] ?? 'General Merchandise' }}</strong></td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Quantity:</td>
+                                            <td>{{ number_format($row['total_quantity'], 2) }} units</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">F.O.B. Value:</td>
+                                            <td>${{ number_format($row['total_fob'], 2) }}</td>
+                                        </tr>
+                                    </table>
+                                </div>
+                                
+                                {{-- Right Column - Charges --}}
+                                <div class="col-md-6">
+                                    <table class="table table-sm table-borderless mb-0">
+                                        <tr>
+                                            <td class="text-muted" style="width: 50%;">Freight (FRT):</td>
+                                            <td class="text-end">${{ number_format($row['total_freight'], 2) }}</td>
+                                        </tr>
+                                        <tr>
+                                            <td class="text-muted">Insurance (INS):</td>
+                                            <td class="text-end">${{ number_format($row['total_insurance'], 2) }}</td>
+                                        </tr>
+                                        <tr class="table-info">
+                                            <td><strong>C.I.F. Value:</strong></td>
+                                            <td class="text-end"><strong>${{ number_format($row['total_cif'], 2) }}</strong></td>
+                                        </tr>
+                                    </table>
+                                </div>
+                            </div>
+                            
+                            {{-- Tax Breakdown --}}
+                            <div class="mt-2 pt-2 border-top">
+                                <div class="row">
+                                    <div class="col-12">
+                                        <table class="table table-sm mb-0">
+                                            <thead class="table-light">
+                                                <tr>
+                                                    <th>Tax</th>
+                                                    <th class="text-end">Value</th>
+                                                    <th class="text-center">Rate</th>
+                                                    <th class="text-end">Amount</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody>
+                                                {{-- Customs Duty (CUD) --}}
+                                                <tr>
+                                                    <td><strong>CUD</strong> <small class="text-muted">(Customs Duty)</small></td>
+                                                    <td class="text-end">${{ number_format($row['total_cif'], 2) }}</td>
+                                                    <td class="text-center">{{ number_format($row['duty_rate'], 2) }}%</td>
+                                                    <td class="text-end"><strong>${{ number_format($row['total_duty'], 2) }}</strong></td>
+                                                </tr>
+                                                
+                                                {{-- Dynamic Levies --}}
+                                                @php
+                                                    $totalLeviesForTariff = 0;
+                                                    $levies = $calculation['levies'] ?? [];
+                                                @endphp
+                                                
+                                                @foreach($levies as $levy)
+                                                @php
+                                                    // Calculate this levy's amount for this tariff group
+                                                    $levyBaseValue = match($levy['calculation_basis'] ?? 'fob') {
+                                                        'cif' => $row['total_cif'],
+                                                        'duty' => $row['total_duty'],
+                                                        default => $row['total_fob'],
+                                                    };
+                                                    
+                                                    $levyAmount = match($levy['rate_type'] ?? 'percentage') {
+                                                        'percentage' => $levyBaseValue * (($levy['rate'] ?? 0) / 100),
+                                                        'fixed_amount' => ($levy['rate'] ?? 0) * ($row['total_fob'] / ($calculation['fob_value'] ?: 1)), // Prorate fixed amounts
+                                                        'per_unit' => ($levy['rate'] ?? 0) * ($row['total_quantity'] ?? 1),
+                                                        default => 0,
+                                                    };
+                                                    
+                                                    $totalLeviesForTariff += $levyAmount;
+                                                @endphp
+                                                
+                                                @if($levyAmount > 0)
+                                                <tr>
+                                                    <td><strong>{{ $levy['levy_code'] }}</strong> <small class="text-muted">({{ $levy['levy_name'] }})</small></td>
+                                                    <td class="text-end">${{ number_format($levyBaseValue, 2) }}</td>
+                                                    <td class="text-center">{{ $levy['formatted_rate'] ?? number_format($levy['rate'] ?? 0, 2) . '%' }}</td>
+                                                    <td class="text-end"><strong>${{ number_format($levyAmount, 2) }}</strong></td>
+                                                </tr>
+                                                @endif
+                                                @endforeach
+                                            </tbody>
+                                            <tfoot class="table-success">
+                                                <tr>
+                                                    <td colspan="3" class="text-end"><strong>Total Due:</strong></td>
+                                                    <td class="text-end"><strong>${{ number_format($row['total_duty'] + $totalLeviesForTariff, 2) }}</strong></td>
+                                                </tr>
+                                            </tfoot>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
+                    @endforeach
                     @endif
                 </div>
             </div>
@@ -394,18 +491,58 @@
                         <span>FOB Total</span>
                         <span class="fw-bold">${{ number_format($shipment->fob_total, 2) }}</span>
                     </div>
-                    <div class="d-flex justify-content-between mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
                         <span>Freight</span>
-                        <span>${{ number_format($shipment->freight_total, 2) }}</span>
+                        <div class="d-flex align-items-center">
+                            {{-- Display Mode --}}
+                            <span id="freightDisplay">${{ number_format($shipment->freight_total, 2) }}</span>
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-2 text-muted" id="editFreightBtn" title="Edit Freight">
+                                <i class="fas fa-pencil-alt fa-xs"></i>
+                            </button>
+                            {{-- Edit Mode --}}
+                            <div id="freightEditMode" class="d-none">
+                                <div class="input-group input-group-sm" style="width: 140px;">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" step="0.01" min="0" class="form-control form-control-sm text-end" 
+                                           id="freightInput" value="{{ $shipment->freight_total }}">
+                                    <button type="button" class="btn btn-success btn-sm" id="saveFreightBtn" title="Save">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="cancelFreightBtn" title="Cancel">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
-                    <div class="d-flex justify-content-between mb-2">
+                    <div class="d-flex justify-content-between align-items-center mb-2">
                         <span>Insurance</span>
-                        <span>${{ number_format($shipment->insurance_total, 2) }}</span>
+                        <div class="d-flex align-items-center">
+                            {{-- Display Mode --}}
+                            <span id="insuranceDisplay">${{ number_format($shipment->insurance_total, 2) }}</span>
+                            <button type="button" class="btn btn-link btn-sm p-0 ms-2 text-muted" id="editInsuranceBtn" title="Edit Insurance">
+                                <i class="fas fa-pencil-alt fa-xs"></i>
+                            </button>
+                            {{-- Edit Mode --}}
+                            <div id="insuranceEditMode" class="d-none">
+                                <div class="input-group input-group-sm" style="width: 140px;">
+                                    <span class="input-group-text">$</span>
+                                    <input type="number" step="0.01" min="0" class="form-control form-control-sm text-end" 
+                                           id="insuranceInput" value="{{ $shipment->insurance_total }}">
+                                    <button type="button" class="btn btn-success btn-sm" id="saveInsuranceBtn" title="Save">
+                                        <i class="fas fa-check"></i>
+                                    </button>
+                                    <button type="button" class="btn btn-outline-secondary btn-sm" id="cancelInsuranceBtn" title="Cancel">
+                                        <i class="fas fa-times"></i>
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                     <hr>
                     <div class="d-flex justify-content-between">
                         <span class="fw-bold">CIF Total</span>
-                        <span class="fw-bold text-primary fs-5">${{ number_format($shipment->cif_total, 2) }}</span>
+                        <span class="fw-bold text-primary fs-5" id="cifTotalDisplay">${{ number_format($shipment->cif_total, 2) }}</span>
                     </div>
                 </div>
             </div>
@@ -600,6 +737,175 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const shipmentId = {{ $shipment->id }};
+    
+    // Inline Freight Editing
+    const editFreightBtn = document.getElementById('editFreightBtn');
+    const freightDisplay = document.getElementById('freightDisplay');
+    const freightEditMode = document.getElementById('freightEditMode');
+    const freightInput = document.getElementById('freightInput');
+    const saveFreightBtn = document.getElementById('saveFreightBtn');
+    const cancelFreightBtn = document.getElementById('cancelFreightBtn');
+    const cifTotalDisplay = document.getElementById('cifTotalDisplay');
+    
+    let originalFreightValue = freightInput.value;
+    
+    // Show edit mode
+    editFreightBtn.addEventListener('click', function() {
+        freightDisplay.classList.add('d-none');
+        editFreightBtn.classList.add('d-none');
+        freightEditMode.classList.remove('d-none');
+        freightInput.focus();
+        freightInput.select();
+        originalFreightValue = freightInput.value;
+    });
+    
+    // Cancel edit
+    cancelFreightBtn.addEventListener('click', function() {
+        freightInput.value = originalFreightValue;
+        freightDisplay.classList.remove('d-none');
+        editFreightBtn.classList.remove('d-none');
+        freightEditMode.classList.add('d-none');
+    });
+    
+    // Save freight
+    saveFreightBtn.addEventListener('click', saveFreight);
+    
+    // Save on Enter key
+    freightInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveFreight();
+        } else if (e.key === 'Escape') {
+            cancelFreightBtn.click();
+        }
+    });
+    
+    async function saveFreight() {
+        const newValue = parseFloat(freightInput.value) || 0;
+        
+        saveFreightBtn.disabled = true;
+        saveFreightBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        try {
+            const response = await fetch(`/shipments/${shipmentId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ freight_total: newValue })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Update display
+                freightDisplay.textContent = '$' + newValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                originalFreightValue = newValue;
+                
+                // Switch back to display mode
+                freightDisplay.classList.remove('d-none');
+                editFreightBtn.classList.remove('d-none');
+                freightEditMode.classList.add('d-none');
+                
+                // Reload page to update all calculations (CIF, duties, etc.)
+                location.reload();
+            } else {
+                alert('Failed to update freight: ' + (data.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Save freight error:', error);
+            alert('Failed to save freight: ' + error.message);
+        } finally {
+            saveFreightBtn.disabled = false;
+            saveFreightBtn.innerHTML = '<i class="fas fa-check"></i>';
+        }
+    }
+    
+    // Inline Insurance Editing
+    const editInsuranceBtn = document.getElementById('editInsuranceBtn');
+    const insuranceDisplay = document.getElementById('insuranceDisplay');
+    const insuranceEditMode = document.getElementById('insuranceEditMode');
+    const insuranceInput = document.getElementById('insuranceInput');
+    const saveInsuranceBtn = document.getElementById('saveInsuranceBtn');
+    const cancelInsuranceBtn = document.getElementById('cancelInsuranceBtn');
+    
+    let originalInsuranceValue = insuranceInput.value;
+    
+    // Show edit mode
+    editInsuranceBtn.addEventListener('click', function() {
+        insuranceDisplay.classList.add('d-none');
+        editInsuranceBtn.classList.add('d-none');
+        insuranceEditMode.classList.remove('d-none');
+        insuranceInput.focus();
+        insuranceInput.select();
+        originalInsuranceValue = insuranceInput.value;
+    });
+    
+    // Cancel edit
+    cancelInsuranceBtn.addEventListener('click', function() {
+        insuranceInput.value = originalInsuranceValue;
+        insuranceDisplay.classList.remove('d-none');
+        editInsuranceBtn.classList.remove('d-none');
+        insuranceEditMode.classList.add('d-none');
+    });
+    
+    // Save insurance
+    saveInsuranceBtn.addEventListener('click', saveInsurance);
+    
+    // Save on Enter key
+    insuranceInput.addEventListener('keydown', function(e) {
+        if (e.key === 'Enter') {
+            e.preventDefault();
+            saveInsurance();
+        } else if (e.key === 'Escape') {
+            cancelInsuranceBtn.click();
+        }
+    });
+    
+    async function saveInsurance() {
+        const newValue = parseFloat(insuranceInput.value) || 0;
+        
+        saveInsuranceBtn.disabled = true;
+        saveInsuranceBtn.innerHTML = '<i class="fas fa-spinner fa-spin"></i>';
+        
+        try {
+            const response = await fetch(`/shipments/${shipmentId}`, {
+                method: 'PATCH',
+                headers: {
+                    'Content-Type': 'application/json',
+                    'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+                    'Accept': 'application/json',
+                },
+                body: JSON.stringify({ insurance_total: newValue })
+            });
+            
+            const data = await response.json();
+            
+            if (data.success) {
+                // Update display
+                insuranceDisplay.textContent = '$' + newValue.toLocaleString('en-US', {minimumFractionDigits: 2, maximumFractionDigits: 2});
+                originalInsuranceValue = newValue;
+                
+                // Switch back to display mode
+                insuranceDisplay.classList.remove('d-none');
+                editInsuranceBtn.classList.remove('d-none');
+                insuranceEditMode.classList.add('d-none');
+                
+                // Reload page to update all calculations (CIF, duties, etc.)
+                location.reload();
+            } else {
+                alert('Failed to update insurance: ' + (data.message || 'Unknown error'));
+            }
+        } catch (error) {
+            console.error('Save insurance error:', error);
+            alert('Failed to save insurance: ' + error.message);
+        } finally {
+            saveInsuranceBtn.disabled = false;
+            saveInsuranceBtn.innerHTML = '<i class="fas fa-check"></i>';
+        }
+    }
     
     // Extract document buttons
     document.querySelectorAll('.extract-btn').forEach(btn => {

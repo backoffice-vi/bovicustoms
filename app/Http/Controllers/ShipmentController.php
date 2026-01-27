@@ -49,11 +49,8 @@ class ShipmentController extends Controller
             ->latest()
             ->get();
 
-        // Get trade contacts
-        $shippers = TradeContact::shippers()->orderBy('company_name')->get();
-        $consignees = TradeContact::consignees()->orderBy('company_name')->get();
-
-        return view('shipments.create', compact('countries', 'availableInvoices', 'shippers', 'consignees'));
+        // Note: Shipper/Consignee removed from create page - they are auto-detected from B/L upload
+        return view('shipments.create', compact('countries', 'availableInvoices'));
     }
 
     /**

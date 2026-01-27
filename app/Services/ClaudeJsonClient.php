@@ -21,14 +21,14 @@ class ClaudeJsonClient
     /**
      * Ask Claude to return JSON only. Returns an array, or [] on parse failure.
      */
-    public function promptForJson(string $prompt, int $timeoutSeconds = 120): array
+    public function promptForJson(string $prompt, int $timeoutSeconds = 120, ?int $maxTokens = null): array
     {
         $text = $this->callClaude([
             [
                 'role' => 'user',
                 'content' => $prompt,
             ],
-        ], $timeoutSeconds);
+        ], $timeoutSeconds, $maxTokens);
 
         return $this->parseJsonResponse($text);
     }
@@ -88,7 +88,7 @@ class ClaudeJsonClient
         return $this->parseJsonResponse($text);
     }
 
-    protected function callClaude(array $messages, int $timeoutSeconds): string
+    protected function callClaude(array $messages, int $timeoutSeconds, ?int $maxTokens = null): string
     {
         if (empty($this->apiKey)) {
             throw new \RuntimeException('CLAUDE_API_KEY is not configured');
@@ -124,7 +124,7 @@ class ClaudeJsonClient
             ->timeout($timeoutSeconds)
             ->post('https://api.anthropic.com/v1/messages', [
                 'model' => $this->model,
-                'max_tokens' => $this->maxTokens,
+                'max_tokens' => $maxTokens ?? $this->maxTokens,
                 'messages' => $messages,
             ]);
 
@@ -179,8 +179,21 @@ class ClaudeJsonClient
 
     protected function repairTruncatedJson(string $json): string
     {
+        // Remove trailing incomplete string values (e.g., "field": "incomplete...)
+        $json = preg_replace('/,?\s*"[^"]*":\s*"[^"]*$/', '', $json);
+        
+        // Remove incomplete key without value (e.g., "field_name" at end without colon)
+        $json = preg_replace('/,?\s*"[^"]*"\s*$/', '', $json);
+        
+        // Remove incomplete key-value pairs (e.g., "field": without value)
+        $json = preg_replace('/,?\s*"[^"]*":\s*$/', '', $json);
+        
+        // Remove trailing incomplete objects
         $json = preg_replace('/,\s*\{[^}]*$/', '', $json);
         $json = preg_replace('/,\s*\[[^\]]*$/', '', $json);
+        
+        // Remove trailing commas before closing brackets
+        $json = preg_replace('/,\s*([\}\]])/', '$1', $json);
 
         $openBrackets = substr_count($json, '[');
         $closeBrackets = substr_count($json, ']');

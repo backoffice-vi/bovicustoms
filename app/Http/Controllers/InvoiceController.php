@@ -13,6 +13,7 @@ use Illuminate\Http\JsonResponse;
 use App\Services\InvoiceDocumentExtractor;
 use App\Services\ItemClassifier;
 use App\Jobs\ClassifyInvoiceItems;
+use App\Console\Commands\EnsureQueueWorker;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 
@@ -256,6 +257,9 @@ class InvoiceController extends Controller
             'message' => 'Classification job queued...',
             'started_at' => now()->toIso8601String(),
         ], now()->addHours(2));
+
+        // Ensure queue worker is running before dispatching
+        EnsureQueueWorker::ensureRunning(timeout: 900, memory: 512);
 
         // Dispatch background job for classification
         ClassifyInvoiceItems::dispatch(

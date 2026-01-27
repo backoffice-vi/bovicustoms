@@ -40,8 +40,9 @@ class FormFieldExtractor
             }
 
             // Use AI to analyze the form and extract fields
+            // Use higher max_tokens (16384) for complex forms with many fields
             $prompt = $this->buildExtractionPrompt($text, $template);
-            $result = $this->claude->promptForJson($prompt, 180);
+            $result = $this->claude->promptForJson($prompt, 180, 16384);
 
             if (empty($result)) {
                 return $this->errorResult('AI could not parse the form structure');
@@ -67,63 +68,38 @@ class FormFieldExtractor
         $formType = $template->form_type_label;
         $countryName = $template->country?->name ?? 'Unknown';
 
+        // Limit text to avoid overly long prompts
+        $text = mb_substr($text, 0, 50000);
+
         return <<<PROMPT
-You are analyzing a {$formType} form from {$countryName} to extract all fields that need to be filled out.
+Analyze this {$formType} form from {$countryName} and extract fillable fields.
 
-Here is the text content of the form:
----
+FORM TEXT:
 {$text}
----
 
-Analyze this form and extract ALL fields that a user would need to fill in. For each field, provide:
-
-1. field_name: A unique, snake_case identifier (e.g., "importer_name", "vessel_name", "port_of_entry")
-2. field_label: The human-readable label as it appears on the form
-3. field_type: One of: text, number, date, currency, checkbox, select, textarea
-4. section: Group name (e.g., "Importer Details", "Shipping Information", "Goods Description")
-5. is_required: true/false - is this field typically required?
-6. max_length: Maximum characters if applicable (null otherwise)
-7. hints: Any helpful hints about what data goes in this field
-8. data_source: What type of data would fill this field? Options:
-   - "shipper" (company name, address, etc. of shipper/exporter)
-   - "consignee" (company name, address, etc. of consignee/importer)
-   - "broker" (customs broker details)
-   - "bank" (bank/payment information)
-   - "invoice" (invoice number, date, amounts)
-   - "goods" (item descriptions, quantities, HS codes)
-   - "shipping" (vessel, port, bill of lading)
-   - "declaration" (declaration number, date)
-   - "manual" (user must enter manually)
-
-Return a JSON object with this structure:
+Return JSON with this COMPACT structure (keep hints short or null):
 {
-  "form_title": "The title/name of the form",
-  "form_description": "Brief description of what this form is for",
+  "form_title": "Form Title",
+  "form_description": "Brief description",
   "sections": [
     {
       "name": "Section Name",
       "fields": [
-        {
-          "field_name": "unique_field_id",
-          "field_label": "Label on Form",
-          "field_type": "text",
-          "is_required": true,
-          "max_length": null,
-          "hints": "Helpful hint",
-          "data_source": "shipper"
-        }
+        {"field_name": "snake_case_id", "field_label": "Label", "field_type": "text", "is_required": true, "data_source": "shipper"}
       ]
     }
-  ],
-  "total_fields": 15
+  ]
 }
 
-Important:
-- Extract ALL fillable fields, not just a few
-- Group fields logically by section
-- Be thorough - customs forms often have many fields
-- Include signature/date fields at the end
-- Return ONLY valid JSON, no markdown or explanations
+Field types: text, number, date, currency, checkbox, select, textarea
+Data sources: shipper, consignee, broker, bank, invoice, goods, shipping, declaration, manual
+
+Rules:
+- Extract ALL fillable fields
+- Group by logical sections
+- Use short field_name identifiers
+- Omit hints and max_length to keep response compact
+- Return ONLY valid JSON
 PROMPT;
     }
 

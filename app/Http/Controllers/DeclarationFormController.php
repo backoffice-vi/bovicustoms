@@ -120,7 +120,7 @@ class DeclarationFormController extends Controller
     }
 
     /**
-     * Show the form filling wizard
+     * Show the form filling wizard - auto-populates all available data for review
      */
     public function fillForm(DeclarationForm $declarationForm, FilledDeclarationForm $filledForm)
     {
@@ -129,7 +129,7 @@ class DeclarationFormController extends Controller
             abort(404);
         }
 
-        $declarationForm->load(['country', 'invoice.invoiceItems', 'declarationItems']);
+        $declarationForm->load(['country', 'invoice.invoiceItems', 'declarationItems', 'shipment.shipperContact', 'shipment.consigneeContact', 'shipment.notifyPartyContact', 'shipperContact', 'consigneeContact']);
         $filledForm->load('template');
 
         // Get available trade contacts
@@ -139,18 +139,50 @@ class DeclarationFormController extends Controller
         $banks = TradeContact::banks()->orderByDesc('is_default')->orderBy('company_name')->get();
         $notifyParties = TradeContact::notifyParties()->orderByDesc('is_default')->orderBy('company_name')->get();
 
+        // Auto-select trade contacts from declaration or shipment
+        $selectedShipperId = $declarationForm->shipper_contact_id 
+            ?? $declarationForm->shipment?->shipper_contact_id
+            ?? $shippers->where('is_default', true)->first()?->id
+            ?? $shippers->first()?->id;
+            
+        $selectedConsigneeId = $declarationForm->consignee_contact_id 
+            ?? $declarationForm->shipment?->consignee_contact_id
+            ?? $consignees->where('is_default', true)->first()?->id
+            ?? $consignees->first()?->id;
+            
+        $selectedNotifyPartyId = $declarationForm->shipment?->notify_party_contact_id
+            ?? $notifyParties->first()?->id;
+            
+        $selectedBrokerId = $brokers->where('is_default', true)->first()?->id
+            ?? $brokers->first()?->id;
+
         // Get required contact types for this form
         $requiredContactTypes = $this->fieldExtractor->getRequiredContactTypes($filledForm->extracted_fields ?? []);
 
-        // Group fields by section
-        $fieldsBySection = [];
-        foreach ($filledForm->extracted_fields ?? [] as $field) {
-            $section = $field['section'] ?? 'General';
-            if (!isset($fieldsBySection[$section])) {
-                $fieldsBySection[$section] = [];
-            }
-            $fieldsBySection[$section][] = $field;
+        // Auto-map all data to fields using selected contacts
+        $contacts = [];
+        if ($selectedShipperId) {
+            $contacts['shipper'] = TradeContact::find($selectedShipperId);
         }
+        if ($selectedConsigneeId) {
+            $contacts['consignee'] = TradeContact::find($selectedConsigneeId);
+        }
+        if ($selectedBrokerId) {
+            $contacts['broker'] = TradeContact::find($selectedBrokerId);
+        }
+        if ($selectedNotifyPartyId) {
+            $contacts['notify_party'] = TradeContact::find($selectedNotifyPartyId);
+        }
+
+        // Map data to fields automatically
+        $mappingResult = $this->dataMapper->mapDataToFields(
+            $filledForm->extracted_fields ?? [],
+            $declarationForm,
+            $contacts
+        );
+
+        // Group fields by section with their auto-filled values
+        $fieldsBySection = $this->dataMapper->getFieldsBySection($mappingResult['mappings']);
 
         return view('declaration-forms.fill-form', compact(
             'declarationForm',
@@ -160,8 +192,13 @@ class DeclarationFormController extends Controller
             'brokers',
             'banks',
             'notifyParties',
+            'selectedShipperId',
+            'selectedConsigneeId',
+            'selectedNotifyPartyId',
+            'selectedBrokerId',
             'requiredContactTypes',
-            'fieldsBySection'
+            'fieldsBySection',
+            'mappingResult'
         ));
     }
 
