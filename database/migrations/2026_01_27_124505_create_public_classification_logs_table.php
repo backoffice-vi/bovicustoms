@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('public_classification_logs')) {
+            return; // Table already exists, skip creation
+        }
+        
         Schema::create('public_classification_logs', function (Blueprint $table) {
             $table->id();
             $table->string('search_term', 500);

@@ -11,6 +11,10 @@ return new class extends Migration
      */
     public function up(): void
     {
+        if (Schema::hasTable('page_visits')) {
+            return; // Table already exists, skip creation
+        }
+        
         Schema::create('page_visits', function (Blueprint $table) {
             $table->id();
             $table->string('session_id')->index();
