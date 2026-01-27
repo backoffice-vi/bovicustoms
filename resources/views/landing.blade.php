@@ -20,7 +20,7 @@
     <meta property="og:url" content="https://bovicustoms.com">
     <meta property="og:title" content="BoVi Customs - AI-Powered Customs Automation">
     <meta property="og:description" content="Streamline your import/export process with AI-powered HS code classification, automated duty calculations, and seamless customs declarations for the British Virgin Islands.">
-    <meta property="og:image" content="https://bovicustoms.com/images/bovilogo-og.jpg">
+    <meta property="og:image" content="https://bovicustoms.com/images/bovi-og-image.png">
     <meta property="og:site_name" content="BoVi Customs">
     <meta property="og:locale" content="en_US">
     
@@ -29,7 +29,7 @@
     <meta name="twitter:url" content="https://bovicustoms.com">
     <meta name="twitter:title" content="BoVi Customs - AI-Powered Customs Automation">
     <meta name="twitter:description" content="Streamline your import/export process with AI-powered customs automation for the British Virgin Islands.">
-    <meta name="twitter:image" content="https://bovicustoms.com/images/bovilogo-og.jpg">
+    <meta name="twitter:image" content="https://bovicustoms.com/images/bovi-og-image.png">
     
     {{-- Favicon --}}
     <link rel="icon" type="image/jpeg" href="{{ asset('favicon.jpg') }}">
