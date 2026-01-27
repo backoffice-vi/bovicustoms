@@ -21,6 +21,7 @@ use App\Http\Controllers\Admin\ClassificationTesterController;
 use App\Http\Controllers\Admin\CountryDocumentController;
 use App\Http\Controllers\Admin\CountryLevyController;
 use App\Http\Controllers\Admin\TariffDatabaseController;
+use App\Http\Controllers\Admin\AnalyticsController;
 use App\Http\Controllers\TradeContactController;
 use App\Http\Controllers\ShipmentController;
 use App\Http\Controllers\ShippingDocumentController;
@@ -47,6 +48,14 @@ Route::get('/pricing', function () {
 Route::get('/features', function () {
     return redirect('/#features');
 })->name('features');
+
+// Public classification API for landing page demo
+Route::post('/api/public-classify', [ClassificationController::class, 'publicClassify'])->name('api.public-classify');
+
+// Waitlist signup
+Route::post('/waitlist/signup', [App\Http\Controllers\WaitlistController::class, 'signup'])->name('waitlist.signup');
+Route::get('/waitlist/thank-you/{signup}', [App\Http\Controllers\WaitlistController::class, 'thankYou'])->name('waitlist.thank-you');
+Route::post('/waitlist/{signup}/feedback', [App\Http\Controllers\WaitlistController::class, 'storeFeedback'])->name('waitlist.feedback');
 
 // Authentication routes
 Route::get('/login', [LoginController::class, 'showLoginForm'])->name('login');
@@ -102,6 +111,17 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
     Route::post('declaration-forms/{declarationForm}/fill/{filledForm}', [DeclarationFormController::class, 'processFill'])->name('declaration-forms.process-fill');
     Route::get('declaration-forms/{declarationForm}/preview/{filledForm}', [DeclarationFormController::class, 'preview'])->name('declaration-forms.preview');
     Route::get('declaration-forms/{declarationForm}/auto-map/{filledForm}', [DeclarationFormController::class, 'getAutoMappedData'])->name('declaration-forms.auto-map');
+
+    // Web Portal Submission
+    Route::prefix('declaration-forms/{declaration}/web-submit')->name('web-submission.')->group(function () {
+        Route::get('/', [App\Http\Controllers\WebSubmissionController::class, 'index'])->name('index');
+        Route::get('/preview/{target}', [App\Http\Controllers\WebSubmissionController::class, 'preview'])->name('preview');
+        Route::post('/submit/{target}', [App\Http\Controllers\WebSubmissionController::class, 'submit'])->name('submit');
+        Route::get('/result/{submission}', [App\Http\Controllers\WebSubmissionController::class, 'result'])->name('result');
+        Route::get('/history', [App\Http\Controllers\WebSubmissionController::class, 'history'])->name('history');
+    });
+    Route::post('web-submission/{submission}/retry', [App\Http\Controllers\WebSubmissionController::class, 'retry'])->name('web-submission.retry');
+    Route::get('api/web-submission/targets', [App\Http\Controllers\WebSubmissionController::class, 'getTargetsForCountry'])->name('api.web-submission.targets');
 
     // Trade Contacts (reusable shipper, consignee, broker data)
     Route::resource('trade-contacts', TradeContactController::class);
@@ -170,6 +190,12 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         Route::delete('users/{user}/clients/{organization}', [UserManagementController::class, 'removeClient'])->name('users.remove-client');
         Route::patch('users/{user}/clients/{organization}/toggle', [UserManagementController::class, 'toggleClientStatus'])->name('users.toggle-client');
         
+        // Waitlist Signups
+        Route::get('waitlist', [App\Http\Controllers\Admin\WaitlistController::class, 'index'])->name('waitlist.index');
+        Route::get('waitlist/export', [App\Http\Controllers\Admin\WaitlistController::class, 'export'])->name('waitlist.export');
+        Route::get('waitlist/{signup}', [App\Http\Controllers\Admin\WaitlistController::class, 'show'])->name('waitlist.show');
+        Route::delete('waitlist/{signup}', [App\Http\Controllers\Admin\WaitlistController::class, 'destroy'])->name('waitlist.destroy');
+        
         // AI Settings
         Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::post('settings', [SettingsController::class, 'update'])->name('settings.update');
@@ -237,6 +263,42 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
             Route::get('/structure', [TariffDatabaseController::class, 'structure'])->name('structure');
             Route::get('/exclusions', [TariffDatabaseController::class, 'exclusions'])->name('exclusions');
         });
+
+        // Site Analytics
+        Route::prefix('analytics')->name('analytics.')->group(function () {
+            Route::get('/', [AnalyticsController::class, 'index'])->name('index');
+            Route::get('/export', [AnalyticsController::class, 'export'])->name('export');
+        });
+
+        // Web Form Targets (Portal Automation)
+        Route::prefix('web-form-targets')->name('web-form-targets.')->group(function () {
+            Route::get('/', [App\Http\Controllers\Admin\WebFormTargetController::class, 'index'])->name('index');
+            Route::get('/create', [App\Http\Controllers\Admin\WebFormTargetController::class, 'create'])->name('create');
+            Route::post('/', [App\Http\Controllers\Admin\WebFormTargetController::class, 'store'])->name('store');
+            Route::get('/{webFormTarget}', [App\Http\Controllers\Admin\WebFormTargetController::class, 'show'])->name('show');
+            Route::get('/{webFormTarget}/edit', [App\Http\Controllers\Admin\WebFormTargetController::class, 'edit'])->name('edit');
+            Route::put('/{webFormTarget}', [App\Http\Controllers\Admin\WebFormTargetController::class, 'update'])->name('update');
+            Route::delete('/{webFormTarget}', [App\Http\Controllers\Admin\WebFormTargetController::class, 'destroy'])->name('destroy');
+            Route::post('/{webFormTarget}/test', [App\Http\Controllers\Admin\WebFormTargetController::class, 'testConnection'])->name('test');
+            Route::patch('/{webFormTarget}/toggle', [App\Http\Controllers\Admin\WebFormTargetController::class, 'toggleActive'])->name('toggle-active');
+            Route::get('/{webFormTarget}/submissions', [App\Http\Controllers\Admin\WebFormTargetController::class, 'submissions'])->name('submissions');
+            Route::get('/{webFormTarget}/submissions/{submission}', [App\Http\Controllers\Admin\WebFormTargetController::class, 'showSubmission'])->name('submissions.show');
+
+            // Pages
+            Route::get('/{webFormTarget}/pages/create', [App\Http\Controllers\Admin\WebFormTargetController::class, 'createPage'])->name('pages.create');
+            Route::post('/{webFormTarget}/pages', [App\Http\Controllers\Admin\WebFormTargetController::class, 'storePage'])->name('pages.store');
+            Route::get('/{webFormTarget}/pages/{page}', [App\Http\Controllers\Admin\WebFormTargetController::class, 'showPage'])->name('pages.show');
+            Route::get('/{webFormTarget}/pages/{page}/edit', [App\Http\Controllers\Admin\WebFormTargetController::class, 'editPage'])->name('pages.edit');
+            Route::put('/{webFormTarget}/pages/{page}', [App\Http\Controllers\Admin\WebFormTargetController::class, 'updatePage'])->name('pages.update');
+            Route::delete('/{webFormTarget}/pages/{page}', [App\Http\Controllers\Admin\WebFormTargetController::class, 'destroyPage'])->name('pages.destroy');
+
+            // Field Mappings
+            Route::get('/{webFormTarget}/pages/{page}/mappings/create', [App\Http\Controllers\Admin\WebFormTargetController::class, 'createMapping'])->name('mappings.create');
+            Route::post('/{webFormTarget}/pages/{page}/mappings', [App\Http\Controllers\Admin\WebFormTargetController::class, 'storeMapping'])->name('mappings.store');
+            Route::get('/{webFormTarget}/pages/{page}/mappings/{mapping}/edit', [App\Http\Controllers\Admin\WebFormTargetController::class, 'editMapping'])->name('mappings.edit');
+            Route::put('/{webFormTarget}/pages/{page}/mappings/{mapping}', [App\Http\Controllers\Admin\WebFormTargetController::class, 'updateMapping'])->name('mappings.update');
+            Route::delete('/{webFormTarget}/pages/{page}/mappings/{mapping}', [App\Http\Controllers\Admin\WebFormTargetController::class, 'destroyMapping'])->name('mappings.destroy');
+        });
     });
 
     // Agent routes (agent role only)
@@ -265,4 +327,15 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         Route::delete('/attachments/{attachment}', [AgentDeclarationController::class, 'deleteAttachment'])->name('attachments.delete');
         Route::get('/attachments/{attachment}/download', [AgentDeclarationController::class, 'downloadAttachment'])->name('attachments.download');
     });
+});
+
+// =============================================================================
+// Test Routes - Simulated External Form (for Playwright automation testing)
+// =============================================================================
+Route::prefix('test')->name('test.')->group(function () {
+    Route::get('/external-form', [App\Http\Controllers\TestExternalFormController::class, 'index'])->name('external-form');
+    Route::post('/external-form/login', [App\Http\Controllers\TestExternalFormController::class, 'login'])->name('external-form.login');
+    Route::post('/external-form/submit', [App\Http\Controllers\TestExternalFormController::class, 'submit'])->name('external-form.submit');
+    Route::get('/external-form/logout', [App\Http\Controllers\TestExternalFormController::class, 'logout'])->name('external-form.logout');
+    Route::get('/external-form/check', [App\Http\Controllers\TestExternalFormController::class, 'checkSubmission'])->name('external-form.check');
 });

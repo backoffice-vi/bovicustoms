@@ -3,7 +3,9 @@
     "type": "module",
     "scripts": {
         "dev": "vite",
-        "build": "vite build"
+        "build": "vite build",
+        "playwright:test": "node playwright/web-form-submitter.mjs",
+        "playwright:submit": "node playwright/web-form-submitter.mjs"
     },
     "devDependencies": {
         "axios": "^1.6.4",

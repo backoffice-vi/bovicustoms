@@ -7,6 +7,8 @@ use App\Services\ItemClassifier;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Cache;
+use Illuminate\Support\Facades\RateLimiter;
 
 class ClassificationController extends Controller
 {
@@ -117,5 +119,83 @@ class ClassificationController extends Controller
             'success' => true,
             'results' => $results,
         ]);
+    }
+
+    /**
+     * Public classification endpoint for landing page demo
+     * Rate limited to prevent abuse
+     */
+    public function publicClassify(Request $request): JsonResponse
+    {
+        // Get client identifier (IP address)
+        $clientId = $request->ip();
+        $rateLimitKey = 'public-classify:' . $clientId;
+        $dailyLimit = 5; // 5 classifications per day per IP
+        
+        // Check rate limit
+        $attempts = Cache::get($rateLimitKey, 0);
+        
+        if ($attempts >= $dailyLimit) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Daily limit reached. Sign up for unlimited classifications.',
+                'remaining' => 0,
+            ], 429);
+        }
+        
+        $validated = $request->validate([
+            'item' => 'required|string|min:2|max:500',
+        ]);
+
+        try {
+            // Use British Virgin Islands as default (first country or by code)
+            $country = Country::where('code', 'VG')->first() ?? Country::active()->first();
+            
+            $result = $this->classifier->classify(
+                $validated['item'],
+                $country?->id,
+                null // No organization for public access
+            );
+
+            if (!$result['success']) {
+                return response()->json([
+                    'success' => false,
+                    'error' => $result['error'],
+                    'remaining' => $dailyLimit - $attempts,
+                ], 422);
+            }
+
+            // Increment rate limit counter (expires at end of day)
+            $secondsUntilMidnight = now()->endOfDay()->diffInSeconds(now());
+            Cache::put($rateLimitKey, $attempts + 1, $secondsUntilMidnight);
+
+            // Return simplified result for public demo
+            return response()->json([
+                'success' => true,
+                'item' => $result['item'],
+                'match' => [
+                    'code' => $result['code'],
+                    'description' => $result['description'],
+                    'duty_rate' => $result['duty_rate'],
+                    'confidence' => $result['confidence'],
+                    'explanation' => $result['explanation'],
+                    'alternatives' => $result['alternatives'] ?? [],
+                    'vector_score' => $result['vector_score'] ?? null,
+                ],
+                'remaining' => $dailyLimit - ($attempts + 1),
+            ]);
+        } catch (\Throwable $e) {
+            \Illuminate\Support\Facades\Log::error('Public classification error', [
+                'item' => $validated['item'],
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+            
+            return response()->json([
+                'success' => false,
+                'error' => 'Classification failed. Please try again.',
+                'remaining' => $dailyLimit - $attempts,
+            ], 500);
+        }
     }
 }

@@ -16,6 +16,14 @@
                     <i class="fas fa-file-export me-2"></i>No Templates Available
                 </button>
             @endif
+            @php
+                $webTargets = \App\Models\WebFormTarget::active()->where('country_id', $declarationForm->country_id)->count();
+            @endphp
+            @if($webTargets > 0)
+                <a href="{{ route('web-submission.index', $declarationForm) }}" class="btn btn-success">
+                    <i class="fas fa-cloud-upload-alt me-2"></i>Submit to Portal
+                </a>
+            @endif
             <a href="{{ route('declaration-forms.index') }}" class="btn btn-outline-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Back
             </a>

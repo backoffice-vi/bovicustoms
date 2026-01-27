@@ -97,6 +97,9 @@
                             <li><a class="dropdown-item" href="{{ route('admin.users.index') }}">
                                 <i class="fas fa-users me-1"></i>User Management
                             </a></li>
+                            <li><a class="dropdown-item" href="{{ route('admin.waitlist.index') }}">
+                                <i class="fas fa-clipboard-list me-1"></i>Waitlist Signups
+                            </a></li>
                             <li><a class="dropdown-item" href="{{ route('admin.settings.index') }}">
                                 <i class="fas fa-cog me-1"></i>AI Settings
                             </a></li>
@@ -115,6 +118,14 @@
                             </a></li>
                             <li><a class="dropdown-item" href="{{ route('admin.country-levies.index') }}">
                                 <i class="fas fa-percentage me-1"></i>Country Levies
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ route('admin.web-form-targets.index') }}">
+                                <i class="fas fa-globe me-1"></i>Web Form Targets
+                            </a></li>
+                            <li><hr class="dropdown-divider"></li>
+                            <li><a class="dropdown-item" href="{{ route('admin.analytics.index') }}">
+                                <i class="fas fa-chart-line me-1"></i>Site Analytics
                             </a></li>
                         </ul>
                     </li>
