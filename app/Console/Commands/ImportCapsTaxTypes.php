@@ -6,16 +6,16 @@ use Illuminate\Console\Command;
 use App\Models\WebFormTarget;
 use App\Models\WebFormPage;
 use App\Models\WebFormFieldMapping;
-use App\Models\WebFormDropdownValue;
+use App\Models\CountryReferenceData;
 
 class ImportCapsTaxTypes extends Command
 {
     protected $signature = 'caps:import-tax-types';
-    protected $description = 'Import CAPS Tax Type codes';
+    protected $description = 'Import official CAPS Tax Types';
 
     public function handle()
     {
-        $this->info('Importing CAPS Tax Type codes...');
+        $this->info('Importing CAPS Tax Types...');
 
         $target = WebFormTarget::where('code', 'caps_bvi')->first();
         if (!$target) {
@@ -23,70 +23,54 @@ class ImportCapsTaxTypes extends Command
             return 1;
         }
 
-        $page = WebFormPage::where('web_form_target_id', $target->id)
-            ->where('name', 'TD Data Entry')
-            ->first();
+        $taxRaw = <<<EOT
+DTY IMPORT DUTY
+WFG WHARFAGE
+SRG SURCHARGE
+ENV ENVIRONMENTAL LEVY
+EFL ENVIRONMENTAL FUEL LEVY
+CSL CRUISE SHIP LEVY
+DEP DEPARTURE TAX
+CON CONSUMPTION TAX
+EXC EXCISE TAX
+HOT HOTEL ACCOMMODATION TAX
+STA STAMP DUTY
+LIC LICENSE FEE
+PER PERMIT FEE
+INS INSPECTION FEE
+STO STORAGE FEE
+PRO PROCESSING FEE
+MIS MISCELLANEOUS FEE
+EOT;
 
-        if (!$page) {
-            $this->error('TD Data Entry page not found.');
-            return 1;
-        }
+        $count = CountryReferenceData::importFromText(
+            $target->country_id,
+            CountryReferenceData::TYPE_TAX_TYPE,
+            $taxRaw,
+            [],
+            'DTY' // Default
+        );
 
-        $this->importCodes($page);
+        $this->info("Imported $count tax types.");
+
+        $this->updateMappings($target);
 
         return 0;
     }
 
-    protected function importCodes($page)
+    protected function updateMappings($target)
     {
-        $codesRaw = <<<EOT
-CUD CUSTOMS DUTY
-DEP DEPOSIT
-FFS FOSSIL FUEL SURCHARGE
-WHA WHARFAGE
-EOT;
+        $page = $target->pages()->where('name', 'TD Data Entry')->first();
+        if (!$page) return;
 
-        // Apply to both Tax Type 1 and Tax Type 2
-        $fields = ['Tax Type 1 (Customs Duty)', 'Tax Type 2 (Wharfage)'];
+        $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
+            ->where('web_field_label', 'Tax Type')
+            ->first();
 
-        foreach ($fields as $fieldLabel) {
-            $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
-                ->where('web_field_label', $fieldLabel)
-                ->first();
-
-            if ($mapping) {
-                // Clear existing
-                WebFormDropdownValue::where('web_form_field_mapping_id', $mapping->id)
-                    ->where('is_default', false)
-                    ->delete();
-
-                $lines = explode("\n", $codesRaw);
-                foreach ($lines as $index => $line) {
-                    $line = trim($line);
-                    if (empty($line)) continue;
-
-                    $parts = explode(' ', $line, 2);
-                    $code = $parts[0];
-                    $name = $parts[1] ?? '';
-
-                    $localMatches = [$name, $code];
-                    
-                    // Set defaults
-                    $isDefault = false;
-                    if ($fieldLabel === 'Tax Type 1 (Customs Duty)' && $code === 'CUD') $isDefault = true;
-                    if ($fieldLabel === 'Tax Type 2 (Wharfage)' && $code === 'WHA') $isDefault = true;
-
-                    WebFormDropdownValue::create([
-                        'web_form_field_mapping_id' => $mapping->id,
-                        'option_value' => $code,
-                        'option_label' => "$code - $name",
-                        'local_matches' => $localMatches,
-                        'sort_order' => $index,
-                        'is_default' => $isDefault,
-                    ]);
-                }
-                $this->info("Imported " . count($lines) . " tax type codes for $fieldLabel.");
-            }
+        if ($mapping) {
+            $mapping->update(['country_reference_type' => CountryReferenceData::TYPE_TAX_TYPE]);
+            $mapping->dropdownValues()->delete();
+            $this->info("Updated 'Tax Type' mapping.");
         }
     }
 }

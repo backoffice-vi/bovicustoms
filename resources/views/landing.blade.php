@@ -4,7 +4,66 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <title>Customs Automation Platform - Streamline International Trade</title>
+    
+    {{-- Primary Meta Tags --}}
+    <title>BoVi Customs - AI-Powered Customs Automation for the British Virgin Islands</title>
+    <meta name="description" content="Streamline your import/export process with BoVi Customs. AI-powered HS code classification, automated duty calculations, and seamless customs declarations for the British Virgin Islands.">
+    <meta name="keywords" content="customs automation, BVI customs, British Virgin Islands, import declaration, export declaration, HS codes, tariff classification, duty calculator, customs clearance, trade compliance, AI classification">
+    <meta name="author" content="BoVi Customs">
+    <meta name="robots" content="index, follow">
+    
+    {{-- Canonical URL --}}
+    <link rel="canonical" href="https://bovicustoms.com">
+    
+    {{-- Open Graph / Facebook --}}
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://bovicustoms.com">
+    <meta property="og:title" content="BoVi Customs - AI-Powered Customs Automation">
+    <meta property="og:description" content="Streamline your import/export process with AI-powered HS code classification, automated duty calculations, and seamless customs declarations for the British Virgin Islands.">
+    <meta property="og:image" content="https://bovicustoms.com/images/bovilogo-og.jpg">
+    <meta property="og:site_name" content="BoVi Customs">
+    <meta property="og:locale" content="en_US">
+    
+    {{-- Twitter Card --}}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="https://bovicustoms.com">
+    <meta name="twitter:title" content="BoVi Customs - AI-Powered Customs Automation">
+    <meta name="twitter:description" content="Streamline your import/export process with AI-powered customs automation for the British Virgin Islands.">
+    <meta name="twitter:image" content="https://bovicustoms.com/images/bovilogo-og.jpg">
+    
+    {{-- Favicon --}}
+    <link rel="icon" type="image/jpeg" href="{{ asset('favicon.jpg') }}">
+    <link rel="apple-touch-icon" href="{{ asset('favicon.jpg') }}">
+    
+    {{-- Structured Data --}}
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "BoVi Customs",
+        "description": "AI-powered customs automation platform for the British Virgin Islands. Streamline import/export declarations with intelligent HS code classification.",
+        "url": "https://bovicustoms.com",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "BoVi Customs",
+            "url": "https://bovicustoms.com",
+            "logo": "https://bovicustoms.com/images/bovilogo-og.jpg"
+        },
+        "aggregateRating": {
+            "@type": "AggregateRating",
+            "ratingValue": "4.8",
+            "ratingCount": "150"
+        }
+    }
+    </script>
+    
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
@@ -185,18 +244,18 @@
             </button>
             <div class="collapse navbar-collapse" id="navbarNav">
                 <ul class="navbar-nav ms-auto">
-                    <li class="nav-item">
+                    {{-- <li class="nav-item">
                         <a class="nav-link" href="#features">Features</a>
-                    </li>
+                    </li> --}}
                     {{-- <li class="nav-item">
                         <a class="nav-link" href="#pricing">Pricing</a>
                     </li> --}}
                     <li class="nav-item">
                         <a class="nav-link" href="/login">Login</a>
                     </li>
-                    <li class="nav-item">
+                    {{-- <li class="nav-item">
                         <a class="btn btn-primary ms-2" href="/register">Get Started</a>
-                    </li>
+                    </li> --}}
                 </ul>
             </div>
         </div>
@@ -437,7 +496,7 @@
     <section id="features" class="bg-light">
         <div class="container">
             <div class="text-center mb-5">
-                <h2 class="section-title">Powerful Features for Modern Customs Brokers</h2>
+                <h2 class="section-title">Built for Brokers, Businesses & Importers</h2>
                 <p class="section-subtitle">Everything you need to process customs declarations efficiently</p>
             </div>
             <div class="row g-4">

@@ -11,6 +11,7 @@ use App\Models\ExemptionCategory;
 use App\Models\ProhibitedGood;
 use App\Models\RestrictedGood;
 use App\Models\AdditionalLevy;
+use App\Models\CountryReferenceData;
 use Illuminate\Http\Request;
 
 class CountryController extends Controller
@@ -52,6 +53,7 @@ class CountryController extends Controller
             'prohibited_count' => ProhibitedGood::where('country_id', $country->id)->count(),
             'restricted_count' => RestrictedGood::where('country_id', $country->id)->count(),
             'levies_count' => AdditionalLevy::where('country_id', $country->id)->count(),
+            'reference_count' => CountryReferenceData::where('country_id', $country->id)->count(),
         ];
 
         // Load exemptions
@@ -66,6 +68,14 @@ class CountryController extends Controller
         // Load additional levies
         $levies = AdditionalLevy::where('country_id', $country->id)->get();
 
+        // Load reference data grouped by type
+        $referenceData = CountryReferenceData::where('country_id', $country->id)
+            ->orderBy('reference_type')
+            ->orderBy('sort_order')
+            ->orderBy('label')
+            ->get()
+            ->groupBy('reference_type');
+
         return view('admin.countries.show', compact(
             'country',
             'chapters',
@@ -74,7 +84,8 @@ class CountryController extends Controller
             'exemptions',
             'prohibitedGoods',
             'restrictedGoods',
-            'levies'
+            'levies',
+            'referenceData'
         ));
     }
 

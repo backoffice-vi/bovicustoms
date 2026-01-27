@@ -7,6 +7,7 @@ use App\Models\WebFormTarget;
 use App\Models\WebFormPage;
 use App\Models\WebFormFieldMapping;
 use App\Models\WebFormDropdownValue;
+use App\Models\CountryReferenceData;
 
 class ImportCapsReferences extends Command
 {
@@ -23,29 +24,25 @@ class ImportCapsReferences extends Command
             return 1;
         }
 
-        $page = WebFormPage::where('web_form_target_id', $target->id)
-            ->where('name', 'TD Data Entry')
-            ->first();
-
-        if (!$page) {
-            $this->error('TD Data Entry page not found.');
-            return 1;
-        }
-
+        $countryId = $target->country_id;
+        
         // 1. Import Ports
-        $this->importPorts($page);
+        $this->importPorts($countryId);
 
         // 2. Import Countries
-        $this->importCountries($page);
+        $this->importCountries($countryId);
 
         // 3. Import Carriers
-        $this->importCarriers($page);
+        $this->importCarriers($countryId);
+
+        // 4. Update field mappings
+        $this->updateMappings($target);
 
         $this->info('Reference data import complete!');
         return 0;
     }
 
-    protected function importPorts($page)
+    protected function importPorts($countryId)
     {
         $this->info('Importing Ports...');
         
@@ -73,54 +70,28 @@ VP VIRGIN GORDA CARGO PORT
 WE WEST END
 EOT;
 
-        $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
-            ->where('web_field_label', 'Port of Arrival')
-            ->first();
+        $customMatches = [
+            'PP' => ['Road Town', 'Tortola'],
+            'BI' => ['Beef Island'],
+            'WE' => ['West End'],
+            'JV' => ['JVD'],
+        ];
 
-        if ($mapping) {
-            // Clear existing non-default values to avoid duplicates
-            WebFormDropdownValue::where('web_form_field_mapping_id', $mapping->id)
-                ->where('is_default', false)
-                ->delete();
+        $count = CountryReferenceData::importFromText(
+            $countryId,
+            CountryReferenceData::TYPE_PORT,
+            $portsRaw,
+            $customMatches,
+            'PP' // Default port
+        );
 
-            $lines = explode("\n", $portsRaw);
-            foreach ($lines as $index => $line) {
-                $line = trim($line);
-                if (empty($line)) continue;
-
-                // Split by first space: Code is usually 2-3 chars
-                $parts = explode(' ', $line, 2);
-                $code = $parts[0];
-                $name = $parts[1] ?? '';
-
-                // Generate local matches
-                $localMatches = [$name, $code];
-                
-                // Specific common variations
-                if ($code === 'PP') $localMatches = array_merge($localMatches, ['Road Town', 'Tortola']);
-                if ($code === 'BI') $localMatches[] = 'Beef Island';
-                if ($code === 'WE') $localMatches[] = 'West End';
-                if ($code === 'JV') $localMatches[] = 'JVD';
-
-                WebFormDropdownValue::create([
-                    'web_form_field_mapping_id' => $mapping->id,
-                    'option_value' => $code,
-                    'option_label' => "$code - $name",
-                    'local_matches' => $localMatches,
-                    'sort_order' => $index,
-                    'is_default' => ($code === 'PP'), // Default to Port Purcell
-                ]);
-            }
-            $this->info("Imported " . count($lines) . " ports.");
-        }
+        $this->info("Imported $count ports.");
     }
 
-    protected function importCountries($page)
+    protected function importCountries($countryId)
     {
         $this->info('Importing Countries...');
 
-        // Raw data (abbreviated for the command, but typically would read from file)
-        // I'll include the full list provided in previous context
         $countriesRaw = <<<EOT
 AF AFGHANISTAN
 AL ALBANIA
@@ -370,55 +341,24 @@ ZW ZIMBABWE
 AX ALAND ISLANDS
 EOT;
 
-        // Apply to all country fields
-        $countryFields = [
-            'Supplier Country',
-            'Country of Direct Shipment',
-            'Country of Original Shipment',
-            'Country of Origin (Item)'
+        $customMatches = [
+            'US' => ['USA', 'United States of America'],
+            'GB' => ['UK', 'Great Britain', 'England'],
+            'VI' => ['USVI'],
         ];
 
-        foreach ($countryFields as $fieldLabel) {
-            $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
-                ->where('web_field_label', $fieldLabel)
-                ->first();
+        $count = CountryReferenceData::importFromText(
+            $countryId,
+            CountryReferenceData::TYPE_COUNTRY,
+            $countriesRaw,
+            $customMatches,
+            'US' // Default country
+        );
 
-            if ($mapping) {
-                WebFormDropdownValue::where('web_form_field_mapping_id', $mapping->id)
-                    ->where('is_default', false)
-                    ->delete();
-
-                $lines = explode("\n", $countriesRaw);
-                foreach ($lines as $index => $line) {
-                    $line = trim($line);
-                    if (empty($line)) continue;
-
-                    $parts = explode(' ', $line, 2);
-                    $code = $parts[0];
-                    $name = $parts[1] ?? '';
-
-                    $localMatches = [$name, $code];
-                    
-                    // Common variations
-                    if ($code === 'US') $localMatches = array_merge($localMatches, ['USA', 'United States of America']);
-                    if ($code === 'GB') $localMatches = array_merge($localMatches, ['UK', 'Great Britain', 'England']);
-                    if ($code === 'VI') $localMatches[] = 'USVI';
-
-                    WebFormDropdownValue::create([
-                        'web_form_field_mapping_id' => $mapping->id,
-                        'option_value' => $code,
-                        'option_label' => "$code - $name",
-                        'local_matches' => $localMatches,
-                        'sort_order' => $index,
-                        'is_default' => ($code === 'US'),
-                    ]);
-                }
-                $this->info("Imported countries for $fieldLabel");
-            }
-        }
+        $this->info("Imported $count countries.");
     }
 
-    protected function importCarriers($page)
+    protected function importCarriers($countryId)
     {
         $this->info('Importing Carriers...');
 
@@ -755,40 +695,83 @@ YAG MV VOYAGER
 ZDS ZELADA DESGAGNES
 EOT;
 
-        $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
-            ->where('web_field_label', 'Carrier ID')
-            ->first();
+        $customMatches = [
+            'FED' => ['FedEx'],
+            'DHL' => ['DHL'],
+        ];
 
-        if ($mapping) {
-            WebFormDropdownValue::where('web_form_field_mapping_id', $mapping->id)
-                ->where('is_default', false)
-                ->delete();
-
-            $lines = explode("\n", $carriersRaw);
-            foreach ($lines as $index => $line) {
-                $line = trim($line);
-                if (empty($line)) continue;
-
-                $parts = explode(' ', $line, 2);
-                $code = $parts[0];
-                $name = $parts[1] ?? '';
-
-                $localMatches = [$name, $code];
-                
-                // Variations
-                if (str_contains($name, 'TROPIC')) $localMatches[] = 'Tropical';
-                if ($code === 'FED') $localMatches[] = 'FedEx';
-                if ($code === 'DHL') $localMatches[] = 'DHL';
-
-                WebFormDropdownValue::create([
-                    'web_form_field_mapping_id' => $mapping->id,
-                    'option_value' => $code,
-                    'option_label' => "$code - $name",
-                    'local_matches' => $localMatches,
-                    'sort_order' => $index,
-                ]);
+        // Also add TROPIC variants
+        $lines = explode("\n", $carriersRaw);
+        foreach ($lines as $line) {
+            $line = trim($line);
+            if (empty($line)) continue;
+            
+            $parts = explode(' ', $line, 2);
+            $code = $parts[0];
+            $name = $parts[1] ?? '';
+            
+            if (str_contains($name, 'TROPIC')) {
+                if (!isset($customMatches[$code])) {
+                    $customMatches[$code] = [];
+                }
+                $customMatches[$code][] = 'Tropical';
             }
-            $this->info("Imported carriers");
+        }
+
+        $count = CountryReferenceData::importFromText(
+            $countryId,
+            CountryReferenceData::TYPE_CARRIER,
+            $carriersRaw,
+            $customMatches
+        );
+
+        $this->info("Imported $count carriers.");
+    }
+
+    protected function updateMappings($target)
+    {
+        $this->info('Updating field mappings to use country reference data...');
+        
+        $page = $target->pages()->where('name', 'TD Data Entry')->first();
+        if (!$page) return;
+
+        // Map field labels to reference types
+        $updates = [
+            // Ports
+            'Port of Arrival' => CountryReferenceData::TYPE_PORT,
+            'Port of Departure' => CountryReferenceData::TYPE_PORT,
+            
+            // Countries
+            'Supplier Country' => CountryReferenceData::TYPE_COUNTRY,
+            'Country of Direct Shipment' => CountryReferenceData::TYPE_COUNTRY,
+            'Country of Original Shipment' => CountryReferenceData::TYPE_COUNTRY,
+            'Country of Origin (Item)' => CountryReferenceData::TYPE_COUNTRY,
+            'Country of Origin' => CountryReferenceData::TYPE_COUNTRY,
+            
+            // Carriers
+            'Carrier ID' => CountryReferenceData::TYPE_CARRIER,
+        ];
+
+        foreach ($updates as $label => $type) {
+            $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
+                ->where('web_field_label', $label)
+                ->first();
+
+            if ($mapping) {
+                // Update reference type
+                $mapping->update(['country_reference_type' => $type]);
+                
+                // Remove old dropdown values as they're now in country_reference_data
+                // Only if migration was successful (sanity check: we have data)
+                $hasData = CountryReferenceData::where('country_id', $target->country_id)
+                    ->where('reference_type', $type)
+                    ->exists();
+                    
+                if ($hasData) {
+                    $mapping->dropdownValues()->delete();
+                    $this->line("  Updated '$label' to use '$type' reference data.");
+                }
+            }
         }
     }
 }

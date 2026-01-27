@@ -6,16 +6,16 @@ use Illuminate\Console\Command;
 use App\Models\WebFormTarget;
 use App\Models\WebFormPage;
 use App\Models\WebFormFieldMapping;
-use App\Models\WebFormDropdownValue;
+use App\Models\CountryReferenceData;
 
 class ImportCapsCurrencies extends Command
 {
     protected $signature = 'caps:import-currencies';
-    protected $description = 'Import CAPS Currency codes';
+    protected $description = 'Import official CAPS Currency Codes';
 
     public function handle()
     {
-        $this->info('Importing CAPS Currency codes...');
+        $this->info('Importing CAPS Currencies...');
 
         $target = WebFormTarget::where('code', 'caps_bvi')->first();
         if (!$target) {
@@ -23,95 +23,75 @@ class ImportCapsCurrencies extends Command
             return 1;
         }
 
-        $page = WebFormPage::where('web_form_target_id', $target->id)
-            ->where('name', 'TD Data Entry')
-            ->first();
+        $currenciesRaw = <<<EOT
+AUD AUSTRALIAN DOLLAR
+BBD BARBADOS DOLLAR
+BMD BERMUDIAN DOLLAR
+BSD BAHAMIAN DOLLAR
+CAD CANADIAN DOLLAR
+CHF SWISS FRANC
+CNY CHINESE YUAN RENMINBI
+DKK DANISH KRONE
+EUR EURO
+FJD FIJI DOLLAR
+GBP POUND STERLING
+GYD GUYANA DOLLAR
+HKD HONG KONG DOLLAR
+ILS ISRAELI SHEKEL
+INR INDIAN RUPEE
+JMD JAMAICAN DOLLAR
+JPY JAPANESE YEN
+KYD CAYMAN ISLANDS DOLLAR
+MXN MEXICAN PESO
+NOK NORWEGIAN KRONE
+NZD NEW ZEALAND DOLLAR
+PHP PHILIPPINE PESO
+PKR PAKISTAN RUPEE
+RUB RUSSIAN RUBLE
+SAR SAUDI RIYAL
+SEK SWEDISH KRONA
+SGD SINGAPORE DOLLAR
+THB THAI BAHT
+TTD TRINIDAD AND TOBAGO DOLLAR
+TWD NEW TAIWAN DOLLAR
+USD US DOLLAR
+VEF VENEZUELAN BOLIVAR
+XCD EAST CARIBBEAN DOLLAR
+ZAR SOUTH AFRICAN RAND
+EOT;
 
-        if (!$page) {
-            $this->error('TD Data Entry page not found.');
-            return 1;
-        }
+        $count = CountryReferenceData::importFromText(
+            $target->country_id,
+            CountryReferenceData::TYPE_CURRENCY,
+            $currenciesRaw,
+            [],
+            'USD' // Default
+        );
 
-        $this->importCodes($page);
+        $this->info("Imported $count currencies.");
+
+        $this->updateMappings($target);
 
         return 0;
     }
 
-    protected function importCodes($page)
+    protected function updateMappings($target)
     {
-        $codesRaw = <<<EOT
-ATS Austria Schilling
-AUD Australia Dollar
-BEF Belgium
-BMD Bermuda Dollar
-CAD Canada Dollar
-CHF Switzerland Franc
-CNY CHINESE YUAN
-DEM Germany Deutche Mark
-DKK Denmark Krona
-DOP DOMINICAN PESO
-ESP Spain Peseta
-EUR Euro
-FRF France Franc
-GBP United Kingdom Pound
-HKD Hong Kong Dollar
-IEP Ireland Punt
-INR INDIAN RUPEE
-ITL Italy Lira
-JMD Jamaica Dollar
-JPY Japan Yen
-KKD KKD
-MXN MEXICAN PESO
-NLG Holland Guilder
-NOK Norway Krona
-NZD New Zealand Dollar
-PTE Potugal Escudo
-SEK Sweden Krona
-SGD Singapore Dollar
-TTD TRINIDADIAN DOLLAR
-USD US Dollar
-XCD EAST CARIBBEAN DOLLAR
-ZAR South African Rand
-EOT;
+        $page = $target->pages()->where('name', 'TD Data Entry')->first();
+        if (!$page) return;
 
-        $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
-            ->where('web_field_label', 'Currency')
-            ->first();
+        $fields = ['Currency', 'Invoice Currency'];
+        
+        foreach ($fields as $label) {
+            $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
+                ->where('web_field_label', $label)
+                ->first();
 
-        if ($mapping) {
-            WebFormDropdownValue::where('web_form_field_mapping_id', $mapping->id)
-                ->where('is_default', false)
-                ->delete();
-
-            $lines = explode("\n", $codesRaw);
-            foreach ($lines as $index => $line) {
-                $line = trim($line);
-                if (empty($line)) continue;
-
-                $parts = explode(' ', $line, 2);
-                $code = $parts[0];
-                $name = $parts[1] ?? '';
-
-                $localMatches = [$name, $code];
-                
-                // Common symbol mapping
-                if ($code === 'USD') $localMatches = array_merge($localMatches, ['$', 'US$']);
-                if ($code === 'EUR') $localMatches = array_merge($localMatches, ['€', 'Euro']);
-                if ($code === 'GBP') $localMatches = array_merge($localMatches, ['£', 'Pound', 'Sterling']);
-                if ($code === 'CAD') $localMatches[] = 'C$';
-                if ($code === 'AUD') $localMatches[] = 'A$';
-                if ($code === 'JPY') $localMatches[] = '¥';
-
-                WebFormDropdownValue::create([
-                    'web_form_field_mapping_id' => $mapping->id,
-                    'option_value' => $code,
-                    'option_label' => "$code - $name",
-                    'local_matches' => $localMatches,
-                    'sort_order' => $index,
-                    'is_default' => ($code === 'USD'), 
-                ]);
+            if ($mapping) {
+                $mapping->update(['country_reference_type' => CountryReferenceData::TYPE_CURRENCY]);
+                $mapping->dropdownValues()->delete();
+                $this->info("Updated '$label' mapping.");
             }
-            $this->info("Imported " . count($lines) . " currency codes.");
         }
     }
 }

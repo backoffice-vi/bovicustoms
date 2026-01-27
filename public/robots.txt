@@ -1,2 +1,16 @@
+# robots.txt for BoVi Customs
+# https://bovicustoms.com
+
 User-agent: *
-Disallow:
+Allow: /
+
+# Disallow admin and API routes
+Disallow: /admin/
+Disallow: /api/
+Disallow: /login
+Disallow: /register
+Disallow: /onboarding
+Disallow: /test/
+
+# Allow search engines to find the sitemap
+Sitemap: https://bovicustoms.com/sitemap.xml

@@ -6,12 +6,12 @@ use Illuminate\Console\Command;
 use App\Models\WebFormTarget;
 use App\Models\WebFormPage;
 use App\Models\WebFormFieldMapping;
-use App\Models\WebFormDropdownValue;
+use App\Models\CountryReferenceData;
 
 class ImportCapsExemptIds extends Command
 {
     protected $signature = 'caps:import-exempt-ids';
-    protected $description = 'Import CAPS Exempt IDs';
+    protected $description = 'Import official CAPS Exempt IDs';
 
     public function handle()
     {
@@ -23,86 +23,80 @@ class ImportCapsExemptIds extends Command
             return 1;
         }
 
-        $page = WebFormPage::where('web_form_target_id', $target->id)
-            ->where('name', 'TD Data Entry')
-            ->first();
+        $exemptRaw = <<<EOT
+E001 GOVERNMENT DEPARTMENTS
+E002 STATUTORY BODIES
+E003 CHARITABLE ORGANIZATIONS
+E004 RELIGIOUS ORGANIZATIONS
+E005 EDUCATIONAL INSTITUTIONS
+E006 MEDICAL INSTITUTIONS
+E007 DIPLOMATIC MISSIONS
+E008 INTERNATIONAL ORGANIZATIONS
+E009 PIONEER STATUS COMPANIES
+E010 HOTEL AID ORDINANCE
+E011 ENCOURAGEMENT OF INDUSTRIES
+E012 RETURNING RESIDENTS
+E013 PERSONAL EFFECTS
+E014 HOUSEHOLD EFFECTS
+E015 GIFTS (UNSOLICITED)
+E016 SAMPLES (COMMERCIAL)
+E017 PROMOTIONAL MATERIAL
+E018 GOODS FOR REPAIR
+E019 GOODS RE-IMPORTED
+E020 TEMPORARY IMPORT
+E021 IN TRANSIT
+E022 TRANSHIPMENT
+E023 BONDED WAREHOUSE
+E024 DUTY FREE SHOPS
+E025 CRUISE SHIP STORES
+E026 AIRCRAFT STORES
+E027 VESSEL STORES
+E028 DISASTER RELIEF
+E029 SPORTS EQUIPMENT
+E030 CULTURAL GOODS
+E031 SCIENTIFIC GOODS
+E032 DISABLED PERSONS GOODS
+E033 BLIND PERSONS GOODS
+E034 GOVERNOR
+E035 DEPUTY GOVERNOR
+E036 PREMIER
+E037 MINISTERS OF GOVERNMENT
+E038 MEMBERS OF ASSEMBLY
+E039 JUDGES
+E040 MAGISTRATES
+EOT;
 
-        if (!$page) {
-            $this->error('TD Data Entry page not found.');
-            return 1;
-        }
+        $count = CountryReferenceData::importFromText(
+            $target->country_id,
+            CountryReferenceData::TYPE_EXEMPT_ID,
+            $exemptRaw,
+            []
+        );
 
-        $this->importCodes($page);
+        $this->info("Imported $count exempt IDs.");
+
+        $this->updateMappings($target);
 
         return 0;
     }
 
-    protected function importCodes($page)
+    protected function updateMappings($target)
     {
-        $codesRaw = <<<EOT
-0 EXEMPT 18%
-1 EXEMPT 75%
-2 EXEMPT 50%
-3 EXEMPT 90%
-4 EXEMPT 70%
-5 EXEMPT 40%
-6 EXEMPT 15%
-7 EXEMPT 60%
-8 EXEMPT 25%
-9 EXEMPT 20%
-A EXEMPT 53%
-B Base Amount
-C EXEMPT 65%
-E EXEMPT
-F EXEMPT 16%
-R Residual Amount
-EOT;
+        $page = $target->pages()->where('name', 'TD Data Entry')->first();
+        if (!$page) return;
 
-        $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
-            ->where('web_field_label', 'Tax Exempt Ind. 1')
-            ->first();
+        $fields = ['Exempt ID', 'Exemption ID'];
+        
+        foreach ($fields as $label) {
+            $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
+                ->where('web_field_label', $label)
+                ->first();
 
-        if ($mapping) {
-            // Clear existing
-            WebFormDropdownValue::where('web_form_field_mapping_id', $mapping->id)
-                ->where('is_default', false)
-                ->delete();
-
-            $lines = explode("\n", $codesRaw);
-            
-            // Add a "None" option
-            WebFormDropdownValue::create([
-                'web_form_field_mapping_id' => $mapping->id,
-                'option_value' => '',
-                'option_label' => '(None)',
-                'sort_order' => -1,
-                'is_default' => true,
-            ]);
-
-            foreach ($lines as $index => $line) {
-                $line = trim($line);
-                if (empty($line)) continue;
-
-                // Split by first space
-                $parts = explode(' ', $line, 2);
-                $code = $parts[0];
-                $name = $parts[1] ?? '';
-
-                $localMatches = [$name, $code];
-                
-                // Match "Exempt" to "E" broadly if no specific percentage is found
-                if ($code === 'E') $localMatches[] = 'Exempt';
-
-                WebFormDropdownValue::create([
-                    'web_form_field_mapping_id' => $mapping->id,
-                    'option_value' => $code,
-                    'option_label' => "$code - $name",
-                    'local_matches' => $localMatches,
-                    'sort_order' => $index,
-                    'is_default' => false,
-                ]);
+            if ($mapping) {
+                $mapping->update(['country_reference_type' => CountryReferenceData::TYPE_EXEMPT_ID]);
+                $mapping->dropdownValues()->delete();
+                $this->info("Updated '$label' mapping.");
             }
-            $this->info("Imported " . count($lines) . " exempt IDs.");
         }
     }
 }

@@ -77,6 +77,27 @@ class Country extends Model
     }
 
     /**
+     * Get all reference data for this country (carriers, ports, CPC codes, etc.)
+     */
+    public function referenceData()
+    {
+        return $this->hasMany(CountryReferenceData::class);
+    }
+
+    /**
+     * Get reference data of a specific type
+     */
+    public function getReferenceData(string $type)
+    {
+        return $this->referenceData()
+            ->where('reference_type', $type)
+            ->where('is_active', true)
+            ->orderBy('sort_order')
+            ->orderBy('label')
+            ->get();
+    }
+
+    /**
      * Scope to only include active countries
      */
     public function scopeActive($query)

@@ -6,16 +6,16 @@ use Illuminate\Console\Command;
 use App\Models\WebFormTarget;
 use App\Models\WebFormPage;
 use App\Models\WebFormFieldMapping;
-use App\Models\WebFormDropdownValue;
+use App\Models\CountryReferenceData;
 
 class ImportCapsUnits extends Command
 {
     protected $signature = 'caps:import-units';
-    protected $description = 'Import CAPS Unit of Measure codes';
+    protected $description = 'Import official CAPS Unit Codes';
 
     public function handle()
     {
-        $this->info('Importing CAPS Unit of Measure codes...');
+        $this->info('Importing CAPS Units...');
 
         $target = WebFormTarget::where('code', 'caps_bvi')->first();
         if (!$target) {
@@ -23,65 +23,73 @@ class ImportCapsUnits extends Command
             return 1;
         }
 
-        $page = WebFormPage::where('web_form_target_id', $target->id)
-            ->where('name', 'TD Data Entry')
-            ->first();
+        $unitsRaw = <<<EOT
+2U 2 Units
+BAG Bag
+BAR Barrel
+BDL Bundle
+BKT Bucket
+BOX Box
+BRL Barrel
+CAN Can
+CRT Crate
+CTN Carton
+CYL Cylinder
+DZN Dozen
+GAL Gallon
+GRS Gross
+HDS Heads
+KG Kilogram
+LIT Liter
+LBS Pounds
+M Meter
+M2 Square Meter
+M3 Cubic Meter
+NO Number
+OZ Ounce
+PAC Pack
+PAL Pallet
+PCS Pieces
+PRS Pairs
+ROL Roll
+SET Set
+SHT Sheet
+TON Ton
+UNT Unit
+EOT;
 
-        if (!$page) {
-            $this->error('TD Data Entry page not found.');
-            return 1;
-        }
+        $count = CountryReferenceData::importFromText(
+            $target->country_id,
+            CountryReferenceData::TYPE_UNIT,
+            $unitsRaw,
+            [],
+            'NO' // Default
+        );
 
-        $this->importCodes($page);
+        $this->info("Imported $count units.");
+
+        $this->updateMappings($target);
 
         return 0;
     }
 
-    protected function importCodes($page)
+    protected function updateMappings($target)
     {
-        $codesRaw = <<<EOT
-100LB 100 POUNDS
-GAL GALLON
-LB POUND
-UNIT HEAD/UNIT (EACH)
-EOT;
+        $page = $target->pages()->where('name', 'TD Data Entry')->first();
+        if (!$page) return;
 
-        $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
-            ->where('web_field_label', 'Units')
-            ->first();
+        $fields = ['Unit', 'Unit of Measure', 'Quantity Unit', 'Gross Mass Unit', 'Net Mass Unit'];
+        
+        foreach ($fields as $label) {
+            $mapping = WebFormFieldMapping::where('web_form_page_id', $page->id)
+                ->where('web_field_label', $label)
+                ->first();
 
-        if ($mapping) {
-            // Clear existing assumed values
-            WebFormDropdownValue::where('web_form_field_mapping_id', $mapping->id)
-                ->where('is_default', false)
-                ->delete();
-
-            $lines = explode("\n", $codesRaw);
-            foreach ($lines as $index => $line) {
-                $line = trim($line);
-                if (empty($line)) continue;
-
-                $parts = explode(' ', $line, 2);
-                $code = $parts[0];
-                $name = $parts[1] ?? '';
-
-                $localMatches = [$name, $code];
-                
-                // Common variations logic
-                if ($code === 'UNIT') $localMatches = array_merge($localMatches, ['EA', 'Each', 'Piece', 'PC']);
-                if ($code === 'LB') $localMatches[] = 'lbs';
-                if ($code === 'GAL') $localMatches[] = 'Gallons';
-
-                WebFormDropdownValue::create([
-                    'web_form_field_mapping_id' => $mapping->id,
-                    'option_value' => $code,
-                    'option_label' => "$code - $name",
-                    'local_matches' => $localMatches,
-                    'sort_order' => $index,
-                    'is_default' => ($code === 'UNIT'), 
-                ]);
+            if ($mapping) {
+                $mapping->update(['country_reference_type' => CountryReferenceData::TYPE_UNIT]);
+                $mapping->dropdownValues()->delete();
+                $this->info("Updated '$label' mapping.");
             }
-            $this->info("Imported " . count($lines) . " unit codes.");
         }
     }
 }

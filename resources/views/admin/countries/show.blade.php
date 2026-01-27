@@ -91,6 +91,20 @@
                 </div>
             </div>
         </div>
+        <div class="col-md-3 col-sm-6 mb-3">
+            <div class="card bg-secondary text-white h-100">
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h6 class="card-subtitle mb-1 opacity-75">Reference Data</h6>
+                            <h2 class="mb-0">{{ number_format($stats['reference_count']) }}</h2>
+                        </div>
+                        <i class="fas fa-database fa-2x opacity-50"></i>
+                    </div>
+                    <small class="opacity-75">Carriers, Ports, CPCs, etc.</small>
+                </div>
+            </div>
+        </div>
     </div>
 
     <!-- Navigation Tabs -->
@@ -122,6 +136,12 @@
             <button class="nav-link" id="levies-tab" data-bs-toggle="tab" data-bs-target="#levies" type="button" role="tab">
                 <i class="fas fa-coins me-1"></i> Additional Levies
                 <span class="badge bg-warning text-dark ms-1">{{ $stats['levies_count'] }}</span>
+            </button>
+        </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="reference-tab" data-bs-toggle="tab" data-bs-target="#reference" type="button" role="tab">
+                <i class="fas fa-database me-1"></i> Reference Data
+                <span class="badge bg-secondary ms-1">{{ $stats['reference_count'] }}</span>
             </button>
         </li>
     </ul>
@@ -493,6 +513,92 @@
                             @endforeach
                         </tbody>
                     </table>
+                </div>
+            @endif
+        </div>
+
+        <!-- Reference Data Tab -->
+        <div class="tab-pane fade" id="reference" role="tabpanel">
+            @if($referenceData->isEmpty())
+                <div class="alert alert-info">
+                    <i class="fas fa-info-circle me-2"></i>
+                    No reference data found for this country. Import data via CLI or admin tools.
+                </div>
+            @else
+                <div class="row">
+                    <div class="col-md-3">
+                        <!-- Navigation for types -->
+                        <div class="nav flex-column nav-pills me-3" id="v-pills-tab" role="tablist" aria-orientation="vertical">
+                            @foreach($referenceData as $type => $records)
+                                <button class="nav-link d-flex justify-content-between align-items-center {{ $loop->first ? 'active' : '' }}" 
+                                    id="v-pills-{{ $type }}-tab" 
+                                    data-bs-toggle="pill" 
+                                    data-bs-target="#v-pills-{{ $type }}" 
+                                    type="button" 
+                                    role="tab">
+                                    {{ ucfirst(str_replace('_', ' ', $type)) }}
+                                    <span class="badge bg-light text-dark ms-2">{{ $records->count() }}</span>
+                                </button>
+                            @endforeach
+                        </div>
+                    </div>
+                    <div class="col-md-9">
+                        <div class="tab-content" id="v-pills-tabContent">
+                            @foreach($referenceData as $type => $records)
+                                <div class="tab-pane fade {{ $loop->first ? 'show active' : '' }}" id="v-pills-{{ $type }}" role="tabpanel">
+                                    <div class="card">
+                                        <div class="card-header d-flex justify-content-between align-items-center">
+                                            <h5 class="mb-0">{{ ucfirst(str_replace('_', ' ', $type)) }} Reference Data</h5>
+                                            <span class="badge bg-secondary">{{ $records->count() }} records</span>
+                                        </div>
+                                        <div class="card-body p-0">
+                                            <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                                                <table class="table table-hover table-striped mb-0">
+                                                    <thead class="table-light sticky-top">
+                                                        <tr>
+                                                            <th style="width: 100px;">Code</th>
+                                                            <th>Label/Name</th>
+                                                            <th>Local Matches</th>
+                                                            <th style="width: 100px;">Status</th>
+                                                        </tr>
+                                                    </thead>
+                                                    <tbody>
+                                                        @foreach($records as $record)
+                                                            <tr>
+                                                                <td>
+                                                                    <code class="fw-bold">{{ $record->code }}</code>
+                                                                    @if($record->is_default)
+                                                                        <span class="badge bg-info ms-1" title="Default Value">Def</span>
+                                                                    @endif
+                                                                </td>
+                                                                <td>{{ $record->label }}</td>
+                                                                <td>
+                                                                    @if($record->local_matches)
+                                                                        @foreach($record->local_matches as $match)
+                                                                            <span class="badge bg-light text-dark border me-1">{{ $match }}</span>
+                                                                        @endforeach
+                                                                    @else
+                                                                        <span class="text-muted small">-</span>
+                                                                    @endif
+                                                                </td>
+                                                                <td>
+                                                                    @if($record->is_active)
+                                                                        <span class="badge bg-success">Active</span>
+                                                                    @else
+                                                                        <span class="badge bg-secondary">Inactive</span>
+                                                                    @endif
+                                                                </td>
+                                                            </tr>
+                                                        @endforeach
+                                                    </tbody>
+                                                </table>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+                            @endforeach
+                        </div>
+                    </div>
                 </div>
             @endif
         </div>

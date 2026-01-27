@@ -20,6 +20,7 @@ class WebFormFieldMapping extends Model
         'web_field_id',
         'web_field_selectors',
         'field_type',
+        'country_reference_type', // Links to country_reference_data table
         'options',
         'value_transform',
         'default_value',
@@ -325,7 +326,22 @@ class WebFormFieldMapping extends Model
 
         $stringValue = (string) $value;
 
-        // Check dropdown values for a match
+        // First, check country reference data if this mapping has a reference type set
+        if ($this->country_reference_type) {
+            $countryId = $this->page?->target?->country_id;
+            if ($countryId) {
+                $refMatch = CountryReferenceData::findByLocalMatch(
+                    $countryId,
+                    $this->country_reference_type,
+                    $stringValue
+                );
+                if ($refMatch) {
+                    return $refMatch->code;
+                }
+            }
+        }
+
+        // Fallback to dropdown values for form-specific overrides
         $match = $this->dropdownValues()
             ->where(function ($query) use ($stringValue) {
                 $query->where('local_equivalent', $stringValue)
@@ -352,6 +368,30 @@ class WebFormFieldMapping extends Model
 
         // Return original if no mapping found
         return $value;
+    }
+
+    /**
+     * Get dropdown options - prefers country reference data, falls back to form-specific values
+     */
+    public function getDropdownOptionsForForm(): array
+    {
+        // If this mapping uses country reference data, get from there
+        if ($this->country_reference_type) {
+            $countryId = $this->page?->target?->country_id;
+            if ($countryId) {
+                return CountryReferenceData::getDropdownOptions($countryId, $this->country_reference_type);
+            }
+        }
+
+        // Fall back to form-specific dropdown values
+        return $this->dropdownValues()
+            ->get()
+            ->map(fn($v) => [
+                'value' => $v->option_value,
+                'label' => $v->option_label,
+                'is_default' => $v->is_default,
+            ])
+            ->toArray();
     }
 
     /**

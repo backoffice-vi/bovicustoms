@@ -4,7 +4,60 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
+    
+    {{-- Primary Meta Tags --}}
     <title>@yield('title', 'BoVi Customs - Customs Automation Platform')</title>
+    <meta name="description" content="@yield('meta_description', 'BoVi Customs - AI-powered customs automation platform for the British Virgin Islands. Streamline import/export declarations, HS code classification, and duty calculations.')">
+    <meta name="keywords" content="@yield('meta_keywords', 'customs automation, BVI customs, British Virgin Islands, import declaration, export declaration, HS codes, tariff classification, duty calculator, customs clearance, trade compliance')">
+    <meta name="author" content="BoVi Customs">
+    <meta name="robots" content="index, follow">
+    
+    {{-- Canonical URL --}}
+    <link rel="canonical" href="{{ url()->current() }}">
+    
+    {{-- Open Graph / Facebook --}}
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="{{ url()->current() }}">
+    <meta property="og:title" content="@yield('og_title', 'BoVi Customs - Customs Automation Platform')">
+    <meta property="og:description" content="@yield('og_description', 'AI-powered customs automation for the British Virgin Islands. Streamline your import/export declarations with intelligent HS code classification.')">
+    <meta property="og:image" content="@yield('og_image', 'https://bovicustoms.com/images/bovilogo-og.jpg')">
+    <meta property="og:site_name" content="BoVi Customs">
+    <meta property="og:locale" content="en_US">
+    
+    {{-- Twitter Card --}}
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:url" content="{{ url()->current() }}">
+    <meta name="twitter:title" content="@yield('twitter_title', 'BoVi Customs - Customs Automation Platform')">
+    <meta name="twitter:description" content="@yield('twitter_description', 'AI-powered customs automation for the British Virgin Islands. Streamline your import/export declarations.')">
+    <meta name="twitter:image" content="@yield('twitter_image', 'https://bovicustoms.com/images/bovilogo-og.jpg')">
+    
+    {{-- Favicon --}}
+    <link rel="icon" type="image/jpeg" href="{{ asset('favicon.jpg') }}">
+    <link rel="apple-touch-icon" href="{{ asset('favicon.jpg') }}">
+    
+    {{-- Structured Data --}}
+    <script type="application/ld+json">
+    {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "BoVi Customs",
+        "description": "AI-powered customs automation platform for the British Virgin Islands",
+        "url": "https://bovicustoms.com",
+        "applicationCategory": "BusinessApplication",
+        "operatingSystem": "Web",
+        "offers": {
+            "@type": "Offer",
+            "price": "0",
+            "priceCurrency": "USD"
+        },
+        "publisher": {
+            "@type": "Organization",
+            "name": "BoVi Customs",
+            "url": "https://bovicustoms.com"
+        }
+    }
+    </script>
+    
     <!-- Bootstrap CSS -->
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/css/bootstrap.min.css" rel="stylesheet">
     <!-- Font Awesome -->

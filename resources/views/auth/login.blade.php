@@ -7,8 +7,12 @@
     <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
     <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
+        :root {
+            --primary-color: #8B1A1A;
+            --secondary-color: #6B0F0F;
+        }
         body {
-            background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
+            background: linear-gradient(135deg, var(--primary-color) 0%, var(--secondary-color) 100%);
             min-height: 100vh;
             display: flex;
             align-items: center;
@@ -21,16 +25,42 @@
         }
         .logo {
             color: white;
-            font-size: 2rem;
+            font-size: 1.8rem;
             font-weight: 700;
             margin-bottom: 30px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 12px;
+        }
+        .logo img {
+            width: 50px;
+            height: 50px;
+            border-radius: 50%;
+            object-fit: cover;
+            border: 3px solid rgba(255,255,255,0.3);
+        }
+        .btn-primary {
+            background-color: var(--primary-color);
+            border-color: var(--primary-color);
+        }
+        .btn-primary:hover {
+            background-color: var(--secondary-color);
+            border-color: var(--secondary-color);
+        }
+        a {
+            color: var(--primary-color);
+        }
+        a:hover {
+            color: var(--secondary-color);
         }
     </style>
 </head>
 <body>
     <div class="container">
-        <div class="text-center logo">
-            <i class="fas fa-ship"></i> BoVi Customs
+        <div class="logo">
+            <img src="{{ asset('images/bovilogo.jpg') }}" alt="BoVi Customs Logo">
+            <span>BoVi Customs</span>
         </div>
         <div class="row justify-content-center">
             <div class="col-lg-5">
@@ -83,11 +113,13 @@
                         </div>
                     </form>
 
+                    {{-- Hidden for now
                     <hr class="my-4">
 
                     <div class="text-center">
                         <p class="mb-0">Don't have an account? <a href="{{ route('register.choice') }}" class="fw-bold text-decoration-none">Sign up</a></p>
                     </div>
+                    --}}
                 </div>
             </div>
         </div>
