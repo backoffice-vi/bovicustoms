@@ -153,6 +153,9 @@
                             <li><a class="dropdown-item" href="{{ route('admin.waitlist.index') }}">
                                 <i class="fas fa-clipboard-list me-1"></i>Waitlist Signups
                             </a></li>
+                            <li><a class="dropdown-item" href="{{ route('admin.classification-logs.index') }}">
+                                <i class="fas fa-search me-1"></i>Classification Logs
+                            </a></li>
                             <li><a class="dropdown-item" href="{{ route('admin.settings.index') }}">
                                 <i class="fas fa-cog me-1"></i>AI Settings
                             </a></li>

@@ -3,12 +3,14 @@
 namespace App\Http\Controllers;
 
 use App\Models\Country;
+use App\Models\PublicClassificationLog;
 use App\Services\ItemClassifier;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Auth;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\RateLimiter;
+use Illuminate\Support\Str;
 
 class ClassificationController extends Controller
 {
@@ -169,6 +171,20 @@ class ClassificationController extends Controller
             $secondsUntilMidnight = now()->endOfDay()->diffInSeconds(now());
             Cache::put($rateLimitKey, $attempts + 1, $secondsUntilMidnight);
 
+            // Log the successful classification
+            PublicClassificationLog::create([
+                'search_term' => $validated['item'],
+                'result_code' => $result['code'],
+                'result_description' => Str::limit($result['description'], 500),
+                'duty_rate' => $result['duty_rate'],
+                'confidence' => $result['confidence'],
+                'vector_score' => $result['vector_score'] ?? null,
+                'success' => true,
+                'ip_address' => $request->ip(),
+                'user_agent' => Str::limit($request->userAgent(), 500),
+                'source' => 'landing_page',
+            ]);
+
             // Return simplified result for public demo
             return response()->json([
                 'success' => true,
@@ -189,6 +205,16 @@ class ClassificationController extends Controller
                 'item' => $validated['item'],
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
+            ]);
+            
+            // Log the failed classification
+            PublicClassificationLog::create([
+                'search_term' => $validated['item'],
+                'success' => false,
+                'error_message' => Str::limit($e->getMessage(), 500),
+                'ip_address' => $request->ip(),
+                'user_agent' => Str::limit($request->userAgent(), 500),
+                'source' => 'landing_page',
             ]);
             
             return response()->json([

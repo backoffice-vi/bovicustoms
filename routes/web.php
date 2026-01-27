@@ -196,6 +196,10 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         Route::get('waitlist/{signup}', [App\Http\Controllers\Admin\WaitlistController::class, 'show'])->name('waitlist.show');
         Route::delete('waitlist/{signup}', [App\Http\Controllers\Admin\WaitlistController::class, 'destroy'])->name('waitlist.destroy');
         
+        // Classification Logs
+        Route::get('classification-logs', [App\Http\Controllers\Admin\ClassificationLogController::class, 'index'])->name('classification-logs.index');
+        Route::get('classification-logs/export', [App\Http\Controllers\Admin\ClassificationLogController::class, 'export'])->name('classification-logs.export');
+        
         // AI Settings
         Route::get('settings', [SettingsController::class, 'index'])->name('settings.index');
         Route::post('settings', [SettingsController::class, 'update'])->name('settings.update');
