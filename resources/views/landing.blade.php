@@ -229,6 +229,44 @@
             color: #6b7280;
             margin-bottom: 3rem;
         }
+
+        /* Mobile Responsive Styles */
+        @media (max-width: 768px) {
+            .hero-title {
+                font-size: 2rem;
+            }
+            .hero-subtitle {
+                font-size: 1.1rem;
+            }
+            .hero-section {
+                padding: 80px 0 60px;
+            }
+            .section-title {
+                font-size: 1.75rem;
+            }
+            .section-subtitle {
+                font-size: 1rem;
+            }
+            .cta-button {
+                padding: 12px 30px;
+                font-size: 1rem;
+            }
+            .feature-card {
+                padding: 20px;
+            }
+        }
+
+        @media (max-width: 576px) {
+            .hero-title {
+                font-size: 1.75rem;
+            }
+            .hero-subtitle {
+                font-size: 1rem;
+            }
+            .section-title {
+                font-size: 1.5rem;
+            }
+        }
     </style>
 </head>
 <body>
