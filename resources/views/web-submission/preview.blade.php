@@ -24,29 +24,34 @@
             </div>
 
             {{-- Validation Status --}}
-            @if(!$validation['valid'])
+            @php
+                $isValid = $validation['valid'] ?? false;
+                $errors = $validation['errors'] ?? [];
+                $warnings = $validation['warnings'] ?? [];
+            @endphp
+            @if(!$isValid)
                 <div class="alert alert-warning mb-4">
                     <h5 class="alert-heading"><i class="fas fa-exclamation-triangle me-2"></i>Validation Issues</h5>
                     <ul class="mb-0">
-                        @foreach($validation['errors'] as $error)
+                        @foreach($errors as $error)
                             <li>{{ $error }}</li>
                         @endforeach
                     </ul>
-                    @if(!empty($validation['warnings']))
+                    @if(!empty($warnings))
                         <hr>
                         <p class="mb-0"><strong>Warnings:</strong></p>
                         <ul class="mb-0">
-                            @foreach($validation['warnings'] as $warning)
+                            @foreach($warnings as $warning)
                                 <li>{{ $warning }}</li>
                             @endforeach
                         </ul>
                     @endif
                 </div>
-            @elseif(!empty($validation['warnings']))
+            @elseif(!empty($warnings))
                 <div class="alert alert-info mb-4">
                     <h5 class="alert-heading"><i class="fas fa-info-circle me-2"></i>Warnings</h5>
                     <ul class="mb-0">
-                        @foreach($validation['warnings'] as $warning)
+                        @foreach($warnings as $warning)
                             <li>{{ $warning }}</li>
                         @endforeach
                     </ul>
@@ -113,11 +118,11 @@
                                 </tr>
                                 <tr>
                                     <th>Pages</th>
-                                    <td>{{ $target->pages->count() }}</td>
+                                    <td>{{ $target->pages ? $target->pages->count() : 0 }}</td>
                                 </tr>
                                 <tr>
                                     <th>Fields</th>
-                                    <td>{{ $target->pages->sum(fn($p) => $p->fieldMappings->count()) }}</td>
+                                    <td>{{ $target->pages ? $target->pages->sum(fn($p) => $p->fieldMappings ? $p->fieldMappings->count() : 0) : 0 }}</td>
                                 </tr>
                                 <tr>
                                     <th>AI Mode</th>
@@ -157,7 +162,7 @@
                                     </div>
                                 @endif
 
-                                @if(!$validation['valid'])
+                                @if(!$isValid)
                                     <div class="form-check mb-3">
                                         <input class="form-check-input" type="checkbox" name="force" id="forceSubmit">
                                         <label class="form-check-label text-warning" for="forceSubmit">
@@ -167,7 +172,7 @@
                                     </div>
                                 @endif
 
-                                <button type="submit" class="btn btn-success btn-lg w-100" {{ !$validation['valid'] ? 'disabled' : '' }} id="submitBtn">
+                                <button type="submit" class="btn btn-success btn-lg w-100" {{ !$isValid ? 'disabled' : '' }} id="submitBtn">
                                     <i class="fas fa-paper-plane me-2"></i>Submit to Portal
                                 </button>
                             </form>

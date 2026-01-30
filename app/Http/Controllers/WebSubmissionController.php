@@ -63,6 +63,9 @@ class WebSubmissionController extends Controller
             'consigneeContact',
         ]);
 
+        // Load target with pages and field mappings
+        $target->load(['pages.fieldMappings']);
+
         // Preview the mapping
         $preview = $this->mapper->previewMapping($declaration, $target);
         $validation = $this->mapper->validateMapping($declaration, $target);
