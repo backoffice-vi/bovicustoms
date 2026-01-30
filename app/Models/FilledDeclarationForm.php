@@ -62,9 +62,10 @@ class FilledDeclarationForm extends Model
             if (auth()->check()) {
                 $user = auth()->user();
                 if ($user->organization_id) {
-                    $builder->where('organization_id', $user->organization_id);
+                    // Use table-qualified column name to avoid ambiguity in joins
+                    $builder->where('filled_declaration_forms.organization_id', $user->organization_id);
                 } elseif ($user->is_individual) {
-                    $builder->where('user_id', $user->id);
+                    $builder->where('filled_declaration_forms.user_id', $user->id);
                 }
             }
         });

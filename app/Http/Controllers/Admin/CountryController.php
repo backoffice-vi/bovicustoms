@@ -42,6 +42,9 @@ class CountryController extends Controller
             ->orderBy('section_number')
             ->get();
 
+        // Get reference data count
+        $referenceCount = $country->referenceData()->count();
+
         // Get statistics
         $stats = [
             'chapters_count' => $chapters->count(),
@@ -53,7 +56,7 @@ class CountryController extends Controller
             'prohibited_count' => ProhibitedGood::where('country_id', $country->id)->count(),
             'restricted_count' => RestrictedGood::where('country_id', $country->id)->count(),
             'levies_count' => AdditionalLevy::where('country_id', $country->id)->count(),
-            'reference_count' => CountryReferenceData::where('country_id', $country->id)->count(),
+            'reference_count' => $referenceCount,
         ];
 
         // Load exemptions
@@ -69,7 +72,7 @@ class CountryController extends Controller
         $levies = AdditionalLevy::where('country_id', $country->id)->get();
 
         // Load reference data grouped by type
-        $referenceData = CountryReferenceData::where('country_id', $country->id)
+        $referenceData = $country->referenceData()
             ->orderBy('reference_type')
             ->orderBy('sort_order')
             ->orderBy('label')

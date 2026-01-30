@@ -35,9 +35,10 @@ class InvoiceDeclarationMatch extends Model
 
             $user = auth()->user();
             if ($user->organization_id) {
-                $builder->where('organization_id', $user->organization_id);
+                // Use table-qualified column name to avoid ambiguity in joins
+                $builder->where('invoice_declaration_matches.organization_id', $user->organization_id);
             } elseif ($user->is_individual) {
-                $builder->where('user_id', $user->id);
+                $builder->where('invoice_declaration_matches.user_id', $user->id);
             }
         });
     }

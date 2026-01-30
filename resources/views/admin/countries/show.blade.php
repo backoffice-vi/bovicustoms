@@ -11,6 +11,7 @@
             <div>
                 <h1 class="h3 mb-0">{{ $country->name }}</h1>
                 <small class="text-muted">
+                <small class="text-muted">
                     <span class="font-monospace">{{ $country->code }}</span> · 
                     {{ $country->currency_code }}
                     @if($country->is_active)

@@ -26,8 +26,8 @@ return new class extends Migration
             $table->boolean('is_default')->default(false);
             $table->timestamps();
             
-            $table->index(['web_form_field_mapping_id', 'local_equivalent']);
-            $table->index(['web_form_field_mapping_id', 'option_value']);
+            $table->index(['web_form_field_mapping_id', 'local_equivalent'], 'wfdv_mapping_local_idx');
+            $table->index(['web_form_field_mapping_id', 'option_value'], 'wfdv_mapping_value_idx');
         });
     }
 

@@ -111,9 +111,10 @@ class ShippingDocument extends Model
             if (auth()->check()) {
                 $user = auth()->user();
                 if ($user->organization_id) {
-                    $builder->where('organization_id', $user->organization_id);
+                    // Use table-qualified column name to avoid ambiguity in joins
+                    $builder->where('shipping_documents.organization_id', $user->organization_id);
                 } elseif ($user->is_individual) {
-                    $builder->where('user_id', $user->id);
+                    $builder->where('shipping_documents.user_id', $user->id);
                 }
             }
         });

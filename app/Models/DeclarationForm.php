@@ -113,7 +113,8 @@ class DeclarationForm extends Model
                 if ($user->isAgent()) {
                     $clientOrgIds = $user->getAgentClientIds();
                     if (!empty($clientOrgIds)) {
-                        $builder->whereIn('organization_id', $clientOrgIds);
+                        // Use table-qualified column name to avoid ambiguity in joins
+                        $builder->whereIn('declaration_forms.organization_id', $clientOrgIds);
                     } else {
                         // Agent with no clients sees nothing
                         $builder->whereRaw('1 = 0');
@@ -123,10 +124,11 @@ class DeclarationForm extends Model
                 
                 // Regular organization users
                 if ($user->organization_id) {
-                    $builder->where('organization_id', $user->organization_id);
+                    // Use table-qualified column name to avoid ambiguity in joins
+                    $builder->where('declaration_forms.organization_id', $user->organization_id);
                 } else if ($user->is_individual) {
                     $builder->whereHas('invoice', function ($query) use ($user) {
-                        $query->where('user_id', $user->id);
+                        $query->where('invoices.user_id', $user->id);
                     });
                 }
             }

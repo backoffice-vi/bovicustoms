@@ -46,9 +46,10 @@ class DeclarationFormItem extends Model
 
             $user = auth()->user();
             if ($user->organization_id) {
-                $builder->where('organization_id', $user->organization_id);
+                // Use table-qualified column name to avoid ambiguity in joins
+                $builder->where('declaration_form_items.organization_id', $user->organization_id);
             } elseif ($user->is_individual) {
-                $builder->where('user_id', $user->id);
+                $builder->where('declaration_form_items.user_id', $user->id);
             }
         });
     }
