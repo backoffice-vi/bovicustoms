@@ -1,0 +1,3575 @@
+[
+    {
+        "id": 1,
+        "tariff_chapter_id": 29,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "This Chapter covers all live animals except:\n(a) Fish and crustaceans, molluscs and other aquatic invertebrates, of heading No. 03.01, 03.06 or 03.07;\n(b) Cultures of micro-organisms and other products of heading No. 30.02; and\n(c) Animals of heading No. 95.08",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-25 20:21:43"
+    },
+    {
+        "id": 2,
+        "tariff_chapter_id": 29,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(b) Cultures of micro-organisms and other products of heading No. 30.02; and",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-23 02:13:55"
+    },
+    {
+        "id": 3,
+        "tariff_chapter_id": 29,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Fish and crustaceans, molluscs and other aquatic invertebrates, of heading No. 03.01, 03.06 or 03.07;",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-23 02:13:55"
+    },
+    {
+        "id": 4,
+        "tariff_chapter_id": 29,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(c) Animals of heading No. 9508.00",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-23 02:13:55"
+    },
+    {
+        "id": 5,
+        "tariff_chapter_id": 29,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "HEADING NO.",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-23 02:13:55"
+    },
+    {
+        "id": 6,
+        "tariff_chapter_id": 30,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-23 02:13:55"
+    },
+    {
+        "id": 7,
+        "tariff_chapter_id": 30,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(b) Guts, bladders or stomach of",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-23 02:13:55"
+    },
+    {
+        "id": 8,
+        "tariff_chapter_id": 30,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Products of the kinds described in",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-23 02:13:55"
+    },
+    {
+        "id": 9,
+        "tariff_chapter_id": 30,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "headings Nos. 02.01 to 02.08 or 02.10, unfit or unsuitable for human",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-23 02:13:55"
+    },
+    {
+        "id": 10,
+        "tariff_chapter_id": 30,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "Animals (heading No. 05.04) or animal blood (heading No. 05.11 or 30.32); or",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-23 02:13:55"
+    },
+    {
+        "id": 11,
+        "tariff_chapter_id": 31,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-23 02:13:55"
+    },
+    {
+        "id": 12,
+        "tariff_chapter_id": 31,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Marine mammals (heading No. 01.06) or meat thereof",
+        "created_at": "2026-01-23 02:13:55",
+        "updated_at": "2026-01-23 02:13:55"
+    },
+    {
+        "id": 13,
+        "tariff_chapter_id": 31,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(heading No. 02.10);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 14,
+        "tariff_chapter_id": 31,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "either their species or their condition (Chapter 5); flours, meals or pellets of fish or of crustaceans, molluscs or invertebrates, other aquatic unfit for human consumption (heading No. 2301.00); or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 15,
+        "tariff_chapter_id": 31,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Fish (including livers and",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 16,
+        "tariff_chapter_id": 32,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "(a) a milkfat content, by weight of the dry",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 17,
+        "tariff_chapter_id": 32,
+        "note_number": 2,
+        "note_type": "definition",
+        "note_text": "1. The expression “milk” means full cream milk or partially or completely skimmed milk.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 18,
+        "tariff_chapter_id": 32,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "matter, of 5% or more;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 19,
+        "tariff_chapter_id": 32,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) a dry matter content, by weight, of at",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 20,
+        "tariff_chapter_id": 32,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "least 70% but not exceeding 85%; and",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 21,
+        "tariff_chapter_id": 33,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 22,
+        "tariff_chapter_id": 33,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Edible products (other than guts, bladders and stomachs of animals, whole and pieces thereof, and animal blood, liquid or dried);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 23,
+        "tariff_chapter_id": 33,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "the purposes of heading No. 0501.00, the sorting of hair by length (provided the root ends and tip ends respectively are not arranged together) shall be deemed not to constitute working.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 24,
+        "tariff_chapter_id": 33,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Hides or skins (including furskins) other than goods of heading No. 0505.00 and parings and similar waste of raw hides or skins of heading No. 05.11 (Chapter 41 or 43);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 25,
+        "tariff_chapter_id": 33,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(c) Animal textile materials, other than horsehair waste",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 26,
+        "tariff_chapter_id": 33,
+        "note_number": 1,
+        "note_type": "definition",
+        "note_text": "1. In this Section the term “pellets” means products which have been agglomerated either directly by compression or by the addition of a binder in a proportion not exceeding 3% by weight.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 27,
+        "tariff_chapter_id": 34,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. Subject to the second part of heading No. 06.01, this Chapter covers only live trees and goods (including seedling vegetables) of commonly supplied by nursery gardeners or florists for planting or for ornamental use; nevertheless it does not include potatoes, onions, shallots, garlic or other products of Chapter 7. a kind",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 28,
+        "tariff_chapter_id": 34,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "2. Any reference in heading No. 06.03 or 0604.00 to goods of any kind shall be construed as including a reference to bouquets, floral baskets, wreaths and similar articles made wholly or partly of goods of that kind, account not being taken of accessories of other materials. However, these headings do not include collages or similar decorative plaques of heading No. 97.01.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 29,
+        "tariff_chapter_id": 34,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "HEADING NO.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 30,
+        "tariff_chapter_id": 34,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "0601.002 0601.009",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 31,
+        "tariff_chapter_id": 34,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "0602.001 0602.002 0602.003 0602.004 0602.009",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 32,
+        "tariff_chapter_id": 35,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover forage products of heading No. 12.14.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 33,
+        "tariff_chapter_id": 35,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "2. In headings Nos. 07.09, 07.10, 07.11 and 0712.00 the word “vegetables” includes edible mushrooms, truffles, olives, capers, marrows, pumpkins, aubergines, sweet corn (Zea mays var. saccharata), fruits of the genus Capsicum or the genus Pimenta, fennel, parsley, chervil, tarragon, cress and sweet marjoram (Majorana hortensis or Origanum majorana)",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 34,
+        "tariff_chapter_id": 35,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "forms in specified in headings Nos. 11.02 to 11.04;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 35,
+        "tariff_chapter_id": 35,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(c) flour, meal and",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 36,
+        "tariff_chapter_id": 35,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "potatoes (heading No. 11.05);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 37,
+        "tariff_chapter_id": 36,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover inedible nuts or fruits.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 38,
+        "tariff_chapter_id": 36,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "2. Chilled fruits and nuts are to be classified the the",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 39,
+        "tariff_chapter_id": 36,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "HEADING NO.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 40,
+        "tariff_chapter_id": 36,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "0801.10 0801.101 0801.102 0801.109 0801.20 0801.30 0801.301 0801.309",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 41,
+        "tariff_chapter_id": 36,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "0802.10 0802.20 0802.30 0802.40 0802.40 0802.90 0802.901 0802.909",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 42,
+        "tariff_chapter_id": 37,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. Mixtures of the products of headings Nos. 09.04 to 09.10 are to be classified as follows:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 43,
+        "tariff_chapter_id": 37,
+        "note_number": 2,
+        "note_type": "exclusion",
+        "note_text": "2. This Chapter does not cover Cubeb pepper (Piper cubeba) or other products of heading No. 12.11.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 44,
+        "tariff_chapter_id": 37,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Mixtures of two or more of the products of the same heading are to be classified in that heading;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 45,
+        "tariff_chapter_id": 37,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Mixtures of two or more of the",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 46,
+        "tariff_chapter_id": 37,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "products of different headings are to be classified in heading No. 09.10.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 47,
+        "tariff_chapter_id": 39,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 48,
+        "tariff_chapter_id": 39,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Roasted malt put up as coffee substitutes (heading No. 09.01 or 21.01);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 49,
+        "tariff_chapter_id": 39,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(b) Prepared flours, meals or starches",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 50,
+        "tariff_chapter_id": 39,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "of heading No. 19.01;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 51,
+        "tariff_chapter_id": 39,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(c) Corn flakes or other products of",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 52,
+        "tariff_chapter_id": 40,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. Heading No. 12.07 applies, inter alia, to palm nuts and kernels, cotton seeds, castor oil seeds, sesamum seeds, mustard seeds, safflower seeds, poppy seeds and shea nuts (karite nuts). It does not apply to products of heading No. 08.01 or 08.02 or to olives (Chapter 7 or Chapter 20).",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 53,
+        "tariff_chapter_id": 40,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "12.07 or 12.11.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 54,
+        "tariff_chapter_id": 40,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "4. Heading No. 12.11 applies inter alia, to the following plants or parts thereof; basil, liquorice, all borage, ginseng, hyssop, species of mint, rosemary, rue, sage and wormwood. Heading No. 12.11 does not, however, apply to:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 55,
+        "tariff_chapter_id": 40,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "2. Heading No. 12.08 applies not only to non-defatted flours and meals but also to flours and meals which have been partially defatted or defatted and wholly or partially refatted with their original oils. It does not, however, apply to residues of headings No. 2304.00 to 23.06.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 56,
+        "tariff_chapter_id": 40,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "3. For the purposes of heading No. 1209.00 beet seeds, grass and other herbage seeds, seeds of ornamental flowers, vegetable seeds, seeds of forest trees, seeds of fruit trees, seeds of vetches (other than those of the species Vicia faba) or of lupines are to be regarded as “seeds of a kind used for sowing”.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 57,
+        "tariff_chapter_id": 41,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. Heading No. 13.02 applies, inter alia, to of liquorice pyrethrum, extract of hops, extract of aloes and opium. The heading does not apply to:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 58,
+        "tariff_chapter_id": 41,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "1. Heading No. 13.02 applies, inter alia, to of liquorice pyrethrum, extract of hops, extract of aloes and opium. and",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 59,
+        "tariff_chapter_id": 41,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Liquorice extract containing more than 10% by weight of sucrose or put up as confectionary (heading No. 17.04);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 60,
+        "tariff_chapter_id": 41,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(e) Camphor,",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 61,
+        "tariff_chapter_id": 41,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "other glycyrrhizin products of heading No. 29.14 or 2938.00;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 62,
+        "tariff_chapter_id": 42,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover the",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 63,
+        "tariff_chapter_id": 42,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "following products which are to be classified in Section XI: Vegetable materials or fibres of vegetable materials of a kind used primarily the in manufacture however prepared, or other vegetable materials which have undergone treatment so as to render them suitable for use only as textile materials.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 64,
+        "tariff_chapter_id": 42,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "ends, non- inflammable, polished or dyed), spilt osier, reeds and the like, to rattan cores and to drawn or split rattans. The heading does not apply to chipwood (heading No. 4404.00).",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 65,
+        "tariff_chapter_id": 42,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "3. Heading No. 1402.00 does not apply to wood wool (heading No. 4405.00).",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 66,
+        "tariff_chapter_id": 42,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "2. Heading No. 1401.00 applies, inter alia, to bamboos (whether or not split, sawn length-wise, cut to length, rounded at the",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 67,
+        "tariff_chapter_id": 43,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 68,
+        "tariff_chapter_id": 43,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) No. 0209.00;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 69,
+        "tariff_chapter_id": 43,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "Pig fat or poultry fat of heading",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 70,
+        "tariff_chapter_id": 43,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) No. 1804.00);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 71,
+        "tariff_chapter_id": 43,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "Cocoa butter, fat or oil (heading",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 72,
+        "tariff_chapter_id": 43,
+        "note_number": 1,
+        "note_type": "definition",
+        "note_text": "In this Section the term “pellets” means products which have been agglomerated either directly by compression or by the addition of a binder in a proportion not exceeding 3% by weight.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 73,
+        "tariff_chapter_id": 43,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "SPECIAL RATE",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 74,
+        "tariff_chapter_id": 44,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover meat, meat offal, fish, crustaceans, molluscs or other aquatic or preserved by the processes specified in Chapter 2 or 3. prepared",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 75,
+        "tariff_chapter_id": 44,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "2. Food preparations fall in this Chapter provided that they contain more than 20% by weight of sausage, meat, meat offal, blood, crustaceans, fish or molluscs or other aquatic invertebrates, or any combination thereof. In cases where the preparation contains two or more of the products mentioned above, it is classified in the heading of Chapter 16 corresponding the component or components which predominate by weight. These provisions do not apply to the stuffed products of heading No. 19.02 or to the preparations of heading No. 21.03 or 21.04. to",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 76,
+        "tariff_chapter_id": 44,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "Subheadings Notes.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 77,
+        "tariff_chapter_id": 44,
+        "note_number": 4,
+        "note_type": "definition",
+        "note_text": "1. For the purposes of subheading No. 1602.10, the expression “homogenised preparations” means preparations of meat, meat offal or blood, finely homogenized, put up for retail sale as infant food or for dietetic purposes, in containers of a net weight content not exceeding 250 g. For the application of this definition no account is to be taken of small quantities of any ingredients which may have been added to the preparation or other purposes. These small preparations may contain a quantity of visible pieces of meat or meat offal. This subheading takes precedence over all other subheadings of heading No. 16.02.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 78,
+        "tariff_chapter_id": 44,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "2. The fish and crustaceans specified in the subheadings of heading No. 16.04 or 16.05 under their common names only, are of those the same species as mentioned in Chapter 3 under the same name.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 79,
+        "tariff_chapter_id": 46,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover the preparations of heading No. 04.03, 19.01, 19.04, 19.05, 21.05, 22.02, 22.08, 30.03 or 30.04.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 80,
+        "tariff_chapter_id": 46,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "2. Heading No. 18.06",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 81,
+        "tariff_chapter_id": 46,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "includes sugar confectionery containing cocoa and, subject to Note 1 to this Chapter, other food preparations containing cocoa.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 82,
+        "tariff_chapter_id": 46,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "HEADING NO.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 83,
+        "tariff_chapter_id": 46,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "1801.001 1801.002",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 84,
+        "tariff_chapter_id": 47,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 85,
+        "tariff_chapter_id": 47,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Except in the case of stuffed",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 86,
+        "tariff_chapter_id": 47,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "products of heading No. 19.02, food preparations containing more than 20% by weight of sausage, meat, meat offal, fish or crustaceans, blood, aquatic molluscs or other invertebrates, any or combination thereof (Chapter 16);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 87,
+        "tariff_chapter_id": 47,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "the expressions “flour” and “meal” mean cereal flour and meal of Chapter 11 and other flour, meal and powder of vegetable origin of any Chapter.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 88,
+        "tariff_chapter_id": 47,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "this Chapter",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 89,
+        "tariff_chapter_id": 48,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 90,
+        "tariff_chapter_id": 48,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Vegetables, fruit or nuts, prepared the processes",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 91,
+        "tariff_chapter_id": 48,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "or preserved by specified in Chapter 7, 8 or 11;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 92,
+        "tariff_chapter_id": 48,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Food preparations containing more than 20% by weight of sausage, meat, meat offal, blood, fish or crustaceans, molluscs or other aquatic invertebrates, or any combination thereof (Chapter 16); or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 93,
+        "tariff_chapter_id": 48,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "weight content not exceeding 250g. For the application of this definition no account is to be taken of small quantities of any ingredients which may have been added the seasoning, for preparation preservation or other purposes. These preparations may contain a small quantity of visible pieces of vegetables. Subheading No. 2005.10 takes precedence over all other subheadings of heading No. 20.05.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 94,
+        "tariff_chapter_id": 49,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "(g) Prepared enzymes of heading No.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 95,
+        "tariff_chapter_id": 49,
+        "note_number": 2,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 96,
+        "tariff_chapter_id": 49,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Mixed vegetables of heading No.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 97,
+        "tariff_chapter_id": 49,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Roasted",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 98,
+        "tariff_chapter_id": 49,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "substitutes containing coffee in any proportion (heading No. 09.01);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 99,
+        "tariff_chapter_id": 50,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "containers, has an excess pressure of not less than 3 bars.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 100,
+        "tariff_chapter_id": 50,
+        "note_number": 2,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 101,
+        "tariff_chapter_id": 50,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Sea water (heading No. 25.01);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 102,
+        "tariff_chapter_id": 50,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Distilled or conductivity water or water of similar purity (heading No. 2851.00);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 103,
+        "tariff_chapter_id": 50,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(c) Acetic acid of a concentration exceeding 10% by weight of acetic acid (heading No. 29.15);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 104,
+        "tariff_chapter_id": 51,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. Heading No. 23.09 includes products of a kind used in animal feeding, not elsewhere included, specified or obtained by processing vegetable or animal materials to such an extent that they essential characteristics of the original material, other than vegetable waste, vegetable residues and by-products of such processing. the",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 105,
+        "tariff_chapter_id": 51,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "HEADING NO.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 106,
+        "tariff_chapter_id": 51,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "2302.10 2302.20 2302.30 2302.40 2302.50",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 107,
+        "tariff_chapter_id": 51,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "2303.001 2303.009",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 108,
+        "tariff_chapter_id": 51,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "2306.10 2306.20",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 109,
+        "tariff_chapter_id": 52,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover medicinal cigarettes (Chapter 30)",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 110,
+        "tariff_chapter_id": 52,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "HEADING NO.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 111,
+        "tariff_chapter_id": 52,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "2401.10 2401.20",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 112,
+        "tariff_chapter_id": 52,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "2402.20 2402.90",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 113,
+        "tariff_chapter_id": 52,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "2403.90 2403.901 2403.909",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 114,
+        "tariff_chapter_id": 53,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. Except where their context or Note 4 to this Chapter otherwise requires, the headings of this Chapter cover only products which are in the crude state or which have been washed (even with chemical substances eliminating the impurities without the structure of the product), crushed, ground, powdered, levigated, sifted, screened, concentrated by flotation, magnetic other separation mechanical or physical processes not crystallization), (except products which have been roasted, calcined, obtained by mixing or subjected to processing beyond that mentioned in each heading. contain an added antidusting agent, provided that such addition does not render the product particularly suitable for specific use rather than for general use.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 115,
+        "tariff_chapter_id": 53,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "1. Except where their context or Note 4 to this Chapter otherwise requires, the headings of this Chapter cover only products which are in the crude state or which have been washed (even with chemical substances eliminating the impurities without the structure of the product), crushed, ground, powdered, levigated, sifted, screened, concentrated by flotation, magnetic other separation mechanical or physical processes not crystallization), (except products which have been roasted, calcined, obtained by mixing or subjected to processing beyond that mentioned in each heading. or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 116,
+        "tariff_chapter_id": 53,
+        "note_number": 3,
+        "note_type": "exclusion",
+        "note_text": "2. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 117,
+        "tariff_chapter_id": 53,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Earth colours containing 70% or more by weight of combined iron evaluated as Fe²0³ (heading No. 2821.00);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 118,
+        "tariff_chapter_id": 53,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(c) Medicaments or other products of",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 119,
+        "tariff_chapter_id": 54,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 120,
+        "tariff_chapter_id": 54,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Slag or similar industrial waste prepared as macadam (heading No. 25.17);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 121,
+        "tariff_chapter_id": 54,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(b) Natural magnesium carbonate (magnesite, whether or not calcined (heading No. 25.19);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 122,
+        "tariff_chapter_id": 54,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(c) Basic slag of Chapter 31;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 123,
+        "tariff_chapter_id": 54,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(d) Slag wool, rock wool or similar (heading No.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 124,
+        "tariff_chapter_id": 55,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "Subheading Notes.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 125,
+        "tariff_chapter_id": 55,
+        "note_number": 2,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 126,
+        "tariff_chapter_id": 55,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Separate chemically defined organic compounds, other than pure methane and propane which are to be classified in heading No. 27.11;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 127,
+        "tariff_chapter_id": 55,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Medicaments of heading No. 30.03 or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 128,
+        "tariff_chapter_id": 55,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(c) Mixed unsaturated hydrocarbons of heading No. 33.01, 33.02 or 38.05.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 129,
+        "tariff_chapter_id": 55,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. (a) Goods (other",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 130,
+        "tariff_chapter_id": 55,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "than radioactive ores) answering to a description in heading No. 2844.00 or 2845.00 are those headings and in no other heading of the Nomenclature.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 131,
+        "tariff_chapter_id": 55,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "to be classified",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 132,
+        "tariff_chapter_id": 55,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Subhead to paragraph (a) above, goods answering to a description in heading No. 2843.00 or 2846.00 are to be classified in those headings and in no other heading of this Section.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 133,
+        "tariff_chapter_id": 55,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "2. Subject to Note 1 above, goods classifiable in heading No. 30.04, 30.05, 30.06, 32.12, 33.03, 33.04, 33.05, 33.06, 33.07, 35.06, 3707.00 or 38.08 by reason of being put up in measured doses or for retail sale are to be classified in those headings and in no other heading of the Nomenclature.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 134,
+        "tariff_chapter_id": 56,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. Except where the context otherwise requires, the headings of this Chapter apply only to:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 135,
+        "tariff_chapter_id": 56,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "product particularly suitable for for specific use general use.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 136,
+        "tariff_chapter_id": 56,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(g) Separate chemical elements and separate defined chemically compounds, whether or not containing impurities;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 137,
+        "tariff_chapter_id": 56,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(h) The products mentioned in (a)",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 138,
+        "tariff_chapter_id": 56,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "above dissolved in water;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 139,
+        "tariff_chapter_id": 57,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. Except where the context otherwise requires, the headings of this Chapter apply only to:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 140,
+        "tariff_chapter_id": 57,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(f) The products mentioned in (a), (b), (c), (d) or (e) above with added stabiliser necessary for their preservation or transport;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 141,
+        "tariff_chapter_id": 57,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Separate",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 142,
+        "tariff_chapter_id": 57,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "defined chemically organic compounds, whether or not containing impurities;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 143,
+        "tariff_chapter_id": 57,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Mixtures of two or more isomers of the same organic compound (whether containing impurities), except mixtures of isomers hydrocarbon acyclic (other stereoisomers), than whether or not saturated (Chapter 27);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 144,
+        "tariff_chapter_id": 58,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 145,
+        "tariff_chapter_id": 58,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(1) Unmixed products dissolved",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 146,
+        "tariff_chapter_id": 58,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Foods or beverages (such as dietetic, diabetic or fortified foods, food supplements, tonic beverages and mineral waters) (Section IV);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 147,
+        "tariff_chapter_id": 58,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "All goods of Chapter 28 or 29; and",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 148,
+        "tariff_chapter_id": 58,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Plasters specially calcined or finely ground for use in dentistry (heading No. 25.20);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 149,
+        "tariff_chapter_id": 59,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 150,
+        "tariff_chapter_id": 59,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Animal blood heading No. 05.11;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 151,
+        "tariff_chapter_id": 59,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(b) Separate",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 152,
+        "tariff_chapter_id": 59,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "defined chemically compounds those (other answering to the descriptions in Note 2 (A), 3 (A) , 4 (A) of 5 below); or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 153,
+        "tariff_chapter_id": 59,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "Ammonium whether or not pure; Double salts (whether or not pure) or mixtures of calcium ammonium nitrate nitrate;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 154,
+        "tariff_chapter_id": 60,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 155,
+        "tariff_chapter_id": 60,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Separate chemically defined elements or compounds those of heading No. 32.03 or 32.04, inorganic as products of luminophores (heading No. 3206.00), glass obtained from fused quartz or forms other provided for in heading No. 32.07, and also dyes and other colouring matter put up in forms or packings for retail sale, of heading No. 32.12);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 156,
+        "tariff_chapter_id": 60,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "a kind used",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 157,
+        "tariff_chapter_id": 60,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "fused silica",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 158,
+        "tariff_chapter_id": 61,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 159,
+        "tariff_chapter_id": 61,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Compound alcoholic preparations of a kind used for the manufacture of beverages, of heading No. 22.08;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 160,
+        "tariff_chapter_id": 61,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(b) Soap or other products of heading",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 161,
+        "tariff_chapter_id": 61,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "No. 34.01; or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 162,
+        "tariff_chapter_id": 61,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(c) Gum, wood or sulphate turpentine or other products of heading No. 38.05.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 163,
+        "tariff_chapter_id": 62,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 164,
+        "tariff_chapter_id": 62,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Edible mixtures or preparations of animal or vegetable fats or oils of a kind used as mould release preparations (heading No. 15.17);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 165,
+        "tariff_chapter_id": 62,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "products which when mixed with water at a concentration of 0.5% at 20°C and left to stand same temperature:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 166,
+        "tariff_chapter_id": 62,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "for one hour at",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 167,
+        "tariff_chapter_id": 62,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Separate",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 168,
+        "tariff_chapter_id": 63,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 169,
+        "tariff_chapter_id": 63,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(e) Hardened",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 170,
+        "tariff_chapter_id": 63,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Yeasts (heading No. 21.02);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 171,
+        "tariff_chapter_id": 63,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "No.39.13); or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 172,
+        "tariff_chapter_id": 63,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "than blood albumin not prepared for therapeutic prophylactic or uses), medicaments or other products of Chapter 30;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 173,
+        "tariff_chapter_id": 64,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover separate chemically defined compounds other than those described in Note 2 (a) or (b) below.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 174,
+        "tariff_chapter_id": 64,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "forms) for use as fuels; fuels with a basis of alcohol, and similar prepared fuels, in solid or semi- solid form;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 175,
+        "tariff_chapter_id": 64,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "2. The expression “articles of combustible materials” in heading No. 36.06 applies only to:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 176,
+        "tariff_chapter_id": 64,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Liquid or liquefied-gas fuels in containers of a kind use for filling or refilling cigarette or similar lighters and of a capacity not exceeding 30 cm³; and",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 177,
+        "tariff_chapter_id": 64,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(a) Metaldehyde,",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 178,
+        "tariff_chapter_id": 65,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover waste or scrap materials.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 179,
+        "tariff_chapter_id": 65,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "formation of visible images directly or indirectly by the action of light or other forms of radiation on sensitive surfaces.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 180,
+        "tariff_chapter_id": 65,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "2. In this Chapter the word “photographic” relates to a process which permits the",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 181,
+        "tariff_chapter_id": 65,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "HEADING NO.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 182,
+        "tariff_chapter_id": 65,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "3701.10 3701.20 3701.30",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 183,
+        "tariff_chapter_id": 66,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 184,
+        "tariff_chapter_id": 66,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "Separate defined chemically elements or compounds with the exception of the following:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 185,
+        "tariff_chapter_id": 66,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "2. Heading No. 38.23",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 186,
+        "tariff_chapter_id": 66,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "the following goods which are not be classified in any other heading of the Nomenclature:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 187,
+        "tariff_chapter_id": 66,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(1) Artificial graphite (heading",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 188,
+        "tariff_chapter_id": 67,
+        "note_number": 1,
+        "note_type": "definition",
+        "note_text": "1. the expression “plastics” means those materials of heading Nos. 3901.00 to 3914.00 which are or have been capable, either at the moment of polymerization or at some subsequent stage, of being formed under external and pressure, if necessary with a solvent or plasticizer) by moulding, casting, extruding, rolling or other process into shapes which are retained on the removal of the external influence. influence",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 189,
+        "tariff_chapter_id": 67,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "Throughout",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 190,
+        "tariff_chapter_id": 67,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "the Nomenclature",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 191,
+        "tariff_chapter_id": 67,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(g) Synthetic rubber, as defined for the purposes of Chapter 40, or articles;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 192,
+        "tariff_chapter_id": 67,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(h) Saddlery or harness (heading No. 4201.00) or trunks, suitcases, handbags or other containers of heading No. 42.02;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 193,
+        "tariff_chapter_id": 68,
+        "note_number": 1,
+        "note_type": "definition",
+        "note_text": "1. Except where the context otherwise requires, throughout the Nomenclature the the expression “rubber” means following products, whether or not vulcanised or hard: natural rubber, balata, gutta-percha, guayule, chicle and similar natural gums, synthetic rubber, facticse derived from oils, and such substances reclaimed.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 194,
+        "tariff_chapter_id": 68,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "Liquids and pastes (including latex, whether or not pre- vulcanised, and other dispersions and solutions);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 195,
+        "tariff_chapter_id": 68,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(b) Blocks of irregular shape, lumps, bales, powders, granules, crumbs and similar bulk forms.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 196,
+        "tariff_chapter_id": 68,
+        "note_number": 4,
+        "note_type": "exclusion",
+        "note_text": "2. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 197,
+        "tariff_chapter_id": 68,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "4. In Note 1 to this Chapter and in heading No. 4002.00, the expression “synthetic rubber” applies to:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 198,
+        "tariff_chapter_id": 73,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 199,
+        "tariff_chapter_id": 73,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(b) Headgear or parts of headgear of",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 200,
+        "tariff_chapter_id": 79,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. Throughout the Nomenclature:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 201,
+        "tariff_chapter_id": 79,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(including Angora rabbit), hare, beaver, nutria or musk-rat;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 202,
+        "tariff_chapter_id": 79,
+        "note_number": 3,
+        "note_type": "definition",
+        "note_text": "(a) “Wool” means the natural fibre",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 203,
+        "tariff_chapter_id": 79,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "grown by sheep or lambs;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 204,
+        "tariff_chapter_id": 79,
+        "note_number": 5,
+        "note_type": "definition",
+        "note_text": "(b) “Fine animal hair” means the hair of alpaca, llama, vicuna, camel, yak, Angora,Tibetan, Kashmir or similar goats (but not common goats), rabbit",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 205,
+        "tariff_chapter_id": 86,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. This Chapter does not apply to textile fabrics referred to in Note 1 to Chapter 59, impregnated, coated, covered or laminated, or to other goods of Chapter 59.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 206,
+        "tariff_chapter_id": 86,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "provided with selvedges (woven, gummed or otherwise made) on both edges;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 207,
+        "tariff_chapter_id": 86,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(b) Tubular woven fabrics of a flattened width not exceeding 30 cm; and",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 208,
+        "tariff_chapter_id": 86,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "2. Heading No. 58.01 also includes woven weft pile fabrics which have not yet had the floats cut, at which stage they have no pile standing up.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 209,
+        "tariff_chapter_id": 86,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(c) Bias binding with folded edges, of a width when unfolded not exceeding 30 cm.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 210,
+        "tariff_chapter_id": 87,
+        "note_number": 1,
+        "note_type": "definition",
+        "note_text": "1. Except where the context otherwise requires, for the purposes of this Chapter the expression “textile fabrics” applies only to the woven fabrics of Chapters 50 to 55 and headings Nos. 58.03 and 5806.00, the braids and ornamental trimmings in the piece of heading No. 5808.00 and the knitted or crocheted fabrics of heading No. 60.02.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 211,
+        "tariff_chapter_id": 87,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "coated or covered on both sides with such material, provided that such coating or covering can be seen with the naked eye with no account being taken of any resulting change of colour (Chapter 39);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 212,
+        "tariff_chapter_id": 87,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "2. Heading No. 5903.00 applies to:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 213,
+        "tariff_chapter_id": 87,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(a) Textile fabrics, impregnated, coated, covered or laminated with plastics, whatever the weight per square metre and whatever the nature of the plastic material or cellular), other than:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 214,
+        "tariff_chapter_id": 87,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(4) Fabrics partially coated or partially covered with plastics and bearing designs resulting from these treatments (usually Chapters 50 to 55, 58 or 60);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 215,
+        "tariff_chapter_id": 88,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 216,
+        "tariff_chapter_id": 88,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "laminated, remain heading No. 60.01.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 217,
+        "tariff_chapter_id": 88,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "classified",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 218,
+        "tariff_chapter_id": 88,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(a) Crochet lace of heading No. 598.04;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 219,
+        "tariff_chapter_id": 88,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Labels, badges or similar articles, knitted or crocheted, of heading No. 5807.00; or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 220,
+        "tariff_chapter_id": 89,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. This Chapter applies only to made up knitted or crocheted articles.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 221,
+        "tariff_chapter_id": 89,
+        "note_number": 2,
+        "note_type": "exclusion",
+        "note_text": "2. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 222,
+        "tariff_chapter_id": 89,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Goods of heading No. 62.12;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 223,
+        "tariff_chapter_id": 89,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Worn clothing or other worn articles",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 224,
+        "tariff_chapter_id": 89,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "of heading No. 6309.00; or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 225,
+        "tariff_chapter_id": 90,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter applies only to made up articles of any textile fabric other than wadding, excluding knitted or crocheted articles (other than those of heading No. 62.12).",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 226,
+        "tariff_chapter_id": 90,
+        "note_number": 2,
+        "note_type": "exclusion",
+        "note_text": "2. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 227,
+        "tariff_chapter_id": 90,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Worn clothing or other worn articles",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 228,
+        "tariff_chapter_id": 90,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "of heading No. 6309.00; or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 229,
+        "tariff_chapter_id": 90,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "style, colour and composition; they must also be of corresponding or compatible size. If several separate components to cover the lower ;part of the body are presented together (for example, trousers and shorts, or a skirt or divided skirt and trousers), the constituent lower part shall be the trousers, or, in the case of a women’s or girls’ suits, the skirt or divided skirt, the other garments being considered separately.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 230,
+        "tariff_chapter_id": 91,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. Sub-Chapter 1 applies only to made up articles, of any textile fabric.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 231,
+        "tariff_chapter_id": 91,
+        "note_number": 2,
+        "note_type": "exclusion",
+        "note_text": "2. Sub-Chapter 1 does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 232,
+        "tariff_chapter_id": 91,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Goods of Chapters 56 to 62; or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 233,
+        "tariff_chapter_id": 91,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(iv) Furnishing articles, other than carpets of headings Nos. 57.01 to 5705.00 and tapestries of heading No. 5805.00;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 234,
+        "tariff_chapter_id": 91,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Worn clothing or other worn articles of heading No. 6309.00.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 235,
+        "tariff_chapter_id": 92,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 236,
+        "tariff_chapter_id": 92,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Footwear without applied soles, of textile material (Chapter 61 or 62);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 237,
+        "tariff_chapter_id": 92,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "any textile material visibly coated or covered externally with one or both of those materials.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 238,
+        "tariff_chapter_id": 92,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "4. Subject to Note 3 to this Chapter:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 239,
+        "tariff_chapter_id": 92,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "footwear of heading No.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 240,
+        "tariff_chapter_id": 93,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 241,
+        "tariff_chapter_id": 93,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "Dolls’ hats, other toy hats or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 242,
+        "tariff_chapter_id": 93,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "carnival articles of Chapter 95.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 243,
+        "tariff_chapter_id": 93,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(a) Worm headgear of heading No.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 244,
+        "tariff_chapter_id": 93,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Asbestos headgear (heading No.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 245,
+        "tariff_chapter_id": 94,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 246,
+        "tariff_chapter_id": 94,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "umbrellas, toy sun umbrellas).",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 247,
+        "tariff_chapter_id": 94,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Measure walking-stocks or the like (heading No. 90.17);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 248,
+        "tariff_chapter_id": 94,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Firearm-sticks, sword-sticks, loaded walking-sticks or the like (Chapter",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 249,
+        "tariff_chapter_id": 94,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(c) Goods of Chapter 95 (for example,",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 250,
+        "tariff_chapter_id": 95,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 251,
+        "tariff_chapter_id": 95,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Straining cloth of human hair",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 252,
+        "tariff_chapter_id": 95,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(heading No. 5911.00);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 253,
+        "tariff_chapter_id": 95,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Articles of apparel or clothing in which feathers or accessories down constitute no more than mere trimming or padding; or",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 254,
+        "tariff_chapter_id": 95,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Flora motifs of lace, of embroidery or other textile fabric (Section XI);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 255,
+        "tariff_chapter_id": 96,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 256,
+        "tariff_chapter_id": 96,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(i) Articles of Chapter 91 (for example,",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 257,
+        "tariff_chapter_id": 96,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "clocks and clock cases);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 258,
+        "tariff_chapter_id": 96,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(a) Goods of Chapter 25;",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 259,
+        "tariff_chapter_id": 96,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Coated,",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 260,
+        "tariff_chapter_id": 97,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. This Chapter applies only to ceramic products which have been fired after shaping. Headings Nos. 69.04 to 6914.00 apply only to such products other than those classifiable in headings Nos. 6901.00 to 6903.00.",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 261,
+        "tariff_chapter_id": 97,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(f) Artificial teeth (heading No. 90.21);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 262,
+        "tariff_chapter_id": 97,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(g) Articles of Chapter 91 (for example,",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 263,
+        "tariff_chapter_id": 97,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "clocks and clock cases);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 264,
+        "tariff_chapter_id": 97,
+        "note_number": 5,
+        "note_type": "exclusion",
+        "note_text": "2. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 265,
+        "tariff_chapter_id": 98,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 266,
+        "tariff_chapter_id": 98,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Goods of heading No. 32.07 (for example, vitrifiable enamels and glazes, glass frit, other glass in the form of powder, granules or flakes);",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 267,
+        "tariff_chapter_id": 98,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "2. For the purposes of headings Nos. 70.03, 7004.00 and 70.05: (a) Glass is not regarded as “worked” by it has",
+        "created_at": "2026-01-23 02:13:56",
+        "updated_at": "2026-01-23 02:13:56"
+    },
+    {
+        "id": 268,
+        "tariff_chapter_id": 98,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "2. For the purposes of headings Nos. 70.03, 7004.00 and 70.05: (a) Glass is not regarded as “worked” by it has",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 269,
+        "tariff_chapter_id": 98,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "reason of any process undergone before annealing;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 270,
+        "tariff_chapter_id": 99,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. Subject to Note 1(a) to Section VI and except as provided below, all articles consisting wholly or partly:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 271,
+        "tariff_chapter_id": 99,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Amalgams of precious metal, or colloidal precious metal (heading No. 2843.00);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 272,
+        "tariff_chapter_id": 99,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Of natural or cultured pearls or of precious or semi-precious stones (natural, or reconstructed) or",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 273,
+        "tariff_chapter_id": 99,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Sterile surgical suture materials, dental fillings or other goods of Chapter 30;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 274,
+        "tariff_chapter_id": 99,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Of precious metal or of metal clad with precious metal, are to be classified in this Chapter.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 275,
+        "tariff_chapter_id": 99,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This section does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 276,
+        "tariff_chapter_id": 99,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(c) Headgear or parts thereof of heading No. 65.06 or 6507.00;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 277,
+        "tariff_chapter_id": 99,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Prepared paints, inks or other products with a basis of metallic flakes or powder (headings Nos. 32.07 to 32.10, 32.12, 3213.00 or 32.15);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 278,
+        "tariff_chapter_id": 99,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(d) Umbrella frames or other articles",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 279,
+        "tariff_chapter_id": 99,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "of heading No. 6603.00;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 280,
+        "tariff_chapter_id": 100,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. In this Chapter and, in the case of Notes (d), (e) and (f) throughout the following Nomenclature, expressions have the meanings hereby assigned to them: (a) Pig iron",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 281,
+        "tariff_chapter_id": 100,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "Iron-carbon alloys not usefully malleable, containing more than 2% by weight of carbon and which may contain by weight one or more other elements within the following limits:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 282,
+        "tariff_chapter_id": 100,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "Alloys in pigs, blocks, lumps or similar primary forms, in forms obtained by continuous casting and also in granular or powder forms, not agglomerated, commonly used as an additive in the manufacture of other alloys or as de-oxidants, de-sulphurising agents or for similar uses in ferrous metallurgy usefully and malleable, containing by weight 4% or more of the element iron and one or more of the following:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 283,
+        "tariff_chapter_id": 100,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "not more than 10% of",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 284,
+        "tariff_chapter_id": 100,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "more than 10% of chromium",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 285,
+        "tariff_chapter_id": 101,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. In this Chapter the expression “cast iron” applies to products obtained by casting in which iron predominates by weight over each of the other elements and which do not comply with the chemical composition of steel as defined in Note 1 (d) to Chapter 72. (a)",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 286,
+        "tariff_chapter_id": 101,
+        "note_number": 2,
+        "note_type": "definition",
+        "note_text": "2. In this Chapter the word “wire” means hot or cold-formed products of any cross-sectional shape, of which no cross- sectional dimension exceeds 16mm.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 287,
+        "tariff_chapter_id": 101,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "HEADING NO.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 288,
+        "tariff_chapter_id": 101,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "7301.10 7301.20",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 289,
+        "tariff_chapter_id": 101,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "7302.001 7302.009",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 290,
+        "tariff_chapter_id": 102,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. In this Chapter the following expressions have the meanings hereby assigned to them:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 291,
+        "tariff_chapter_id": 102,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "the content by weight of a least one of the other elements is greater than the limit specified in the foregoing table; or",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 292,
+        "tariff_chapter_id": 102,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Refined copper",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 293,
+        "tariff_chapter_id": 102,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "the total content by weight of such other elements exceeds 2.5%.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 294,
+        "tariff_chapter_id": 102,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "Metal containing at least 99.85% by weight of copper; or metal least 97.5% by containing at weight of copper, provided that the content by weight of any other element does not exceed the limit specified in the following table:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 295,
+        "tariff_chapter_id": 103,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "(b) Profiles",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 296,
+        "tariff_chapter_id": 103,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "1. In this Chapter the following expressions have the meanings hereby assigned to them:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 297,
+        "tariff_chapter_id": 103,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Bars and rods",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 298,
+        "tariff_chapter_id": 103,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "Rolled, extruded, drawn or forged products, not in coils, which have a uniform solid cross-section along their whole length in the shape of rectangles circles, ovals, equilateral (including squares), or triangles convex polygons (including “flattended circles” and “modified rectangles”, of which two opposite sides are convex arcs, the other two sides being straight, of equal length and parallel). a rectangular square), triangular or polygonal cross- section may have corners rounded along their whole length. The thickness of such products which (including rectangular have a “modified cross- section exceeds one-tenth of the width. The expression also covers cast or sintered products, of the same forms and dimensions, which have been subsequently worked after production (otherwise than by simple trimming or de-scaling), provided that they have not thereby assumed the character of articles or products of other headings.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 299,
+        "tariff_chapter_id": 103,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "Products, with",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 300,
+        "tariff_chapter_id": 104,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. In this Chapter the following expressions have the meanings hereby assigned to them:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 301,
+        "tariff_chapter_id": 104,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Bars and rods",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 302,
+        "tariff_chapter_id": 104,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "Rolled, extruded, drawn or forged products, not in coils, which have a uniform solid cross-section along their whole length in the shape of circles, ovals, rectangles (including squares), equilateral triangles or regular convex polygons (including “flattened circles” and “modified rectangles”, of which two opposite sides are convex arcs, the other two sides being straight, of equal length and parallel). Products with a rectangular (including square), triangular or polygonal cross- section may have corners rounded along their whole length. The thickness of such products which have a (including rectangular cross- “modified section exceeds one-tenth of the width. The expression also covers cast or sintered products, of the same forms and dimensions, which have been subsequently worked after production (otherwise than by simple trimming or de-scaling), provided that they have not thereby assumed the character of articles or products of other headings.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 303,
+        "tariff_chapter_id": 104,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "rectangular”)",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 304,
+        "tariff_chapter_id": 104,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "Rolled, extruded, drawn, forged or formed products, coiled or not, of a uniform cross-section along their whole length, which do not conform to any of the definitions of bars, rods, wire, plates, sheets, strip, foil, tubes or pipes. The expression also covers cast or sintered products, of the same forms, which have been subsequently after production (otherwise than by simple trimming or de-scaling), provided that they have not thereby assumed the character of articles or products of other headings.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 305,
+        "tariff_chapter_id": 106,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. following expressions have the meanings hereby assigned to them: the",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 306,
+        "tariff_chapter_id": 106,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "this Chapter",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 307,
+        "tariff_chapter_id": 106,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Bars and rods",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 308,
+        "tariff_chapter_id": 106,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "Rolled, extruded, drawn or forged products, Not in coils, which have a uniform solid cross-section their whole length in the shape of rectangles circles, (including squares), equilateral triangles or regular convex polygons (including and “flattened “modified of which two opposite sides are convex arcs, the other two sides being straight, of equal length and parallel). Products with a rectangular (including or square), polygonal cross-section may have corners rounded along The their whole thickness of such products rectangular which have a “modified (including cross-section rectangular”) exceeds one-tenth of the width. The expression also sintered covers products, of the same forms and dimensions, which have",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 309,
+        "tariff_chapter_id": 106,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "circles” rectangles”,",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 310,
+        "tariff_chapter_id": 107,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "(b) Profiles",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 311,
+        "tariff_chapter_id": 107,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "1. In this Chapter the following expressions have the meanings hereby assigned to them:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 312,
+        "tariff_chapter_id": 107,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Bars and rods",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 313,
+        "tariff_chapter_id": 107,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "Rolled, extruded, drawn or forged products, not in coils, which have a uniform solid cross-section along their whole length in the shape of circles, ovals, rectangles(including triangles or squares), equilateral regular convex polygons (including “flattened circles” and “modified rectangles”, of which two opposite sides are convex arcs, the other two sides being straight, of equal length Products with a and parallel). square), rectangular triangular or polygonal cross-section may have corners rounded along their whole length. The thickness of a such products which have rectangular (including “modified rectangular”) cross-section exceeds one-tenth of The the width. expression also covers cast or sintered products, of the same forms and dimensions, which have been after subsequently production (otherwise than by simple trimming or de-scaling), provided that they have not thereby assumed the character of articles or products of other headings.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 314,
+        "tariff_chapter_id": 107,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(including",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 315,
+        "tariff_chapter_id": 108,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. In expressions have assigned to them:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 316,
+        "tariff_chapter_id": 108,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "this Chapter",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 317,
+        "tariff_chapter_id": 108,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "following the meanings hereby",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 318,
+        "tariff_chapter_id": 108,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(a) Bars and rods",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 319,
+        "tariff_chapter_id": 108,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "Rolled, extruded, drawn or forged products, not in coils, which have a uniform solid cross-section along their whole length in the shape of circles, ovals, rectangles (including squares), equilateral triangles or regular convex polygons (including “flattened circles” and “modified rectangles”, of which two opposite sides are convex arcs, the other two sides being straight, of equal length Products with a and parallel). rectangular square), (including triangular or polygonal cross-section may have corners rounded along their whole length. The thickness of such products which have a rectangular “modified (including rectangular”) cross-section exceeds one-tenth of The expression also covers cast or sintered products, of the same forms and dimensions, which have been subsequently after production (otherwise than by simple trimming or de-scaling), provided that they have not thereby assumed the character of articles or products of other headings.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 320,
+        "tariff_chapter_id": 111,
+        "note_number": 1,
+        "note_type": "definition",
+        "note_text": "1. For the purposes of this Chapter, parts of base metal are to be classified with their parent articles. However, articles of iron or steel of heading No. 73.12, 73.15, 73.17, 73.18 or 73.20, or similar articles of other base metal (Chapters 74 to 73 and 78 to 81) are not to be taken as parts of articles of this Chapter.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 321,
+        "tariff_chapter_id": 111,
+        "note_number": 2,
+        "note_type": "definition",
+        "note_text": "2. For the purposes of heading No. 83.02, the word “castors” means those having a where appropriate, tyres) not exceeding 75 mm, or those having a diameter (including, where appropriate, tyres) exceeding 75 mm provided that the width of the wheel or tyre fitted thereto is less than 30 mm.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 322,
+        "tariff_chapter_id": 111,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(including,",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 323,
+        "tariff_chapter_id": 111,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "HEADING NO.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 324,
+        "tariff_chapter_id": 111,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "8301.10 8301.20 8301.30 8301.40 8301.50",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 325,
+        "tariff_chapter_id": 111,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Section does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 326,
+        "tariff_chapter_id": 111,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Transmission or conveyor belts or belting, of plastics of Chapter 39, or of vulcanized rubber (heading No. 4010.00); or other articles of a in machinery or kind used electrical or mechanical appliances or for other technical uses, of vulcanized rubber other than hard rubber (heading No. 40.16);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 327,
+        "tariff_chapter_id": 111,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(b) Articles",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 328,
+        "tariff_chapter_id": 111,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "of composition leather (heading No. 4204.00) or of furskin (heading No. 4304.00), of a kind used in machinery mechanical or appliances or for other technical uses;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 329,
+        "tariff_chapter_id": 111,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(f) Precious or semi-precious stones (natural, or reconstructed) of headings Nos. 71.02 to 71.04, or articles wholly of such stones of heading No. 71.16, except unmounted worked sapphires and diamonds for styli (heading No. 85.22);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 330,
+        "tariff_chapter_id": 112,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 331,
+        "tariff_chapter_id": 112,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "heading of the former group and not the latter.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 332,
+        "tariff_chapter_id": 112,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Millstones, grindstones or other articles of Chapter 68;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 333,
+        "tariff_chapter_id": 112,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "Heading No. 84.19 does not, however, cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 334,
+        "tariff_chapter_id": 112,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Appliances",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 335,
+        "tariff_chapter_id": 113,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 336,
+        "tariff_chapter_id": 113,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Electrically warned blankets, bed foot-muffs or like; pads, electrically clothing, warned footwear or ear pads or other electrically warmed articles worn on or about the person;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 337,
+        "tariff_chapter_id": 113,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(b) Articles of glass of heading No.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 338,
+        "tariff_chapter_id": 113,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "The heading does not, however, apply to fans or ventilating or recycling hoods incorporating a fan, whether or not fitted with filters (heading no. 84.14), centrifugal clothes-dryers (heading No. 84.21) dish washing machines (heading No. 84.22) household washing machines (heading No. 84.50), roller or other ironing machines (heading No. 84.20 or 84.51), sewing machines (heading No. 85.2), electric scissors (heading No. 85.08) or to electro-thermic appliances (heading No. 85.16).",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 339,
+        "tariff_chapter_id": 113,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(c) Electrically heated",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 340,
+        "tariff_chapter_id": 113,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "(ij) Arms (Chapter 93);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 341,
+        "tariff_chapter_id": 113,
+        "note_number": 2,
+        "note_type": "exclusion",
+        "note_text": "1. This Section does not cover articles of heading No. 9501.00, 95.03 or 9508.00, or bobsleighs, toboggans or the like of heading No. 95.06.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 342,
+        "tariff_chapter_id": 113,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(k) Lamps or lighting fittings of heading",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 343,
+        "tariff_chapter_id": 113,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "No. 94.05; or",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 344,
+        "tariff_chapter_id": 113,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(l) Brushes of a kind used as parts of",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 345,
+        "tariff_chapter_id": 114,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 346,
+        "tariff_chapter_id": 114,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Railway or",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 347,
+        "tariff_chapter_id": 114,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "tramway sleepers of wood or of concrete, or concrete guide-track sections for hovertrains (heading No. 4406.00 or 68.10);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 348,
+        "tariff_chapter_id": 114,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "3. Subject to the provisions of Note 1 above, heading No. 8608.00 applies, inter alia, to: (a) Assembled platform buffers, loading gauges;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 349,
+        "tariff_chapter_id": 114,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Railway",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 350,
+        "tariff_chapter_id": 115,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover railway or tramway rolling-stock designed solely for running on rails.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 351,
+        "tariff_chapter_id": 115,
+        "note_number": 2,
+        "note_type": "definition",
+        "note_text": "this Chapter, “tractors” Means vehicles constructed for hauling or pushing essentially another vehicle, appliance or load, whether or not they contain subsidiary provision for the transport, in connection with the main use of the tractor, of tools, seeds, fertilizers or other goods.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 352,
+        "tariff_chapter_id": 115,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "the purpose of",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 353,
+        "tariff_chapter_id": 115,
+        "note_number": 4,
+        "note_type": "definition",
+        "note_text": "3. For the purposes of heading No. 87.02, type the expression “public-transport passenger motor vehicles” means vehicles designed for the transport of ten persons or more (including the driver).",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 354,
+        "tariff_chapter_id": 115,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "4. Motor chassis fitted with cabs fall in headings Nos. 87.02 to 87.04, and not in heading No.8706.00.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 355,
+        "tariff_chapter_id": 118,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 356,
+        "tariff_chapter_id": 118,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Articles of a kind used in machines, appliances or for other technical uses, or vulcanised rubber other than hard rubber (heading No. 40.16), or leather or of composition leather (heading No. 4204.00) or of textile material (heading No. 5911.00);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 357,
+        "tariff_chapter_id": 118,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(b) Refractory goods of heading no. 6903.00; ceramic wares of laboratory, chemical or other",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 358,
+        "tariff_chapter_id": 118,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "technical uses, of heading No. 6909.00;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 359,
+        "tariff_chapter_id": 118,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(c) Glass mirrors, not optically worked, of heading No. 70.09; or mirrors of base metal or of",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 360,
+        "tariff_chapter_id": 119,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 361,
+        "tariff_chapter_id": 119,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "for use solely or principally as parts of such movements (Chapter 85).",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 362,
+        "tariff_chapter_id": 119,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "Clock or watch glasses or weights (classified according to their constituent material);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 363,
+        "tariff_chapter_id": 119,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(a) Watch chains (heading No. 71.13 or",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 364,
+        "tariff_chapter_id": 119,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "7117.00, as the case may be);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 365,
+        "tariff_chapter_id": 120,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 366,
+        "tariff_chapter_id": 120,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Parts of general use, as defined in Note 2 to Section XV, of base metal Section XV), or similar goods of plastics (Chapter 39);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 367,
+        "tariff_chapter_id": 120,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(b) Microphones, loud- speakers, switches, head-hones, stroboscopes or other accessory instruments, apparatus or equipment of Chapter 85 or 90, for use with but not incorporated in or housed in the same cabinet as instrument of this Chapter;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 368,
+        "tariff_chapter_id": 120,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "amplifiers,",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 369,
+        "tariff_chapter_id": 120,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "2. Bows and sticks and similar devices used in playing the musical instruments of heading No 9202.00 or 92.06 presented with such in numbers normal to them and clearly intended for use with them, are to be classified in the same heading as the relative instruments. Cards, discs and rolls of heading No. 92.09 presented with an instrument are to be treated as separate articles and not as forming a part of such instrument.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 370,
+        "tariff_chapter_id": 121,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 371,
+        "tariff_chapter_id": 121,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "they are designed to be mounted (Chapter 90);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 372,
+        "tariff_chapter_id": 121,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Goods of Chapter 36 (for example, detonators,",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 373,
+        "tariff_chapter_id": 121,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "percussion signalling flares);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 374,
+        "tariff_chapter_id": 121,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(e) Bows, arrows, fencing foils or toys",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 375,
+        "tariff_chapter_id": 122,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 376,
+        "tariff_chapter_id": 122,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Pneumatic or water mattresses, pillows or cushions, of Chapter 39, 40 or 63;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 377,
+        "tariff_chapter_id": 122,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(g) Furniture specially designed as part of apparatus of heading No. 85.18 (heading No. 85.18), of headings Nos. 85.19 to 8521.00 (heading No. 85.22) or of headings Nos. 85.25 to 85.28 (heading No. 85.29);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 378,
+        "tariff_chapter_id": 122,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Mirrors designed or placing on the floor or ground (for example, cheval- glasses (swing-mirrors) of heading No. 70.09;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 379,
+        "tariff_chapter_id": 122,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(c) Articles of Chapter 71;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 380,
+        "tariff_chapter_id": 123,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "1. This Chapter does ot cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 381,
+        "tariff_chapter_id": 123,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(a) Christmas tree candles (heading No.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 382,
+        "tariff_chapter_id": 123,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(j) Parts of general use, as defined in Note 2 to Section XV, of base metal (Section XV), or similar goods of plastics (Chapter 39);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 383,
+        "tariff_chapter_id": 123,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(b) Fireworks or other pyrotechnic",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 384,
+        "tariff_chapter_id": 123,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(k) Bells, gongs or the like of heading",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 385,
+        "tariff_chapter_id": 124,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 386,
+        "tariff_chapter_id": 124,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "(ij) Articles of Chapter 93 (arms and",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 387,
+        "tariff_chapter_id": 124,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "their parts);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 388,
+        "tariff_chapter_id": 124,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "(a) Pencils for cosmetic or toilet uses",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 389,
+        "tariff_chapter_id": 124,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(Chapter 33;",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 390,
+        "tariff_chapter_id": 125,
+        "note_number": 1,
+        "note_type": "exclusion",
+        "note_text": "1. This Chapter does not cover:",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 391,
+        "tariff_chapter_id": 125,
+        "note_number": 2,
+        "note_type": "general",
+        "note_text": "material employed by him, but not including any mechanical or photomechanical process.",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 392,
+        "tariff_chapter_id": 125,
+        "note_number": 3,
+        "note_type": "general",
+        "note_text": "(a) Unused postage or revenue stamps, postal stationery (stamped paper) or the like, or current or new issue in the country to which they are destined (Chapter 49);",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 393,
+        "tariff_chapter_id": 125,
+        "note_number": 4,
+        "note_type": "general",
+        "note_text": "3. Heading No. 97.03 does not apply to mass produced of conventional craftsmanship of a commercial character. or works",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 394,
+        "tariff_chapter_id": 125,
+        "note_number": 5,
+        "note_type": "general",
+        "note_text": "(b) Theatrical scenery, studio back-cloths or the like, of painted canvas (heading No. 5907.00) except if they may be classified in heading No. 9706.00; or",
+        "created_at": "2026-01-23 02:13:57",
+        "updated_at": "2026-01-23 02:13:57"
+    },
+    {
+        "id": 395,
+        "tariff_chapter_id": 38,
+        "note_number": 1,
+        "note_type": "general",
+        "note_text": "(a) The products specified in the headings of this Chapter are to be classified in those headings only if grains are present, whether or not in the ear or on the stalk.\n(b) The Chapter does not cover grains which have been hulled or otherwise worked. However, rice, husked milled, polished, glazed, parboiled or broken remains classified in heading No. 10.06.",
+        "created_at": "2026-01-25 20:59:26",
+        "updated_at": "2026-01-25 20:59:26"
+    },
+    {
+        "id": 396,
+        "tariff_chapter_id": 38,
+        "note_number": 2,
+        "note_type": "exclusion",
+        "note_text": "Heading No. 10.05 does not cover sweet corn (Chapter 7).",
+        "created_at": "2026-01-25 20:59:26",
+        "updated_at": "2026-01-25 20:59:26"
+    },
+    {
+        "id": 397,
+        "tariff_chapter_id": 38,
+        "note_number": 3,
+        "note_type": "subheading",
+        "note_text": "The term \"durum wheat\" means wheat of the Triticum durum species and the hybrids derived from the interspecific crossings of Triticum durum which have the same number (28) of chromosomes as that species.",
+        "created_at": "2026-01-25 20:59:26",
+        "updated_at": "2026-01-25 20:59:26"
+    }
+]

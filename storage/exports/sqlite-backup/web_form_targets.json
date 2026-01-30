@@ -1,0 +1,21 @@
+[
+    {
+        "id": 1,
+        "country_id": 1,
+        "name": "CAPS BVI - Customs Automated Processing System",
+        "code": "caps_bvi",
+        "base_url": "https:\/\/caps.gov.vg",
+        "login_url": "\/CAPSWeb\/TraderLogin.jsp",
+        "credentials": "eyJpdiI6InlYN09GaXZPUC9wNE80d2o0MUZNK2c9PSIsInZhbHVlIjoidEx0SGVzN1NORXlNNzJZYVUxbkVubmpQdkowOUdNSWpXekVmWjJIeTJYSmtOZlpkSHRUQmc1NEhGWUxOd2hkaXY1OWZHZ1V0QWVtQjJEdi9qUGF6R2R5QSsxUDFhcDZjTCswMHdxRllUOEVFU3A5czBtWnB3UUc3d01kQVZ5TExzWFdicHY3ek53cUxPUDBlcVhkWGJ3QTZhS005VkpVaEVJK0VOYkhNOGp3QnVRMFlYZVQ3b0g5QnJWN3B1ZG1ob21BekQ5dGgwTEROVDZSMGF6M2hOUHhLTGVxUEtVNStQalFIZ1NBT1M5dVQwK0VRTitzU0lDWWsxNVl2Z0krUlhrWmNEOStGQUtJRDl4RVNuYkJyL0E9PSIsIm1hYyI6ImRjMDk5Mjk4NWZkMGZjZjEwZGY4OWYzNzNjNjFjODI3ZDdkNWYyYTA5NzgxYzM4ZDAyMGZjYWYxODc2OGFmYmYiLCJ0YWciOiIifQ==",
+        "auth_type": "form",
+        "workflow_steps": "[{\"action\":\"login\",\"page\":\"login\"},{\"action\":\"navigate\",\"page\":\"td_list\"},{\"action\":\"new\",\"page\":\"td_entry\"},{\"action\":\"fill\",\"page\":\"td_entry\"},{\"action\":\"save\",\"page\":\"td_entry\"}]",
+        "config": null,
+        "is_active": 1,
+        "requires_ai": 1,
+        "last_mapped_at": "2026-01-27 02:46:17",
+        "last_tested_at": null,
+        "notes": "BVI Customs CAPS system. Auto-configured via caps:setup command.",
+        "created_at": "2026-01-27 02:38:59",
+        "updated_at": "2026-01-27 02:46:17"
+    }
+]

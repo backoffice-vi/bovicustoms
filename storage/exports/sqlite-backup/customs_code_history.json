@@ -1,0 +1,52 @@
+[
+    {
+        "id": 312,
+        "customs_code_id": 1,
+        "field_changed": "created",
+        "old_value": null,
+        "new_value": "Code created from law document",
+        "law_document_id": 1,
+        "changed_by": null,
+        "created_at": "2026-01-23 00:59:10"
+    },
+    {
+        "id": 313,
+        "customs_code_id": 2,
+        "field_changed": "created",
+        "old_value": null,
+        "new_value": "Code created from law document",
+        "law_document_id": 1,
+        "changed_by": null,
+        "created_at": "2026-01-23 00:59:10"
+    },
+    {
+        "id": 322,
+        "customs_code_id": 66,
+        "field_changed": "duty_rate",
+        "old_value": "5.00",
+        "new_value": "0.00",
+        "law_document_id": null,
+        "changed_by": null,
+        "created_at": "2026-01-25 20:32:14"
+    },
+    {
+        "id": 323,
+        "customs_code_id": 67,
+        "field_changed": "duty_rate",
+        "old_value": "5.00",
+        "new_value": "0.00",
+        "law_document_id": null,
+        "changed_by": null,
+        "created_at": "2026-01-25 20:32:14"
+    },
+    {
+        "id": 324,
+        "customs_code_id": 68,
+        "field_changed": "duty_rate",
+        "old_value": "1.00",
+        "new_value": "0.00",
+        "law_document_id": null,
+        "changed_by": null,
+        "created_at": "2026-01-25 20:32:14"
+    }
+]

@@ -1,0 +1,32 @@
+[
+    {
+        "id": "247387ab-1416-4b86-944b-dc497c89f3be",
+        "type": "App\\Notifications\\InvoiceClassificationComplete",
+        "notifiable_type": "App\\Models\\User",
+        "notifiable_id": 2,
+        "data": "{\"type\":\"invoice_classification_complete\",\"invoice_id\":1,\"invoice_number\":\"25402\",\"item_count\":32,\"title\":\"Invoice Classification Complete\",\"message\":\"Classification complete for invoice 25402. 32 items classified and ready for review.\",\"action_url\":\"http:\\\/\\\/localhost\\\/invoices\\\/1\\\/assign-codes-results\",\"icon\":\"fa-check-circle\",\"color\":\"success\"}",
+        "read_at": null,
+        "created_at": "2026-01-26 01:27:52",
+        "updated_at": "2026-01-26 01:27:52"
+    },
+    {
+        "id": "53682e83-71f6-46bc-86d8-31a9d268d078",
+        "type": "App\\Notifications\\InvoiceClassificationComplete",
+        "notifiable_type": "App\\Models\\User",
+        "notifiable_id": 2,
+        "data": "{\"type\":\"invoice_classification_complete\",\"invoice_id\":1,\"invoice_number\":\"25402\",\"item_count\":32,\"title\":\"Invoice Classification Complete\",\"message\":\"Classification complete for invoice 25402. 32 items classified and ready for review.\",\"action_url\":\"http:\\\/\\\/localhost\\\/invoices\\\/1\\\/assign-codes-results\",\"icon\":\"fa-check-circle\",\"color\":\"success\"}",
+        "read_at": null,
+        "created_at": "2026-01-26 01:18:29",
+        "updated_at": "2026-01-26 01:18:29"
+    },
+    {
+        "id": "951d4696-4db6-44a2-baf5-4e31faad4663",
+        "type": "App\\Notifications\\InvoiceClassificationComplete",
+        "notifiable_type": "App\\Models\\User",
+        "notifiable_id": 2,
+        "data": "{\"type\":\"invoice_classification_complete\",\"invoice_id\":2,\"invoice_number\":\"25829\",\"item_count\":8,\"title\":\"Invoice Classification Complete\",\"message\":\"Classification complete for invoice 25829. 8 items classified and ready for review.\",\"action_url\":\"http:\\\/\\\/localhost\\\/invoices\\\/2\\\/assign-codes-results\",\"icon\":\"fa-check-circle\",\"color\":\"success\"}",
+        "read_at": null,
+        "created_at": "2026-01-26 22:36:22",
+        "updated_at": "2026-01-26 22:36:22"
+    }
+]

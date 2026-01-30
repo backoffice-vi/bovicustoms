@@ -1,0 +1,22 @@
+[
+    {
+        "id": 1,
+        "shipment_id": 1,
+        "invoice_id": 1,
+        "prorated_freight": 83.6,
+        "prorated_insurance": 12.77,
+        "invoice_fob": 1469.25,
+        "created_at": "2026-01-26 22:23:55",
+        "updated_at": "2026-01-26 22:46:50"
+    },
+    {
+        "id": 2,
+        "shipment_id": 1,
+        "invoice_id": 2,
+        "prorated_freight": 14.6,
+        "prorated_insurance": 2.23,
+        "invoice_fob": 256.56,
+        "created_at": "2026-01-26 22:40:28",
+        "updated_at": "2026-01-26 22:46:50"
+    }
+]

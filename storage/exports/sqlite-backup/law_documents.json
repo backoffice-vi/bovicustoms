@@ -1,0 +1,19 @@
+[
+    {
+        "id": 1,
+        "filename": "256455c6-5170-4f5a-b7f5-3d57bee3d8f6.pdf",
+        "original_filename": "Customs Management and Duties Act 2010 plus Ammendments.pdf",
+        "file_path": "law-documents\/256455c6-5170-4f5a-b7f5-3d57bee3d8f6.pdf",
+        "file_type": "pdf",
+        "file_size": 15042098,
+        "country_id": 1,
+        "status": "completed",
+        "processed_at": "2026-01-23 00:59:51",
+        "error_message": null,
+        "uploaded_by": 2,
+        "created_at": "2026-01-22 20:04:28",
+        "updated_at": "2026-01-23 00:59:51",
+        "extracted_text": null,
+        "extracted_at": null
+    }
+]

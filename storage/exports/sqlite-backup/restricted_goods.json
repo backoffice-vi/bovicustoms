@@ -1,0 +1,74 @@
+[
+    {
+        "id": 8,
+        "country_id": 1,
+        "name": "Firearms and ammunition",
+        "description": "Firearms or ammunition unless accompanied by a permit issued by the Commissioner of Police",
+        "restriction_type": "permit",
+        "permit_authority": "Commissioner of Police",
+        "requirements": "Must be accompanied by a permit issued by the Commissioner of Police",
+        "detection_keywords": "[\"firearm\",\"gun\",\"rifle\",\"pistol\",\"ammunition\",\"ammo\",\"bullets\",\"shotgun\",\"revolver\"]",
+        "created_at": "2026-01-25 21:53:31",
+        "updated_at": "2026-01-25 21:53:31"
+    },
+    {
+        "id": 9,
+        "country_id": 1,
+        "name": "Explosives",
+        "description": "Explosives, other than gunpowder or blasting powder",
+        "restriction_type": "permit",
+        "permit_authority": "Commissioner of Police",
+        "requirements": "Requires permit. Note: gunpowder and blasting powder are exempt from this restriction",
+        "detection_keywords": "[\"explosive\",\"dynamite\",\"detonator\",\"TNT\",\"bomb material\"]",
+        "created_at": "2026-01-25 21:53:31",
+        "updated_at": "2026-01-25 21:53:31"
+    },
+    {
+        "id": 10,
+        "country_id": 1,
+        "name": "Caravans and houseboats",
+        "description": "Caravans and houseboats not including house cruisers",
+        "restriction_type": "other",
+        "permit_authority": null,
+        "requirements": "Import restriction applies. House cruisers are exempt from this restriction",
+        "detection_keywords": "[\"caravan\",\"houseboat\",\"mobile home\",\"trailer home\"]",
+        "created_at": "2026-01-25 21:53:31",
+        "updated_at": "2026-01-25 21:53:31"
+    },
+    {
+        "id": 11,
+        "country_id": 1,
+        "name": "Jet skis",
+        "description": "Jet skis (personal watercraft)",
+        "restriction_type": "other",
+        "permit_authority": null,
+        "requirements": "Import restriction applies",
+        "detection_keywords": "[\"jet ski\",\"jetski\",\"personal watercraft\",\"pwc\",\"sea-doo\",\"waverunner\"]",
+        "created_at": "2026-01-25 21:53:31",
+        "updated_at": "2026-01-25 21:53:31"
+    },
+    {
+        "id": 12,
+        "country_id": 1,
+        "name": "Motorcycles exceeding 150cc",
+        "description": "Motor cycles exceeding 150 cc and their parts",
+        "restriction_type": "other",
+        "permit_authority": null,
+        "requirements": "Import restriction applies to motorcycles with engine capacity exceeding 150cc and parts thereof",
+        "detection_keywords": "[\"motorcycle\",\"motorbike\",\"motor cycle\"]",
+        "created_at": "2026-01-25 21:53:31",
+        "updated_at": "2026-01-25 21:53:31"
+    },
+    {
+        "id": 13,
+        "country_id": 1,
+        "name": "Restricted plants",
+        "description": "All plants the importation of which is restricted under the Plant Protection Act (Cap. 93), and any subsidiary legislation made under that Act",
+        "restriction_type": "permit",
+        "permit_authority": "Department of Agriculture",
+        "requirements": "Requires phytosanitary certificate or import permit as specified under the Plant Protection Act",
+        "detection_keywords": "[\"plant\",\"seedling\",\"cutting\",\"live plant\",\"vegetation\"]",
+        "created_at": "2026-01-25 21:53:31",
+        "updated_at": "2026-01-25 21:53:31"
+    }
+]

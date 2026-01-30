@@ -1,0 +1,992 @@
+[
+    {
+        "id": 29,
+        "tariff_section_id": 1,
+        "chapter_number": "01",
+        "title": "Live Animals",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:21:43"
+    },
+    {
+        "id": 30,
+        "tariff_section_id": 1,
+        "chapter_number": "02",
+        "title": "Meat and edible meat offal",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 31,
+        "tariff_section_id": 1,
+        "chapter_number": "03",
+        "title": "Fish and crustaceans, molluscs and other aquatic invertebrates",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 32,
+        "tariff_section_id": 1,
+        "chapter_number": "04",
+        "title": "Dairy produce; birds’ eggs; natural honey; edible products of animals origin not elsewhere specified or included",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 33,
+        "tariff_section_id": 1,
+        "chapter_number": "05",
+        "title": "Products of animal origin, not elsewhere specified or included",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 34,
+        "tariff_section_id": 2,
+        "chapter_number": "06",
+        "title": "Live trees and other plants; bulbs, roots and the like; cut flowers and ornamental foliage",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 35,
+        "tariff_section_id": 2,
+        "chapter_number": "07",
+        "title": "Edible vegetables and certain roots and tubers",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 36,
+        "tariff_section_id": 2,
+        "chapter_number": "08",
+        "title": "Edible fruit and nuts; peel of citrus fruit or melons",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 37,
+        "tariff_section_id": 2,
+        "chapter_number": "09",
+        "title": "Coffee, tea, maté and spices",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 38,
+        "tariff_section_id": 2,
+        "chapter_number": "10",
+        "title": "Cereals",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 39,
+        "tariff_section_id": 2,
+        "chapter_number": "11",
+        "title": "Products of the milling industry; malt; starches; inulin; wheat gluten",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 40,
+        "tariff_section_id": 2,
+        "chapter_number": "12",
+        "title": "Oil seeds and oleaginous fruits; miscellaneous grains, seeds and fruits; industrial or medicinal plants; straw and fodder",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 41,
+        "tariff_section_id": 2,
+        "chapter_number": "13",
+        "title": "Lac; gums, resin and other vegetables saps and extracts",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 42,
+        "tariff_section_id": 2,
+        "chapter_number": "14",
+        "title": "Vegetables plaiting materials; vegetable products not elsewhere specified or included",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 43,
+        "tariff_section_id": 3,
+        "chapter_number": "15",
+        "title": "Animal or vegetable fats and oils and their cleavage products; prepared edible fats; animal or vegetable waxes",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 44,
+        "tariff_section_id": 4,
+        "chapter_number": "16",
+        "title": "Preparations of meat, of fish or of crustaceans, molluscs or other aquatic invertebrates",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 45,
+        "tariff_section_id": 4,
+        "chapter_number": "17",
+        "title": "Sugars and sugar confectionery",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 46,
+        "tariff_section_id": 4,
+        "chapter_number": "18",
+        "title": "Cocoa and cocoa preparations",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 47,
+        "tariff_section_id": 4,
+        "chapter_number": "19",
+        "title": "Preparations of cereals, flour, starch or milk; pastrycooks’ products",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 48,
+        "tariff_section_id": 4,
+        "chapter_number": "20",
+        "title": "Preparations of vegetables, fruits, nuts or other parts of plants",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 49,
+        "tariff_section_id": 4,
+        "chapter_number": "21",
+        "title": "Miscellaneous edible preparations",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 50,
+        "tariff_section_id": 4,
+        "chapter_number": "22",
+        "title": "Beverages, spirits and vinegar",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 51,
+        "tariff_section_id": 4,
+        "chapter_number": "23",
+        "title": "Residues and Waste from the food industries; prepared animal fodder",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 52,
+        "tariff_section_id": 4,
+        "chapter_number": "24",
+        "title": "Tobacco and manufactured tobacco substitutes",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 53,
+        "tariff_section_id": 5,
+        "chapter_number": "25",
+        "title": "Salt; sulphur; earths and stone; plastering materials, lime and cement",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 54,
+        "tariff_section_id": 5,
+        "chapter_number": "26",
+        "title": "Ores, slag and ash",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 55,
+        "tariff_section_id": 5,
+        "chapter_number": "27",
+        "title": "Mineral fuels, minerals oils and products of their distillation; bituminous substances; mineral waxes",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 56,
+        "tariff_section_id": 6,
+        "chapter_number": "28",
+        "title": "Inorganic chemicals; organic or inorganic compounds of precious metals, of rare-earth metals, of radioactive elements or of isotopes",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 57,
+        "tariff_section_id": 6,
+        "chapter_number": "29",
+        "title": "Organic chemicals",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 58,
+        "tariff_section_id": 6,
+        "chapter_number": "30",
+        "title": "Pharmaceutical products",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 59,
+        "tariff_section_id": 6,
+        "chapter_number": "31",
+        "title": "Fetilisers",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 60,
+        "tariff_section_id": 6,
+        "chapter_number": "32",
+        "title": "Tanning or dyeing extracts; tannins and their derivatives; dyes, pigments and other colouring matter; paints and varnishes; putty and other mastics; inks",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 61,
+        "tariff_section_id": 6,
+        "chapter_number": "33",
+        "title": "Essential oils and resinoids; perfumery, cosmetic or toilet preparations",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 62,
+        "tariff_section_id": 6,
+        "chapter_number": "34",
+        "title": "Soap, organic surface-active agents, washing preparation, lubricating preparations, artificial waxes, prepared waxes, polishing or scouring preparations, candles and similar articles, modelling pastes, “dental waxes’’ and dental preparations with a basis of plaster",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 63,
+        "tariff_section_id": 6,
+        "chapter_number": "35",
+        "title": "Albuminoidal substances; modified starches; glues; enzymes",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 64,
+        "tariff_section_id": 6,
+        "chapter_number": "36",
+        "title": "Explosives; pyrotechnic product; matches; pyrophoric alloys; certain combustible preparations",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 65,
+        "tariff_section_id": 6,
+        "chapter_number": "37",
+        "title": "Photographic or cinematographic goods",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 66,
+        "tariff_section_id": 6,
+        "chapter_number": "38",
+        "title": "Miscellaneous chemical products",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 67,
+        "tariff_section_id": 7,
+        "chapter_number": "39",
+        "title": "Plastics and articles",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 68,
+        "tariff_section_id": 7,
+        "chapter_number": "40",
+        "title": "Rubber and articles",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 69,
+        "tariff_section_id": 8,
+        "chapter_number": "41",
+        "title": "Raw hides and skins (other than furskins) and leather",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 70,
+        "tariff_section_id": 8,
+        "chapter_number": "42",
+        "title": "Articles of leather; saddlery and harness; travel goods; handbags and similar containers; articles of animal gut (other than silk-worm gut)",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 71,
+        "tariff_section_id": 8,
+        "chapter_number": "43",
+        "title": "Furskins and artificial fur; manufactures thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 72,
+        "tariff_section_id": 9,
+        "chapter_number": "44",
+        "title": "Wood and articles of wood; wood charcoal",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 73,
+        "tariff_section_id": 9,
+        "chapter_number": "45",
+        "title": "Cork and articles of cork",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 74,
+        "tariff_section_id": 9,
+        "chapter_number": "46",
+        "title": "Manufactures of straw, of esparto or of other plaiting materials; baskets and wicker work",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 75,
+        "tariff_section_id": 10,
+        "chapter_number": "47",
+        "title": "Pulp of wood or of other fibrous cellulosic material; waste and scrap of paper or paperboard",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 76,
+        "tariff_section_id": 10,
+        "chapter_number": "48",
+        "title": "Paper and paperboard; articles of paper pulp, of paper or of paperboard",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 77,
+        "tariff_section_id": 10,
+        "chapter_number": "49",
+        "title": "Printed books newspapers, pictures and other products of the printing industry; manuscripts, typescripts and plans",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:11"
+    },
+    {
+        "id": 78,
+        "tariff_section_id": 11,
+        "chapter_number": "50",
+        "title": "Silk",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 79,
+        "tariff_section_id": 11,
+        "chapter_number": "51",
+        "title": "Wool, fine or coarse animal hair; horsehair yarn and woven fabric",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 80,
+        "tariff_section_id": 11,
+        "chapter_number": "52",
+        "title": "Cotton",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 81,
+        "tariff_section_id": 11,
+        "chapter_number": "53",
+        "title": "Other vegetable textile fibres; paper yarn and woven fabrics of paper yarn",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 82,
+        "tariff_section_id": 11,
+        "chapter_number": "54",
+        "title": "Man-made filaments",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 83,
+        "tariff_section_id": 11,
+        "chapter_number": "55",
+        "title": "Man-made staple fibres",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 84,
+        "tariff_section_id": 11,
+        "chapter_number": "56",
+        "title": "Wadding, felt and nowovens; special yarns; twine, cordage, ropes and cables and articles thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 85,
+        "tariff_section_id": 11,
+        "chapter_number": "57",
+        "title": "Carpets and other textile floor coverings",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 86,
+        "tariff_section_id": 11,
+        "chapter_number": "58",
+        "title": "Special woven fabric; tufted textile fabrics; lace; tapestries; trimmings; embroidery",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 87,
+        "tariff_section_id": 11,
+        "chapter_number": "59",
+        "title": "Impregnated, coated, covered or laminated textile fabrics; textile articles of a kind suitable for industrial use",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 88,
+        "tariff_section_id": 11,
+        "chapter_number": "60",
+        "title": "Knitted or crocheted fabrics",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 89,
+        "tariff_section_id": 11,
+        "chapter_number": "61",
+        "title": "Articles of apparel and clothing accessories, knitted or crocheted",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 90,
+        "tariff_section_id": 11,
+        "chapter_number": "62",
+        "title": "Articles of apparel and clothing accessories, not knitted or crocheted.",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 91,
+        "tariff_section_id": 11,
+        "chapter_number": "63",
+        "title": "Other made up textile articles; sets, worn clothing and worn textile articles; rags",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 92,
+        "tariff_section_id": 12,
+        "chapter_number": "64",
+        "title": "Footwear, gaiters and the like; parts of such articles",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 93,
+        "tariff_section_id": 12,
+        "chapter_number": "65",
+        "title": "Headgear and its parts",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 94,
+        "tariff_section_id": 12,
+        "chapter_number": "66",
+        "title": "Umbrellas, sun umbrellas, walking-sticks, seat-sticks, whips, riding-crops and parts thereof.",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 95,
+        "tariff_section_id": 12,
+        "chapter_number": "67",
+        "title": "Prepared feathers and down and articles made of feathers or of down; artificial flowers; articles of human hair",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 96,
+        "tariff_section_id": 13,
+        "chapter_number": "68",
+        "title": "Articles of stone, plaster, cement, asbestos, mica or similar materials",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 97,
+        "tariff_section_id": 13,
+        "chapter_number": "69",
+        "title": "Ceramic product",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 98,
+        "tariff_section_id": 13,
+        "chapter_number": "70",
+        "title": "Glass and glassware",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 99,
+        "tariff_section_id": 14,
+        "chapter_number": "71",
+        "title": "Natural or cultured pearls, precious or semi-precious stones, precious metals, metals clad with precious metal, and articles thereof; imitation jewellery; coin",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 100,
+        "tariff_section_id": 15,
+        "chapter_number": "72",
+        "title": "Iron and Steel",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 101,
+        "tariff_section_id": 15,
+        "chapter_number": "73",
+        "title": "Articles of iron or steel",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 102,
+        "tariff_section_id": 15,
+        "chapter_number": "74",
+        "title": "Copper and articles made of copper",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 103,
+        "tariff_section_id": 15,
+        "chapter_number": "75",
+        "title": "Nickel and articles thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 104,
+        "tariff_section_id": 15,
+        "chapter_number": "76",
+        "title": "Aluminium and articles thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 105,
+        "tariff_section_id": 15,
+        "chapter_number": "77",
+        "title": "(Reserved for possible future use in the Harmonize System)",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 106,
+        "tariff_section_id": 15,
+        "chapter_number": "78",
+        "title": "Lead and articles made from lead",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 107,
+        "tariff_section_id": 15,
+        "chapter_number": "79",
+        "title": "Zinc and articles thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 108,
+        "tariff_section_id": 15,
+        "chapter_number": "80",
+        "title": "Tin and articles thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 109,
+        "tariff_section_id": 15,
+        "chapter_number": "81",
+        "title": "Other base metals; cermets; articles thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 110,
+        "tariff_section_id": 15,
+        "chapter_number": "82",
+        "title": "Tools, implements, cutlery, spoons and forks, of base metal; parts thereof of base metal",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 111,
+        "tariff_section_id": 15,
+        "chapter_number": "83",
+        "title": "Miscellaneous articles of base metal",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 112,
+        "tariff_section_id": 16,
+        "chapter_number": "84",
+        "title": "Nuclear reactors, boiler, machinery and mechanical Appliances; parts thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 113,
+        "tariff_section_id": 16,
+        "chapter_number": "85",
+        "title": "Electrical machinery and equipment and parts thereof; sound recorders and reproducers, television image and sound recorders and reproducers, and parts and accessories of such articles",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 114,
+        "tariff_section_id": 17,
+        "chapter_number": "86",
+        "title": "Railway or tramway locomotives, rolling-stock and parts thereof; railway or tramway track fixtures and fittings and parts thereof; mechanical (including electro-mechanical traffic signalling equipment of all kinds",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 115,
+        "tariff_section_id": 17,
+        "chapter_number": "87",
+        "title": "Vehicles other than railway or tramway rolling-stock, And parts and accessories thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 116,
+        "tariff_section_id": 17,
+        "chapter_number": "88",
+        "title": "Aircraft, spacecraft, and parts thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 117,
+        "tariff_section_id": 17,
+        "chapter_number": "89",
+        "title": "Ships, boats and floating structures",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 118,
+        "tariff_section_id": 18,
+        "chapter_number": "90",
+        "title": "Optical, photographic, cinematographic, measuring, checking, precision, medical or surgical instruments and apparatus; parts and accessories thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 119,
+        "tariff_section_id": 18,
+        "chapter_number": "91",
+        "title": "Clocks and watches and their parts",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 120,
+        "tariff_section_id": 18,
+        "chapter_number": "92",
+        "title": "Musical instruments; parts and accessories of such articles",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 121,
+        "tariff_section_id": 19,
+        "chapter_number": "93",
+        "title": "Arms and ammunition; parts and accessories thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 122,
+        "tariff_section_id": 20,
+        "chapter_number": "94",
+        "title": "Furniture,; bedding, mattresses, mattress supports, cushions and similar stuffed furnishings; lamps and light fittings, not elsewhere specified or included; illuminated signs, illuminated name-plates and t he like; prefabricated buildings.",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 123,
+        "tariff_section_id": 20,
+        "chapter_number": "95",
+        "title": "Toys, games and ports requisites; parts and accessories thereof",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 124,
+        "tariff_section_id": 20,
+        "chapter_number": "96",
+        "title": "Miscellaneous manufactured articles",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 125,
+        "tariff_section_id": 21,
+        "chapter_number": "97",
+        "title": "Works of art, collectors’ pieces and antiques",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-23 02:12:12",
+        "updated_at": "2026-01-25 20:43:12"
+    },
+    {
+        "id": 126,
+        "tariff_section_id": 21,
+        "chapter_number": "98",
+        "title": "(Reserved for special uses by Contracting Parties)",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-25 20:44:39",
+        "updated_at": "2026-01-25 20:44:39"
+    },
+    {
+        "id": 127,
+        "tariff_section_id": 21,
+        "chapter_number": "99",
+        "title": "(Reserved for special uses by Contracting Parties)",
+        "description": null,
+        "country_id": 1,
+        "created_at": "2026-01-25 20:44:39",
+        "updated_at": "2026-01-25 20:44:39"
+    }
+]

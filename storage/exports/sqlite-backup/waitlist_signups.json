@@ -1,0 +1,26 @@
+[
+    {
+        "id": 1,
+        "email": "j@j.com",
+        "interested_features": null,
+        "source": "landing_cta_section",
+        "ip_address": "127.0.0.1",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Gecko\/20100101 Firefox\/147.0",
+        "notified": 0,
+        "created_at": "2026-01-27 03:51:52",
+        "updated_at": "2026-01-27 03:51:52",
+        "comments": null
+    },
+    {
+        "id": 2,
+        "email": "p@pr.com",
+        "interested_features": "[\"bulk_processing\"]",
+        "source": "landing_classification_demo",
+        "ip_address": "127.0.0.1",
+        "user_agent": "Mozilla\/5.0 (Windows NT 10.0; Win64; x64; rv:147.0) Gecko\/20100101 Firefox\/147.0",
+        "notified": 0,
+        "created_at": "2026-01-27 04:08:33",
+        "updated_at": "2026-01-27 04:08:43",
+        "comments": "edfd"
+    }
+]

@@ -1,0 +1,202 @@
+{
+    "exported_at": "2026-01-30T13:20:29+00:00",
+    "source": "sqlite",
+    "tables": {
+        "additional_levies": {
+            "count": 1,
+            "exported": true
+        },
+        "agent_organization_clients": {
+            "count": 0,
+            "exported": false
+        },
+        "classification_exclusions": {
+            "count": 22,
+            "exported": true
+        },
+        "classification_rules": {
+            "count": 0,
+            "exported": false
+        },
+        "countries": {
+            "count": 1,
+            "exported": true
+        },
+        "country_form_templates": {
+            "count": 2,
+            "exported": true
+        },
+        "country_levies": {
+            "count": 1,
+            "exported": true
+        },
+        "country_reference_data": {
+            "count": 944,
+            "exported": true
+        },
+        "country_support_documents": {
+            "count": 0,
+            "exported": false
+        },
+        "customs_code_history": {
+            "count": 5,
+            "exported": true
+        },
+        "customs_codes": {
+            "count": 3199,
+            "exported": true
+        },
+        "declaration_form_items": {
+            "count": 80,
+            "exported": true
+        },
+        "declaration_forms": {
+            "count": 3,
+            "exported": true
+        },
+        "exemption_categories": {
+            "count": 95,
+            "exported": true
+        },
+        "exemption_conditions": {
+            "count": 61,
+            "exported": true
+        },
+        "failed_jobs": {
+            "count": 2,
+            "exported": true
+        },
+        "filled_declaration_forms": {
+            "count": 3,
+            "exported": true
+        },
+        "invoice_declaration_matches": {
+            "count": 0,
+            "exported": false
+        },
+        "invoice_items": {
+            "count": 40,
+            "exported": true
+        },
+        "invoices": {
+            "count": 2,
+            "exported": true
+        },
+        "jobs": {
+            "count": 0,
+            "exported": false
+        },
+        "law_documents": {
+            "count": 1,
+            "exported": true
+        },
+        "notifications": {
+            "count": 3,
+            "exported": true
+        },
+        "organization_user": {
+            "count": 1,
+            "exported": true
+        },
+        "organizations": {
+            "count": 2,
+            "exported": true
+        },
+        "page_visits": {
+            "count": 40,
+            "exported": true
+        },
+        "password_reset_tokens": {
+            "count": 0,
+            "exported": false
+        },
+        "personal_access_tokens": {
+            "count": 0,
+            "exported": false
+        },
+        "prohibited_goods": {
+            "count": 4,
+            "exported": true
+        },
+        "public_classification_logs": {
+            "count": 2,
+            "exported": true
+        },
+        "restricted_goods": {
+            "count": 6,
+            "exported": true
+        },
+        "shipment_invoices": {
+            "count": 2,
+            "exported": true
+        },
+        "shipments": {
+            "count": 1,
+            "exported": true
+        },
+        "shipping_documents": {
+            "count": 1,
+            "exported": true
+        },
+        "submission_attachments": {
+            "count": 0,
+            "exported": false
+        },
+        "subscription_plans": {
+            "count": 0,
+            "exported": false
+        },
+        "tariff_chapter_notes": {
+            "count": 397,
+            "exported": true
+        },
+        "tariff_chapters": {
+            "count": 99,
+            "exported": true
+        },
+        "tariff_section_notes": {
+            "count": 22,
+            "exported": true
+        },
+        "tariff_sections": {
+            "count": 21,
+            "exported": true
+        },
+        "trade_contacts": {
+            "count": 3,
+            "exported": true
+        },
+        "users": {
+            "count": 4,
+            "exported": true
+        },
+        "waitlist_signups": {
+            "count": 2,
+            "exported": true
+        },
+        "warehousing_restrictions": {
+            "count": 24,
+            "exported": true
+        },
+        "web_form_dropdown_values": {
+            "count": 96,
+            "exported": true
+        },
+        "web_form_field_mappings": {
+            "count": 50,
+            "exported": true
+        },
+        "web_form_pages": {
+            "count": 3,
+            "exported": true
+        },
+        "web_form_submissions": {
+            "count": 0,
+            "exported": false
+        },
+        "web_form_targets": {
+            "count": 1,
+            "exported": true
+        }
+    }
+}

@@ -55,7 +55,7 @@ class WebSubmissionController extends Controller
 
         $declaration->load([
             'country', 
-            'items',
+            'declarationItems',
             'invoice.invoiceItems', 
             'shipment.shipperContact',
             'shipment.consigneeContact',

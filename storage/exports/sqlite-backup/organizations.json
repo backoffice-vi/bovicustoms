@@ -1,0 +1,30 @@
+[
+    {
+        "id": 1,
+        "name": "Nature's Way",
+        "slug": "natures-way",
+        "country_id": 1,
+        "subscription_plan": "free",
+        "subscription_status": "trial",
+        "trial_ends_at": "2026-02-05 17:29:09",
+        "subscription_ends_at": null,
+        "invoice_limit": 10,
+        "settings": null,
+        "created_at": "2026-01-22 17:29:09",
+        "updated_at": "2026-01-22 17:29:09"
+    },
+    {
+        "id": 2,
+        "name": "Test Organization",
+        "slug": "test-organization",
+        "country_id": 1,
+        "subscription_plan": "free",
+        "subscription_status": "active",
+        "trial_ends_at": null,
+        "subscription_ends_at": null,
+        "invoice_limit": 10,
+        "settings": null,
+        "created_at": "2026-01-22 17:44:16",
+        "updated_at": "2026-01-22 17:44:16"
+    }
+]

@@ -1,0 +1,50 @@
+[
+    {
+        "id": 1,
+        "web_form_target_id": 1,
+        "name": "CAPS Login",
+        "url_pattern": "\/CAPSWeb\/TraderLogin.jsp",
+        "sequence_order": 1,
+        "page_type": "login",
+        "page_snapshot": null,
+        "navigation": null,
+        "submit_selector": "button:has-text(\"Login\")",
+        "success_indicator": "text=Welcome back",
+        "error_indicator": "text=Invalid",
+        "is_active": 1,
+        "created_at": "2026-01-27 02:45:38",
+        "updated_at": "2026-01-27 02:45:38"
+    },
+    {
+        "id": 2,
+        "web_form_target_id": 1,
+        "name": "TD List",
+        "url_pattern": "\/CAPSWeb\/WebTraderServlet",
+        "sequence_order": 2,
+        "page_type": "search",
+        "page_snapshot": null,
+        "navigation": "{\"method\":\"auto\"}",
+        "submit_selector": "button:has-text(\"New\")",
+        "success_indicator": "text=TD List",
+        "error_indicator": ".error",
+        "is_active": 1,
+        "created_at": "2026-01-27 02:45:38",
+        "updated_at": "2026-01-27 02:45:38"
+    },
+    {
+        "id": 3,
+        "web_form_target_id": 1,
+        "name": "TD Data Entry",
+        "url_pattern": "\/CAPSWeb\/TDDataEntryServlet",
+        "sequence_order": 3,
+        "page_type": "form",
+        "page_snapshot": null,
+        "navigation": "{\"method\":\"url\",\"url_template\":\"\\\/CAPSWeb\\\/TDDataEntryServlet?method=tddataentry.RetrieveTD&bcdNumber={td_number}&isWebTrader=Y\",\"new_url\":\"\\\/CAPSWeb\\\/TDDataEntryServlet?method=tddataentry.NewTD&isWebTrader=Y\"}",
+        "submit_selector": "button:has-text(\"Save (1)\")",
+        "success_indicator": "text=saved successfully",
+        "error_indicator": ".error, text=Error",
+        "is_active": 1,
+        "created_at": "2026-01-27 02:45:38",
+        "updated_at": "2026-01-27 02:45:38"
+    }
+]

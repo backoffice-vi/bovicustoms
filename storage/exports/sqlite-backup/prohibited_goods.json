@@ -1,0 +1,42 @@
+[
+    {
+        "id": 6,
+        "country_id": 1,
+        "name": "Base or counterfeit coin",
+        "description": "Base or counterfeit currency and coins",
+        "legal_reference": "Customs Management and Duties Act 2010, Schedule 8, Part I(a)",
+        "detection_keywords": "[\"counterfeit\",\"fake currency\",\"forged money\",\"fake coins\",\"counterfeit coin\"]",
+        "created_at": "2026-01-25 21:53:31",
+        "updated_at": "2026-01-25 21:53:31"
+    },
+    {
+        "id": 7,
+        "country_id": 1,
+        "name": "Controlled drugs",
+        "description": "Controlled drugs as scheduled in the Drugs (Prevention of Misuse) Act (Cap. 178)",
+        "legal_reference": "Customs Management and Duties Act 2010, Schedule 8, Part I(b); Drugs (Prevention of Misuse) Act Cap. 178",
+        "detection_keywords": "[\"cocaine\",\"heroin\",\"marijuana\",\"cannabis\",\"methamphetamine\",\"controlled substance\",\"narcotics\",\"illegal drugs\"]",
+        "created_at": "2026-01-25 21:53:31",
+        "updated_at": "2026-01-25 21:53:31"
+    },
+    {
+        "id": 8,
+        "country_id": 1,
+        "name": "Goods prohibited by other laws",
+        "description": "Goods of which the import or export is prohibited or made an offence by any other law",
+        "legal_reference": "Customs Management and Duties Act 2010, Schedule 8, Part I(c)",
+        "detection_keywords": "[]",
+        "created_at": "2026-01-25 21:53:31",
+        "updated_at": "2026-01-25 21:53:31"
+    },
+    {
+        "id": 9,
+        "country_id": 1,
+        "name": "Prohibited plants",
+        "description": "Plants whose importation is prohibited under the Plant Protection Act (Cap. 93), and any subsidiary legislation made under that Act",
+        "legal_reference": "Customs Management and Duties Act 2010, Schedule 8, Part I(d); Plant Protection Act Cap. 93",
+        "detection_keywords": "[\"prohibited plant\",\"invasive species\",\"pest plant\"]",
+        "created_at": "2026-01-25 21:53:31",
+        "updated_at": "2026-01-25 21:53:31"
+    }
+]

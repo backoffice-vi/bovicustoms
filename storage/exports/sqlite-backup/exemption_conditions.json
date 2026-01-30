@@ -1,0 +1,612 @@
+[
+    {
+        "id": 125,
+        "exemption_category_id": 76,
+        "condition_type": "purpose",
+        "description": "Use within airport limits",
+        "requirement_text": "Must be used within the limits of an airport for servicing and maintenance of aircraft",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 126,
+        "exemption_category_id": 76,
+        "condition_type": "certificate",
+        "description": "Airport operator verification",
+        "requirement_text": "Must be imported by or for airport operators",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 127,
+        "exemption_category_id": 77,
+        "condition_type": "certificate",
+        "description": "Cabinet approval",
+        "requirement_text": "Organization must be approved by Cabinet",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 128,
+        "exemption_category_id": 77,
+        "condition_type": "purpose",
+        "description": "Relief purposes only",
+        "requirement_text": "For use or distribution in relief of distress or suffering",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 129,
+        "exemption_category_id": 78,
+        "condition_type": "certificate",
+        "description": "Denomination head declaration",
+        "requirement_text": "Signed declaration by head of the denomination required",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 130,
+        "exemption_category_id": 78,
+        "condition_type": "purpose",
+        "description": "Public worship use",
+        "requirement_text": "Churches must be used for public worship",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 131,
+        "exemption_category_id": 78,
+        "condition_type": "time_limit",
+        "description": "Vehicle: one per 5 years",
+        "requirement_text": "Only one vehicle per church in any 5-year period",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 132,
+        "exemption_category_id": 78,
+        "condition_type": "quantity",
+        "description": "Vehicle capacity requirement",
+        "requirement_text": "Vehicle must have passenger capacity of 10+ persons",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 133,
+        "exemption_category_id": 78,
+        "condition_type": "registration",
+        "description": "Motor vehicle registration",
+        "requirement_text": "Valid registration licence from Commissioner for Motor Vehicles required",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 134,
+        "exemption_category_id": 78,
+        "condition_type": "notification",
+        "description": "Transfer notification",
+        "requirement_text": "Must notify Customs before transfer of ownership and pay duty upon transfer",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 135,
+        "exemption_category_id": 6,
+        "condition_type": "certificate",
+        "description": "Diplomatic status",
+        "requirement_text": "Must be head or member of foreign diplomatic\/consular mission, or UN official assigned to BVI",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 136,
+        "exemption_category_id": 6,
+        "condition_type": "purpose",
+        "description": "Not engaged in other business",
+        "requirement_text": "Person must not be engaged in any other business or profession",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 137,
+        "exemption_category_id": 6,
+        "condition_type": "other",
+        "description": "Reciprocity requirement",
+        "requirement_text": "Similar privilege must be accorded by foreign country to equivalent British mission",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 138,
+        "exemption_category_id": 6,
+        "condition_type": "quantity",
+        "description": "Vehicle allowance",
+        "requirement_text": "One car per person\/family allowed",
+        "is_mandatory": 0,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 139,
+        "exemption_category_id": 79,
+        "condition_type": "certificate",
+        "description": "Chief Medical Officer certification",
+        "requirement_text": "Must be certified by the Chief Medical Officer",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 140,
+        "exemption_category_id": 79,
+        "condition_type": "purpose",
+        "description": "Specific disease treatment",
+        "requirement_text": "For treatment of: tuberculosis, diabetes, venereal disease, or mental illness",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 141,
+        "exemption_category_id": 80,
+        "condition_type": "certificate",
+        "description": "Chief Education Officer approval",
+        "requirement_text": "Signed declaration of approval by Chief Education Officer required",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 142,
+        "exemption_category_id": 80,
+        "condition_type": "purpose",
+        "description": "Educational use",
+        "requirement_text": "For construction, repair, furnishing of school buildings, or for school equipment\/games\/physical training",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 143,
+        "exemption_category_id": 81,
+        "condition_type": "other",
+        "description": "Exclusions apply",
+        "requirement_text": "Artificial flowers and wreaths (artificial or not) are NOT exempt",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 144,
+        "exemption_category_id": 82,
+        "condition_type": "certificate",
+        "description": "Government authorization",
+        "requirement_text": "Must be imported by or on behalf of the Government",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 145,
+        "exemption_category_id": 82,
+        "condition_type": "purpose",
+        "description": "Government use",
+        "requirement_text": "For use of the Government",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 146,
+        "exemption_category_id": 83,
+        "condition_type": "certificate",
+        "description": "Official import or CO certificate",
+        "requirement_text": "Officially imported by forces, or with Commanding Officer certificate for mess plate\/furniture\/band instruments",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 147,
+        "exemption_category_id": 83,
+        "condition_type": "purpose",
+        "description": "Forces use only",
+        "requirement_text": "Solely for use of Armed Forces",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 148,
+        "exemption_category_id": 83,
+        "condition_type": "other",
+        "description": "Resale restriction",
+        "requirement_text": "Personal imports (baggage, furniture, cars, horses) shall not be sold in Territory unless duty paid",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 149,
+        "exemption_category_id": 84,
+        "condition_type": "quantity",
+        "description": "Short trip allowance (under 72 hrs)",
+        "requirement_text": "Returning residents absent under 72 hours: personal effects and baggage only",
+        "is_mandatory": 0,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 150,
+        "exemption_category_id": 84,
+        "condition_type": "quantity",
+        "description": "Long trip allowance (over 72 hrs)",
+        "requirement_text": "Returning residents absent over 72 hours: personal effects plus $50 purchases\/gifts per adult, $10 per minor",
+        "is_mandatory": 0,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 151,
+        "exemption_category_id": 84,
+        "condition_type": "quantity",
+        "description": "Tourist\/visitor allowance",
+        "requirement_text": "Tourists staying under 6 months: effects compatible with intended length of stay",
+        "is_mandatory": 0,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 152,
+        "exemption_category_id": 84,
+        "condition_type": "quantity",
+        "description": "Long-stay\/immigrant allowance",
+        "requirement_text": "Staying over 6 months: $1000 per adult, $250 per person for personal\/used household effects",
+        "is_mandatory": 0,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 153,
+        "exemption_category_id": 84,
+        "condition_type": "other",
+        "description": "Vehicle exclusion",
+        "requirement_text": "Motorised transport NOT considered household effect",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 154,
+        "exemption_category_id": 84,
+        "condition_type": "time_limit",
+        "description": "Unaccompanied baggage timing",
+        "requirement_text": "Unaccompanied baggage must be imported within 3 months of passenger arrival (or longer if Commissioner allows)",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 155,
+        "exemption_category_id": 71,
+        "condition_type": "other",
+        "description": "No commercial value",
+        "requirement_text": "Samples must have no commercial value",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 156,
+        "exemption_category_id": 85,
+        "condition_type": "certificate",
+        "description": "Cabinet approval",
+        "requirement_text": "Scientific institution must be approved by Cabinet",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 157,
+        "exemption_category_id": 86,
+        "condition_type": "certificate",
+        "description": "Chief Agricultural Officer approval",
+        "requirement_text": "Equipment must be approved by Chief Agricultural Officer",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 158,
+        "exemption_category_id": 86,
+        "condition_type": "certificate",
+        "description": "Farmer registration",
+        "requirement_text": "Importer must be certified as registered farmer in business of agriculture",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 159,
+        "exemption_category_id": 86,
+        "condition_type": "quantity",
+        "description": "Value threshold",
+        "requirement_text": "Chief Agricultural Officer approves up to $1000; over $1000 requires Cabinet approval",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 160,
+        "exemption_category_id": 86,
+        "condition_type": "purpose",
+        "description": "Not for commercial resale",
+        "requirement_text": "Not for sale, resale, hire or other commercial use",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 161,
+        "exemption_category_id": 87,
+        "condition_type": "certificate",
+        "description": "Official authorization",
+        "requirement_text": "Must be imported by or for use of Police and Civil Service",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 162,
+        "exemption_category_id": 88,
+        "condition_type": "certificate",
+        "description": "Recognized organization",
+        "requirement_text": "Must be Boy Scouts, Girl Guides, Boys' Brigade, Girls' Brigade, or Cabinet-approved youth organization",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 163,
+        "exemption_category_id": 89,
+        "condition_type": "time_limit",
+        "description": "Absence requirement",
+        "requirement_text": "Must have been non-resident in Territory for 3+ years",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 164,
+        "exemption_category_id": 89,
+        "condition_type": "purpose",
+        "description": "Permanent residence intent",
+        "requirement_text": "Must intend to permanently reside in Territory for minimum 12 months",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 165,
+        "exemption_category_id": 89,
+        "condition_type": "time_limit",
+        "description": "Ownership requirement",
+        "requirement_text": "Effects including vehicle must have been owned and used abroad for at least 12 months prior to importation",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 166,
+        "exemption_category_id": 89,
+        "condition_type": "other",
+        "description": "Resale restriction",
+        "requirement_text": "Shall not be sold in Territory unless duty at prevailing rate is paid",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 167,
+        "exemption_category_id": 89,
+        "condition_type": "quantity",
+        "description": "Vehicle allowance",
+        "requirement_text": "One motor vehicle per family",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 168,
+        "exemption_category_id": 90,
+        "condition_type": "certificate",
+        "description": "PWD approval for shutter materials",
+        "requirement_text": "Materials for construction of hurricane shutters must be approved\/certified by Director Public Works Department",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 169,
+        "exemption_category_id": 91,
+        "condition_type": "quantity",
+        "description": "Size limit",
+        "requirement_text": "Capacity not exceeding 5 gallons",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 170,
+        "exemption_category_id": 91,
+        "condition_type": "purpose",
+        "description": "Water resale purpose",
+        "requirement_text": "For use in resale of water within the Territory",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 171,
+        "exemption_category_id": 92,
+        "condition_type": "other",
+        "description": "Mainframe exclusion",
+        "requirement_text": "Mainframe computers are NOT exempt",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 172,
+        "exemption_category_id": 93,
+        "condition_type": "license",
+        "description": "Taxi license required",
+        "requirement_text": "Must be a licensed taxi-cab driver",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 173,
+        "exemption_category_id": 93,
+        "condition_type": "purpose",
+        "description": "Taxi use only",
+        "requirement_text": "Vehicle must be for sole purpose of being used as a taxi-cab",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 174,
+        "exemption_category_id": 93,
+        "condition_type": "time_limit",
+        "description": "One per 5 years",
+        "requirement_text": "Only one vehicle per taxi-cab driver in any 5-year period",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 175,
+        "exemption_category_id": 93,
+        "condition_type": "registration",
+        "description": "Motor vehicle registration",
+        "requirement_text": "Valid registration licence from Commissioner for Motor Vehicles required (Road Traffic Act)",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 176,
+        "exemption_category_id": 93,
+        "condition_type": "certificate",
+        "description": "IRD certificate",
+        "requirement_text": "Certificate of good standing from Inland Revenue Department (within preceding 12 months)",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 177,
+        "exemption_category_id": 93,
+        "condition_type": "certificate",
+        "description": "Social Security certificate",
+        "requirement_text": "Up-to-date certificate of good standing from Social Security Board",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 178,
+        "exemption_category_id": 93,
+        "condition_type": "certificate",
+        "description": "Trade licence certificate",
+        "requirement_text": "Up-to-date certificate of good standing from Government Department responsible for trade licences",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 179,
+        "exemption_category_id": 93,
+        "condition_type": "notification",
+        "description": "Disposal notification",
+        "requirement_text": "Must notify Customs before disposal of vehicle and pay duty upon disposal",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 180,
+        "exemption_category_id": 93,
+        "condition_type": "other",
+        "description": "Parts exclusion",
+        "requirement_text": "Exemption does NOT include spare parts and accessories",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:19",
+        "updated_at": "2026-01-25 22:00:19"
+    },
+    {
+        "id": 181,
+        "exemption_category_id": 94,
+        "condition_type": "purpose",
+        "description": "Child transport purpose",
+        "requirement_text": "Designed for transporting infants and young children within motor vehicles",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:20",
+        "updated_at": "2026-01-25 22:00:20"
+    },
+    {
+        "id": 182,
+        "exemption_category_id": 95,
+        "condition_type": "certificate",
+        "description": "Belonger status",
+        "requirement_text": "Must be a belonger desirous of owning and constructing a home for the first time",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:20",
+        "updated_at": "2026-01-25 22:00:20"
+    },
+    {
+        "id": 183,
+        "exemption_category_id": 95,
+        "condition_type": "certificate",
+        "description": "Bill of quantity",
+        "requirement_text": "Certified copy of bill of quantity from licensed quantity surveyor required",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:20",
+        "updated_at": "2026-01-25 22:00:20"
+    },
+    {
+        "id": 184,
+        "exemption_category_id": 95,
+        "condition_type": "certificate",
+        "description": "Commissioner information",
+        "requirement_text": "Any other information which Commissioner may reasonably require",
+        "is_mandatory": 0,
+        "created_at": "2026-01-25 22:00:20",
+        "updated_at": "2026-01-25 22:00:20"
+    },
+    {
+        "id": 185,
+        "exemption_category_id": 95,
+        "condition_type": "time_limit",
+        "description": "5-year validity",
+        "requirement_text": "Exemption valid for 5 years from date first granted, extendable by Commissioner for up to 5 more years",
+        "is_mandatory": 1,
+        "created_at": "2026-01-25 22:00:20",
+        "updated_at": "2026-01-25 22:00:20"
+    }
+]

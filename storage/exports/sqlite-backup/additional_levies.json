@@ -1,0 +1,16 @@
+[
+    {
+        "id": 3,
+        "country_id": 1,
+        "tariff_chapter_id": 55,
+        "levy_name": "Transportation Network Improvement Fund Levy",
+        "rate": 0.1,
+        "rate_type": "per_unit",
+        "unit": "gallon",
+        "legal_reference": "Customs Management and Duties Act 2010, Section 55; Transportation Network (Land, Sea and Air) Improvement Fund Act 1992",
+        "exempt_organizations": "[\"BVI Electricity Corporation\",\"Public Works Department\",\"Water and Sewerage Corporation\",\"Virgin Islands Fishing Company\"]",
+        "is_active": 1,
+        "created_at": "2026-01-25 21:53:31",
+        "updated_at": "2026-01-25 21:53:31"
+    }
+]
