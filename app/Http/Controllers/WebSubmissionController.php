@@ -90,15 +90,27 @@ class WebSubmissionController extends Controller
         }
 
         try {
-            $useAI = $request->boolean('use_ai', $target->requires_ai);
+            // Determine action: 'save' (default, safer) or 'submit' (full submission)
+            $action = $request->input('action', 'save');
             
-            $submission = $this->submitter->submit($declaration, $target, $useAI);
+            // Check if this is a CAPS target
+            if ($this->isCapsTarget($target)) {
+                $useAI = $request->boolean('use_ai', true); // AI enabled by default for CAPS
+                $submission = $this->submitter->submitToCaps($declaration, $target, $action, $useAI);
+            } else {
+                $useAI = $request->boolean('use_ai', $target->requires_ai);
+                $submission = $this->submitter->submit($declaration, $target, $useAI);
+            }
 
             if ($submission->is_successful) {
+                $message = $action === 'save' 
+                    ? 'Declaration saved to portal! TD: ' . $submission->external_reference
+                    : 'Declaration submitted successfully! Reference: ' . $submission->external_reference;
+                    
                 return redirect()->route('web-submission.result', [
                     'declaration' => $declaration,
                     'submission' => $submission,
-                ])->with('success', 'Declaration submitted successfully! Reference: ' . $submission->external_reference);
+                ])->with('success', $message);
             } else {
                 return redirect()->route('web-submission.result', [
                     'declaration' => $declaration,
@@ -115,6 +127,15 @@ class WebSubmissionController extends Controller
 
             return redirect()->back()->with('error', 'Submission failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Check if target is CAPS
+     */
+    protected function isCapsTarget(WebFormTarget $target): bool
+    {
+        return str_contains(strtolower($target->base_url ?? ''), 'caps.gov.vg') ||
+               str_contains(strtolower($target->name ?? ''), 'caps');
     }
 
     /**

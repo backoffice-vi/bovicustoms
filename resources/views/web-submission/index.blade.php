@@ -84,13 +84,38 @@
                                                class="btn btn-outline-primary">
                                                 <i class="fas fa-eye me-1"></i> Preview
                                             </a>
-                                            <form action="{{ route('web-submission.submit', [$declaration, $target]) }}" method="POST" class="d-inline">
-                                                @csrf
-                                                <button type="submit" class="btn btn-success" 
-                                                        @if(!$target->isMapped()) disabled title="Target not fully configured" @endif>
-                                                    <i class="fas fa-paper-plane me-1"></i> Submit
-                                                </button>
-                                            </form>
+                                            @php
+                                                $isCaps = str_contains(strtolower($target->base_url ?? ''), 'caps.gov.vg');
+                                            @endphp
+                                            @if($isCaps)
+                                                {{-- CAPS gets Save and Submit options --}}
+                                                <form action="{{ route('web-submission.submit', [$declaration, $target]) }}" method="POST" class="d-inline">
+                                                    @csrf
+                                                    <input type="hidden" name="action" value="save">
+                                                    <button type="submit" class="btn btn-warning" 
+                                                            @if(!$target->isMapped()) disabled title="Target not fully configured" @endif
+                                                            title="Create and save TD without submitting for review">
+                                                        <i class="fas fa-save me-1"></i> Save
+                                                    </button>
+                                                </form>
+                                                <form action="{{ route('web-submission.submit', [$declaration, $target]) }}" method="POST" class="d-inline">
+                                                    @csrf
+                                                    <input type="hidden" name="action" value="submit">
+                                                    <button type="submit" class="btn btn-success" 
+                                                            @if(!$target->isMapped()) disabled title="Target not fully configured" @endif
+                                                            title="Create TD and submit for customs review">
+                                                        <i class="fas fa-paper-plane me-1"></i> Submit
+                                                    </button>
+                                                </form>
+                                            @else
+                                                <form action="{{ route('web-submission.submit', [$declaration, $target]) }}" method="POST" class="d-inline">
+                                                    @csrf
+                                                    <button type="submit" class="btn btn-success" 
+                                                            @if(!$target->isMapped()) disabled title="Target not fully configured" @endif>
+                                                        <i class="fas fa-paper-plane me-1"></i> Submit
+                                                    </button>
+                                                </form>
+                                            @endif
                                         </div>
                                     </div>
                                 </div>

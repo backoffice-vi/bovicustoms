@@ -18,11 +18,16 @@ class WebFormSubmitterService
 {
     protected PlaywrightService $playwright;
     protected WebFormDataMapper $dataMapper;
+    protected CapsAIMapper $aiMapper;
 
-    public function __construct(PlaywrightService $playwright, WebFormDataMapper $dataMapper)
-    {
+    public function __construct(
+        PlaywrightService $playwright, 
+        WebFormDataMapper $dataMapper,
+        CapsAIMapper $aiMapper
+    ) {
         $this->playwright = $playwright;
         $this->dataMapper = $dataMapper;
+        $this->aiMapper = $aiMapper;
     }
 
     /**
@@ -182,6 +187,38 @@ class WebFormSubmitterService
     }
 
     /**
+     * Build input for CAPS-specific Playwright script
+     */
+    protected function buildCapsPlaywrightInput(
+        DeclarationForm $declaration,
+        WebFormTarget $target,
+        string $action = 'save'
+    ): array {
+        $capsData = $this->dataMapper->buildCapsSubmissionData($declaration, $target);
+        
+        return [
+            'action' => $action,
+            'loginUrl' => $capsData['loginUrl'],
+            'credentials' => $capsData['credentials'],
+            'headerData' => $capsData['headerData'],
+            'items' => $capsData['items'],
+            'headless' => true,
+            'screenshotDir' => storage_path('app/playwright-screenshots'),
+            'timeout' => 30000,
+            'slowMo' => 50,
+        ];
+    }
+
+    /**
+     * Check if target is CAPS
+     */
+    protected function isCapsTarget(WebFormTarget $target): bool
+    {
+        return str_contains(strtolower($target->base_url), 'caps.gov.vg') ||
+               str_contains(strtolower($target->name), 'caps');
+    }
+
+    /**
      * Execute Playwright and handle the result
      */
     protected function executePlaywright(array $input, WebFormSubmission $submission): array
@@ -225,5 +262,174 @@ class WebFormSubmitterService
             // Clean up temp file
             @unlink($tempFile);
         }
+    }
+
+    /**
+     * Execute CAPS-specific Playwright script
+     */
+    protected function executeCapsPlaywright(array $input, WebFormSubmission $submission): array
+    {
+        // Write input to temp file
+        $tempFile = storage_path('app/playwright-caps-input-' . $submission->id . '.json');
+        file_put_contents($tempFile, json_encode($input, JSON_PRETTY_PRINT));
+
+        try {
+            $scriptPath = base_path('playwright/caps-web-submitter.mjs');
+
+            if (!file_exists($scriptPath)) {
+                throw new \Exception('CAPS Playwright script not found');
+            }
+
+            $result = \Illuminate\Support\Facades\Process::timeout(300) // 5 minutes for complex forms
+                ->run("node \"{$scriptPath}\" --input-file=\"{$tempFile}\"");
+
+            $output = $result->output();
+            $parsed = json_decode($output, true);
+
+            if (!$parsed) {
+                return [
+                    'success' => false,
+                    'error' => 'Failed to parse CAPS Playwright output',
+                    'raw_output' => $output,
+                    'stderr' => $result->errorOutput(),
+                ];
+            }
+
+            return $parsed;
+
+        } finally {
+            // Clean up temp file
+            @unlink($tempFile);
+        }
+    }
+
+    /**
+     * Submit to CAPS specifically with AI-assisted mapping
+     */
+    public function submitToCaps(
+        DeclarationForm $declaration,
+        WebFormTarget $target,
+        string $action = 'save',
+        bool $useAI = true
+    ): WebFormSubmission {
+        // Create submission record
+        $submission = WebFormSubmission::create([
+            'web_form_target_id' => $target->id,
+            'declaration_form_id' => $declaration->id,
+            'user_id' => auth()->id(),
+            'organization_id' => $declaration->organization_id,
+            'status' => WebFormSubmission::STATUS_PENDING,
+        ]);
+
+        try {
+            $submission->start();
+            $submission->addLog('Starting CAPS submission' . ($useAI ? ' with AI assistance' : ''));
+
+            // Build CAPS-specific input (raw data)
+            $playwrightInput = $this->buildCapsPlaywrightInput($declaration, $target, $action);
+            $submission->addLog('Prepared ' . count($playwrightInput['items']) . ' items for submission');
+
+            // Apply AI-assisted mapping if enabled
+            if ($useAI && $target->country_id) {
+                $submission->addLog('Applying Claude AI mapping...');
+                
+                $this->aiMapper->setCountryId($target->country_id);
+                $this->aiMapper->clearDecisions();
+                
+                // Map header data with AI
+                $playwrightInput['headerData'] = $this->aiMapper->mapHeaderData($playwrightInput['headerData']);
+                
+                // Map items data with AI
+                $playwrightInput['items'] = $this->aiMapper->mapItemsData($playwrightInput['items']);
+                
+                // Log AI decisions
+                $aiDecisions = $this->aiMapper->getAiDecisions();
+                if (!empty($aiDecisions)) {
+                    $submission->addLog('AI made ' . count($aiDecisions) . ' mapping decisions');
+                    foreach ($aiDecisions as $decision) {
+                        $submission->addAiDecision(
+                            "Field: {$decision['field']} - Input: {$decision['input_value']}",
+                            "Mapped to: {$decision['matched_code']}",
+                            $decision['reasoning'] ?? ''
+                        );
+                    }
+                }
+            }
+
+            // Execute Playwright
+            $submission->addLog('Executing CAPS Playwright automation');
+            $result = $this->executeCapsPlaywright($playwrightInput, $submission);
+
+            // Process result
+            if ($result['success']) {
+                $submission->markSubmitted(
+                    $result['td_number'] ?? $result['reference_number'] ?? null,
+                    $result['message'] ?? null
+                );
+                $submission->addLog('CAPS submission successful: TD ' . ($result['td_number'] ?? 'N/A'), 'success');
+
+                // Update declaration
+                if ($action === 'submit') {
+                    $declaration->update([
+                        'submission_status' => DeclarationForm::SUBMISSION_STATUS_SUBMITTED,
+                        'submission_reference' => $result['td_number'],
+                        'submitted_at' => now(),
+                        'submitted_by_user_id' => auth()->id(),
+                    ]);
+                }
+            } else {
+                $submission->markFailed(
+                    $result['error'] ?? 'Unknown CAPS error',
+                    $result['errors'] ?? null
+                );
+                $submission->addLog('CAPS submission failed: ' . ($result['error'] ?? 'Unknown error'), 'error');
+            }
+
+            // Store screenshots
+            if (!empty($result['screenshots'])) {
+                foreach ($result['screenshots'] as $screenshot) {
+                    $submission->addScreenshot($screenshot);
+                }
+            }
+
+            // Handle validation warnings with AI interpretation
+            if (!empty($result['warnings']) && $useAI) {
+                $submission->addLog('Analyzing validation warnings with AI...');
+                
+                $interpretedErrors = $this->aiMapper->interpretValidationErrors($result['warnings']);
+                
+                foreach ($result['warnings'] as $warning) {
+                    $submission->addLog('Warning: ' . $warning, 'warn');
+                }
+                
+                // Store AI interpretations
+                if (!empty($interpretedErrors)) {
+                    foreach ($interpretedErrors as $interpreted) {
+                        $submission->addAiDecision(
+                            'Validation: ' . ($interpreted['error'] ?? 'Unknown'),
+                            'Suggestion: ' . ($interpreted['suggestion'] ?? 'No suggestion'),
+                            'Category: ' . ($interpreted['category'] ?? 'unknown') . 
+                            ', Severity: ' . ($interpreted['severity'] ?? 'unknown')
+                        );
+                    }
+                }
+            } elseif (!empty($result['warnings'])) {
+                foreach ($result['warnings'] as $warning) {
+                    $submission->addLog('Warning: ' . $warning, 'warn');
+                }
+            }
+
+        } catch (\Exception $e) {
+            Log::error('CAPS submission failed', [
+                'submission_id' => $submission->id,
+                'error' => $e->getMessage(),
+                'trace' => $e->getTraceAsString(),
+            ]);
+
+            $submission->markFailed($e->getMessage());
+            $submission->addLog('Exception: ' . $e->getMessage(), 'error');
+        }
+
+        return $submission->fresh();
     }
 }
