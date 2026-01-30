@@ -153,6 +153,7 @@
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const invoiceId = {{ $invoice->id }};
+    const csrfToken = '{{ csrf_token() }}';
     const progressBar = document.getElementById('progressBar');
     const progressText = document.getElementById('progressText');
     const statusTitle = document.getElementById('statusTitle');
@@ -171,6 +172,7 @@ document.addEventListener('DOMContentLoaded', function() {
     const step4Badge = document.getElementById('step4Badge');
     
     let pollInterval = null;
+    let classificationStarted = false;
     
     function updateStepBadges(progress) {
         // Update step badges based on progress
@@ -277,6 +279,11 @@ document.addEventListener('DOMContentLoaded', function() {
             .then(data => {
                 console.log('Progress update:', data);
                 
+                // If status unknown and we haven't started, don't update UI yet
+                if (data.status === 'unknown' && !classificationStarted) {
+                    return;
+                }
+                
                 // Update progress bar
                 const progress = data.progress || 0;
                 progressBar.style.width = progress + '%';
@@ -303,11 +310,54 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
     
-    // Initial check
+    // Function to start classification via AJAX
+    function startClassification() {
+        if (classificationStarted) return;
+        classificationStarted = true;
+        
+        statusMessage.textContent = 'Starting classification process...';
+        
+        fetch('/invoices/' + invoiceId + '/start-classification', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            }
+        })
+        .then(response => response.json())
+        .then(data => {
+            console.log('Classification start response:', data);
+            
+            if (data.status === 'completed_sync') {
+                // Sync queue - job already completed, redirect to results
+                showCompleted();
+                setTimeout(() => {
+                    window.location.href = '/invoices/' + invoiceId + '/assign-codes-results';
+                }, 1000);
+            } else if (data.status === 'already_completed') {
+                // Already classified before
+                showCompleted();
+            } else if (data.status === 'started') {
+                // Background queue - start polling
+                statusMessage.textContent = 'Classification in progress...';
+                pollInterval = setInterval(checkProgress, 2000);
+            } else if (data.error) {
+                showFailed(data.error);
+            }
+        })
+        .catch(error => {
+            console.error('Error starting classification:', error);
+            // May already be in progress, try polling
+            pollInterval = setInterval(checkProgress, 2000);
+        });
+    }
+    
+    // Check if there's pending classification or already in progress
     checkProgress();
     
-    // Poll every 2 seconds
-    pollInterval = setInterval(checkProgress, 2000);
+    // Start classification after a brief delay (ensures page is visible)
+    setTimeout(startClassification, 500);
     
     // Also listen for browser notifications if available
     if ('Notification' in window && Notification.permission === 'granted') {

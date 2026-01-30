@@ -258,23 +258,22 @@ class InvoiceController extends Controller
             'started_at' => now()->toIso8601String(),
         ], now()->addHours(2));
 
-        // Ensure queue worker is running before dispatching
-        EnsureQueueWorker::ensureRunning(timeout: 900, memory: 512);
+        // Store classification data in session for the AJAX trigger
+        session([
+            'pending_classification' => [
+                'invoice_id' => $invoice->id,
+                'items' => $validatedData['items'],
+                'country_id' => $countryId,
+                'invoice_header' => $invoiceHeader,
+            ]
+        ]);
 
-        // Dispatch background job for classification
-        ClassifyInvoiceItems::dispatch(
-            $invoice,
-            $user,
-            $validatedData['items'],
-            $countryId,
-            $invoiceHeader
-        );
-
-        Log::info('Invoice classification job dispatched', [
+        Log::info('Invoice ready for classification', [
             'invoice_id' => $invoice->id,
             'item_count' => count($validatedData['items']),
         ]);
 
+        // Always show status page first - classification triggered via AJAX
         return redirect()->route('invoices.classification_status', ['invoice' => $invoice->id]);
     }
 
@@ -318,6 +317,73 @@ class InvoiceController extends Controller
         }
 
         return response()->json($status);
+    }
+
+    /**
+     * AJAX endpoint to start classification (allows showing loading page first).
+     */
+    public function startClassification(Invoice $invoice): JsonResponse
+    {
+        // Verify the user owns this invoice
+        $user = auth()->user();
+        if ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        // Get pending classification data from session
+        $pending = session('pending_classification');
+        
+        if (!$pending || $pending['invoice_id'] !== $invoice->id) {
+            // Check if already classified
+            $cacheKey = "invoice_classification_{$invoice->id}";
+            $status = Cache::get($cacheKey);
+            if ($status && $status['status'] === 'completed') {
+                return response()->json(['status' => 'already_completed']);
+            }
+            return response()->json(['error' => 'No pending classification found'], 400);
+        }
+
+        // Clear from session
+        session()->forget('pending_classification');
+
+        // Set initial status in cache
+        $cacheKey = "invoice_classification_{$invoice->id}";
+        Cache::put($cacheKey, [
+            'status' => 'processing',
+            'progress' => 0,
+            'message' => 'Starting classification...',
+            'started_at' => now()->toIso8601String(),
+        ], now()->addHours(2));
+
+        // Check if using sync queue
+        $isSync = config('queue.default') === 'sync';
+        
+        if (!$isSync) {
+            // Ensure queue worker is running (only for non-sync queues)
+            EnsureQueueWorker::ensureRunning(timeout: 900, memory: 512);
+        }
+
+        // Dispatch the job
+        ClassifyInvoiceItems::dispatch(
+            $invoice,
+            $user,
+            $pending['items'],
+            $pending['country_id'],
+            $pending['invoice_header']
+        );
+
+        Log::info('Classification started via AJAX', [
+            'invoice_id' => $invoice->id,
+            'item_count' => count($pending['items']),
+            'queue_driver' => config('queue.default'),
+        ]);
+
+        // With sync queue, job already completed
+        if ($isSync) {
+            return response()->json(['status' => 'completed_sync']);
+        }
+
+        return response()->json(['status' => 'started']);
     }
 
     /**

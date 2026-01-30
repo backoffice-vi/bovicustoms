@@ -94,6 +94,7 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         
         // Background classification status routes
         Route::get('invoices/{invoice}/classification-status', [InvoiceController::class, 'classificationStatus'])->name('invoices.classification_status');
+        Route::post('invoices/{invoice}/start-classification', [InvoiceController::class, 'startClassification'])->name('invoices.start_classification');
         Route::get('invoices/{invoice}/classification-progress', [InvoiceController::class, 'classificationProgress'])->name('invoices.classification_progress');
         Route::get('invoices/{invoice}/assign-codes-results', [InvoiceController::class, 'assignCodesResults'])->name('invoices.assign_codes_results');
         
