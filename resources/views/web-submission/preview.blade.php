@@ -23,6 +23,19 @@
                 </div>
             </div>
 
+            {{-- AI Assistance Status --}}
+            @if(!empty($preview['ai_assisted']))
+                <div class="alert alert-info mb-4">
+                    <h5 class="alert-heading"><i class="fas fa-robot me-2"></i>Claude AI Assisted Mapping</h5>
+                    <p class="mb-0">
+                        Claude AI analyzed your declaration and intelligently mapped the data to CAPS fields.
+                        @if(!empty($preview['ai_notes']))
+                            <br><small class="text-muted">{{ $preview['ai_notes'] }}</small>
+                        @endif
+                    </p>
+                </div>
+            @endif
+
             {{-- Validation Status --}}
             @php
                 $isValid = $validation['valid'] ?? false;
@@ -146,36 +159,72 @@
                             <h5 class="mb-0"><i class="fas fa-paper-plane me-2"></i>Submit</h5>
                         </div>
                         <div class="card-body d-flex flex-column">
-                            <p class="text-muted">
-                                Click submit to begin the automated form submission process.
-                                The system will fill out the online forms using the mapped data.
-                            </p>
-                            <form action="{{ route('web-submission.submit', ['declaration' => $declaration, 'target' => $target]) }}" method="POST" class="mt-auto">
-                                @csrf
-                                
-                                @if($target->requires_ai)
-                                    <div class="form-check mb-3">
-                                        <input class="form-check-input" type="checkbox" name="use_ai" id="useAi" checked>
-                                        <label class="form-check-label" for="useAi">
-                                            Use AI-assisted form filling
-                                        </label>
-                                    </div>
-                                @endif
+                            @php
+                                $isCaps = str_contains(strtolower($target->base_url ?? ''), 'caps.gov.vg') || 
+                                          str_contains(strtolower($target->name ?? ''), 'caps');
+                            @endphp
+                            
+                            @if($isCaps)
+                                <p class="text-muted">
+                                    <strong>Claude AI</strong> will intelligently fill the CAPS form.
+                                    Choose <strong>Save</strong> to create a draft TD for review,
+                                    or <strong>Submit</strong> to submit for customs processing.
+                                </p>
+                            @else
+                                <p class="text-muted">
+                                    Click submit to begin the automated form submission process.
+                                    The system will fill out the online forms using the mapped data.
+                                </p>
+                            @endif
+                            
+                            <div class="form-check mb-3">
+                                <input class="form-check-input" type="checkbox" name="use_ai" id="useAi" checked>
+                                <label class="form-check-label" for="useAi">
+                                    <i class="fas fa-robot me-1 text-info"></i>
+                                    Use AI-assisted form filling
+                                </label>
+                            </div>
 
-                                @if(!$isValid)
-                                    <div class="form-check mb-3">
-                                        <input class="form-check-input" type="checkbox" name="force" id="forceSubmit">
-                                        <label class="form-check-label text-warning" for="forceSubmit">
-                                            <i class="fas fa-exclamation-triangle me-1"></i>
-                                            Submit anyway (ignore validation errors)
-                                        </label>
-                                    </div>
-                                @endif
+                            @if(!$isValid)
+                                <div class="form-check mb-3">
+                                    <input class="form-check-input" type="checkbox" name="force" id="forceSubmit">
+                                    <label class="form-check-label text-warning" for="forceSubmit">
+                                        <i class="fas fa-exclamation-triangle me-1"></i>
+                                        Submit anyway (ignore validation errors)
+                                    </label>
+                                </div>
+                            @endif
 
-                                <button type="submit" class="btn btn-success btn-lg w-100" {{ !$isValid ? 'disabled' : '' }} id="submitBtn">
-                                    <i class="fas fa-paper-plane me-2"></i>Submit to Portal
-                                </button>
-                            </form>
+                            @if($isCaps)
+                                <div class="d-grid gap-2 mt-auto">
+                                    <form action="{{ route('web-submission.submit', ['declaration' => $declaration, 'target' => $target]) }}" method="POST">
+                                        @csrf
+                                        <input type="hidden" name="action" value="save">
+                                        <input type="hidden" name="use_ai" value="1">
+                                        @if(!$isValid)<input type="hidden" name="force" value="1">@endif
+                                        <button type="submit" class="btn btn-warning btn-lg w-100 mb-2" id="saveBtn">
+                                            <i class="fas fa-save me-2"></i>Save (Draft)
+                                        </button>
+                                    </form>
+                                    <form action="{{ route('web-submission.submit', ['declaration' => $declaration, 'target' => $target]) }}" method="POST">
+                                        @csrf
+                                        <input type="hidden" name="action" value="submit">
+                                        <input type="hidden" name="use_ai" value="1">
+                                        @if(!$isValid)<input type="hidden" name="force" value="1">@endif
+                                        <button type="submit" class="btn btn-success btn-lg w-100" id="submitBtn">
+                                            <i class="fas fa-paper-plane me-2"></i>Submit to Customs
+                                        </button>
+                                    </form>
+                                </div>
+                            @else
+                                <form action="{{ route('web-submission.submit', ['declaration' => $declaration, 'target' => $target]) }}" method="POST" class="mt-auto">
+                                    @csrf
+                                    <input type="hidden" name="use_ai" id="useAiHidden" value="1">
+                                    <button type="submit" class="btn btn-success btn-lg w-100" {{ !$isValid ? 'disabled' : '' }} id="submitBtn">
+                                        <i class="fas fa-paper-plane me-2"></i>Submit to Portal
+                                    </button>
+                                </form>
+                            @endif
                         </div>
                     </div>
                 </div>
@@ -195,7 +244,7 @@
                                         <button class="accordion-button {{ $pageIndex > 0 ? 'collapsed' : '' }}" type="button" 
                                                 data-bs-toggle="collapse" data-bs-target="#page{{ $pageIndex }}">
                                             <i class="fas fa-file me-2"></i>
-                                            Page {{ $pageIndex + 1 }}: {{ $page['name'] ?? 'Unnamed Page' }}
+                                            {{ $page['page_name'] ?? $page['name'] ?? 'Page ' . ($pageIndex + 1) }}
                                             <span class="badge bg-secondary ms-2">{{ count($page['fields'] ?? []) }} fields</span>
                                         </button>
                                     </h2>
@@ -207,7 +256,7 @@
                                                     <thead class="table-light">
                                                         <tr>
                                                             <th style="width: 25%">Field</th>
-                                                            <th style="width: 20%">Selector</th>
+                                                            <th style="width: 20%">Source</th>
                                                             <th style="width: 35%">Value</th>
                                                             <th style="width: 20%">Status</th>
                                                         </tr>
@@ -222,10 +271,16 @@
                                                                     @endif
                                                                 </td>
                                                                 <td>
-                                                                    <code class="small">{{ Str::limit($field['selector'] ?? 'N/A', 30) }}</code>
+                                                                    @if(!empty($field['source']) && str_contains($field['source'], 'AI'))
+                                                                        <span class="badge bg-info">
+                                                                            <i class="fas fa-robot me-1"></i>AI
+                                                                        </span>
+                                                                    @else
+                                                                        <code class="small">{{ Str::limit($field['source'] ?? $field['selector'] ?? 'N/A', 25) }}</code>
+                                                                    @endif
                                                                 </td>
                                                                 <td>
-                                                                    @if(isset($field['value']))
+                                                                    @if(isset($field['value']) && $field['value'] !== null && $field['value'] !== '')
                                                                         @if(is_array($field['value']))
                                                                             <span class="text-muted">[Array: {{ count($field['value']) }} items]</span>
                                                                         @else
@@ -240,7 +295,7 @@
                                                                         <span class="badge bg-danger">
                                                                             <i class="fas fa-times me-1"></i>{{ $field['error'] }}
                                                                         </span>
-                                                                    @elseif(empty($field['value']) && !empty($field['required']))
+                                                                    @elseif((empty($field['value']) || $field['value'] === '') && !empty($field['required']))
                                                                         <span class="badge bg-warning text-dark">
                                                                             <i class="fas fa-exclamation me-1"></i>Missing
                                                                         </span>
