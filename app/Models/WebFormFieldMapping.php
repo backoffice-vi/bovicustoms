@@ -188,6 +188,17 @@ class WebFormFieldMapping extends Model
 
     /**
      * Resolve a dot-notation field path
+     * 
+     * Supports paths like:
+     * - declaration.vessel_name
+     * - shipment.actual_arrival_date
+     * - invoice.invoice_number
+     * - shipper.company_name
+     * - consignee.company_name
+     * - country.name
+     * - item.quantity (first item)
+     * - item.0.quantity (specific item by index)
+     * - filled.tariff_groups.0.total_cif (from filled declaration form data)
      */
     protected function resolveFieldPath(DeclarationForm $declaration, string $path): mixed
     {
@@ -220,9 +231,132 @@ class WebFormFieldMapping extends Model
             case 'country':
                 return $declaration->country?->{$field};
 
+            case 'item':
+                return $this->resolveItemField($declaration, array_slice($parts, 1));
+
+            case 'filled':
+                return $this->resolveFilledFormField($declaration, array_slice($parts, 1));
+
             default:
                 return null;
         }
+    }
+
+    /**
+     * Resolve item field from declaration items array or filled form
+     * 
+     * Supports:
+     * - item.quantity (first item, field: quantity)
+     * - item.0.quantity (item index 0, field: quantity)
+     * - item.customs_code_formatted (formatted customs code)
+     */
+    protected function resolveItemField(DeclarationForm $declaration, array $parts): mixed
+    {
+        // Determine index and field
+        $index = 0;
+        $field = $parts[0] ?? null;
+        
+        // Check if first part is numeric (item index)
+        if (is_numeric($parts[0])) {
+            $index = (int) $parts[0];
+            $field = $parts[1] ?? null;
+        }
+
+        if (!$field) {
+            return null;
+        }
+
+        // Try to get calculated item data from the latest filled form first
+        $filledForm = $declaration->filledForms()->latest()->first();
+        if ($filledForm && !empty($filledForm->data['tariff_groups'])) {
+            // Flatten items from tariff groups
+            $allItems = [];
+            foreach ($filledForm->data['tariff_groups'] as $group) {
+                foreach ($group['items'] ?? [] as $item) {
+                    $allItems[] = array_merge($item, [
+                        'tariff_code' => $group['tariff_code'] ?? null,
+                        'duty_rate' => $group['duty_rate'] ?? 0,
+                        'customs_duty' => ($item['cif_value'] ?? 0) * (($group['duty_rate'] ?? 0) / 100),
+                    ]);
+                }
+            }
+            
+            if (isset($allItems[$index])) {
+                return $this->getItemFieldValue($allItems[$index], $field);
+            }
+        }
+
+        // Fallback to declaration's items JSON array
+        $items = $declaration->items ?? [];
+        if (isset($items[$index])) {
+            return $this->getItemFieldValue($items[$index], $field);
+        }
+
+        // Fallback to invoice items
+        $invoiceItems = $declaration->invoice?->invoiceItems ?? collect();
+        $invoiceItem = $invoiceItems->skip($index)->first();
+        if ($invoiceItem) {
+            return $invoiceItem->{$field} ?? ($invoiceItem->meta[$field] ?? null);
+        }
+
+        return null;
+    }
+
+    /**
+     * Get a specific field value from an item array
+     */
+    protected function getItemFieldValue(array $item, string $field): mixed
+    {
+        // Handle special computed fields
+        switch ($field) {
+            case 'customs_code_formatted':
+                $code = $item['customs_code'] ?? $item['tariff_code'] ?? $item['hs_code'] ?? '';
+                return $this->formatCustomsCode($code);
+                
+            case 'wharfage':
+                // Wharfage is typically 4% of CIF for BVI
+                return round(($item['cif_value'] ?? 0) * 0.04, 2);
+                
+            default:
+                return $item[$field] ?? null;
+        }
+    }
+
+    /**
+     * Format customs code (remove dots, ensure proper length)
+     */
+    protected function formatCustomsCode(?string $code): ?string
+    {
+        if (!$code) {
+            return null;
+        }
+        // Remove any dots/formatting and return raw digits
+        return preg_replace('/[^0-9]/', '', $code);
+    }
+
+    /**
+     * Resolve field from filled declaration form data
+     */
+    protected function resolveFilledFormField(DeclarationForm $declaration, array $parts): mixed
+    {
+        $filledForm = $declaration->filledForms()->latest()->first();
+        if (!$filledForm || empty($filledForm->data)) {
+            return null;
+        }
+
+        // Navigate the data structure using dot notation
+        $data = $filledForm->data;
+        foreach ($parts as $part) {
+            if (is_array($data) && isset($data[$part])) {
+                $data = $data[$part];
+            } elseif (is_array($data) && is_numeric($part) && isset($data[(int)$part])) {
+                $data = $data[(int)$part];
+            } else {
+                return null;
+            }
+        }
+
+        return $data;
     }
 
     /**

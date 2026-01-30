@@ -225,6 +225,14 @@ class DeclarationForm extends Model
         return $this->hasMany(SubmissionAttachment::class);
     }
 
+    /**
+     * Get the filled declaration forms generated from this declaration
+     */
+    public function filledForms()
+    {
+        return $this->hasMany(FilledDeclarationForm::class);
+    }
+
     // ==========================================
     // Accessors
     // ==========================================
