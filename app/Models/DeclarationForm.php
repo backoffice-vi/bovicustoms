@@ -344,11 +344,11 @@ class DeclarationForm extends Model
      */
     public function getAllInvoices(): \Illuminate\Database\Eloquent\Collection
     {
-        if ($this->shipment_id) {
-            return $this->shipment->invoices;
+        if ($this->shipment_id && $this->shipment) {
+            return $this->shipment->invoices ?? collect();
         }
 
-        if ($this->invoice_id) {
+        if ($this->invoice_id && $this->invoice) {
             return collect([$this->invoice]);
         }
 
