@@ -581,8 +581,147 @@ class WebFormFieldMapping extends Model
             }
         }
 
+        // AI-assisted matching: when exact match fails, ask Claude to find the best match
+        if ($this->country_reference_type && $this->page?->target?->requires_ai) {
+            $aiMatch = $this->findMatchWithAI($stringValue);
+            if ($aiMatch) {
+                return $aiMatch;
+            }
+        }
+
         // Return original if no mapping found
         return $value;
+    }
+
+    /**
+     * Use AI (Claude) to find the best match for a value from available options
+     * Results are cached to avoid repeated API calls
+     */
+    protected function findMatchWithAI(string $value): ?string
+    {
+        $countryId = $this->page?->target?->country_id;
+        if (!$countryId || !$this->country_reference_type) {
+            return null;
+        }
+
+        // Check cache first
+        $cacheKey = "ai_match_{$countryId}_{$this->country_reference_type}_" . md5($value);
+        $cached = \Illuminate\Support\Facades\Cache::get($cacheKey);
+        if ($cached !== null) {
+            return $cached === '__NO_MATCH__' ? null : $cached;
+        }
+
+        // Get available options
+        $options = CountryReferenceData::where('country_id', $countryId)
+            ->where('reference_type', $this->country_reference_type)
+            ->get(['code', 'label'])
+            ->map(fn($r) => "{$r->code}: {$r->label}")
+            ->take(100) // Limit to avoid huge prompts
+            ->toArray();
+
+        if (empty($options)) {
+            return null;
+        }
+
+        try {
+            $claude = app(\App\Services\ClaudeJsonClient::class);
+            
+            $prompt = <<<PROMPT
+You are helping match a value to the correct option from a predefined list.
+
+INPUT VALUE: "{$value}"
+
+AVAILABLE OPTIONS (format is CODE: LABEL):
+{$this->formatOptionsForPrompt($options)}
+
+Find the BEST MATCH from the available options. Consider:
+- Partial name matches
+- Abbreviations (e.g., "Ltd" = "Limited", "Co" = "Company")
+- Common variations (e.g., "USA" = "United States")
+- Industry knowledge (e.g., shipping carriers, port names)
+
+Return JSON with:
+- "code": The matching option's CODE (or null if no reasonable match)
+- "confidence": "high", "medium", or "low"
+- "reasoning": Brief explanation
+
+If there's no reasonable match, return {"code": null, "confidence": "none", "reasoning": "No match found"}
+
+Return ONLY valid JSON, no other text.
+PROMPT;
+
+            $result = $claude->promptForJson($prompt, 30, 200);
+            
+            if (!empty($result['code']) && $result['confidence'] !== 'low') {
+                // Verify the code exists
+                $exists = CountryReferenceData::where('country_id', $countryId)
+                    ->where('reference_type', $this->country_reference_type)
+                    ->where('code', $result['code'])
+                    ->exists();
+                    
+                if ($exists) {
+                    // Cache successful match for 30 days
+                    \Illuminate\Support\Facades\Cache::put($cacheKey, $result['code'], now()->addDays(30));
+                    
+                    // Also save as a local_match for future exact matching
+                    $this->saveAIMatchAsAlias($countryId, $result['code'], $value);
+                    
+                    \Illuminate\Support\Facades\Log::info('AI matched dropdown value', [
+                        'input' => $value,
+                        'matched_code' => $result['code'],
+                        'confidence' => $result['confidence'],
+                        'reasoning' => $result['reasoning'] ?? '',
+                        'field' => $this->web_field_label,
+                    ]);
+                    
+                    return $result['code'];
+                }
+            }
+            
+            // Cache negative result for 1 day
+            \Illuminate\Support\Facades\Cache::put($cacheKey, '__NO_MATCH__', now()->addDay());
+            
+        } catch (\Exception $e) {
+            \Illuminate\Support\Facades\Log::warning('AI dropdown matching failed', [
+                'error' => $e->getMessage(),
+                'value' => $value,
+                'field' => $this->web_field_label,
+            ]);
+        }
+
+        return null;
+    }
+
+    /**
+     * Format options list for the AI prompt
+     */
+    protected function formatOptionsForPrompt(array $options): string
+    {
+        return implode("\n", $options);
+    }
+
+    /**
+     * Save an AI-discovered match as an alias for future exact matching
+     */
+    protected function saveAIMatchAsAlias(int $countryId, string $code, string $value): void
+    {
+        try {
+            $ref = CountryReferenceData::where('country_id', $countryId)
+                ->where('reference_type', $this->country_reference_type)
+                ->where('code', $code)
+                ->first();
+                
+            if ($ref) {
+                $matches = $ref->local_matches ?? [];
+                if (!in_array($value, $matches)) {
+                    $matches[] = $value;
+                    $ref->update(['local_matches' => $matches]);
+                }
+            }
+        } catch (\Exception $e) {
+            // Don't fail if we can't save the alias
+            \Illuminate\Support\Facades\Log::debug('Could not save AI match alias', ['error' => $e->getMessage()]);
+        }
     }
 
     /**
