@@ -342,7 +342,7 @@ class DeclarationForm extends Model
      * Get all invoices associated with this declaration
      * (either through shipment or direct invoice link)
      */
-    public function getAllInvoices(): \Illuminate\Database\Eloquent\Collection
+    public function getAllInvoices(): \Illuminate\Support\Collection
     {
         if ($this->shipment_id && $this->shipment) {
             return $this->shipment->invoices ?? collect();
