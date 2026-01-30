@@ -282,30 +282,108 @@ class WebFormFieldMapping extends Model
             }
             
             if (isset($allItems[$index])) {
-                return $this->getItemFieldValue($allItems[$index], $field);
+                return $this->getItemFieldValue($allItems[$index], $field, $declaration);
             }
         }
 
-        // Fallback to declaration's items JSON array
-        $items = $declaration->items ?? [];
-        if (isset($items[$index])) {
-            return $this->getItemFieldValue($items[$index], $field);
-        }
-
-        // Fallback to invoice items
-        $invoiceItems = $declaration->invoice?->invoiceItems ?? collect();
-        $invoiceItem = $invoiceItems->skip($index)->first();
-        if ($invoiceItem) {
-            return $invoiceItem->{$field} ?? ($invoiceItem->meta[$field] ?? null);
+        // No filled form - calculate values on-the-fly from declaration data
+        $calculatedItems = $this->calculateItemValues($declaration);
+        if (isset($calculatedItems[$index])) {
+            return $this->getItemFieldValue($calculatedItems[$index], $field, $declaration);
         }
 
         return null;
     }
 
     /**
+     * Calculate item values on-the-fly from declaration data
+     * This is used when no FilledDeclarationForm exists yet
+     */
+    protected function calculateItemValues(DeclarationForm $declaration): array
+    {
+        $items = $declaration->items ?? [];
+        if (empty($items)) {
+            // Try to get from invoice items
+            $invoiceItems = $declaration->invoice?->invoiceItems ?? collect();
+            foreach ($invoiceItems as $invoiceItem) {
+                $items[] = [
+                    'description' => $invoiceItem->description,
+                    'quantity' => $invoiceItem->quantity,
+                    'unit_price' => $invoiceItem->unit_price,
+                    'line_total' => $invoiceItem->line_total,
+                    'customs_code' => $invoiceItem->customs_code,
+                    'duty_rate' => $invoiceItem->duty_rate,
+                ];
+            }
+        }
+
+        if (empty($items)) {
+            return [];
+        }
+
+        // Get totals from declaration or shipment
+        $totalFob = $declaration->fob_value ?? 0;
+        $totalFreight = $declaration->freight_total ?? 0;
+        $totalInsurance = $declaration->insurance_total ?? 0;
+
+        // If declaration doesn't have totals, try shipment
+        if ($totalFob == 0 && $declaration->shipment) {
+            $totalFob = $declaration->shipment->fob_total ?? 0;
+            $totalFreight = $declaration->shipment->freight_total ?? 0;
+            $totalInsurance = $declaration->shipment->insurance_total ?? 0;
+        }
+
+        // Calculate total line value for proration
+        $totalLineValue = 0;
+        foreach ($items as $item) {
+            $lineTotal = $item['line_total'] ?? (($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0));
+            $totalLineValue += $lineTotal;
+        }
+
+        // If we still don't have FOB, use total line value
+        if ($totalFob == 0) {
+            $totalFob = $totalLineValue;
+        }
+
+        // Calculate per-item values
+        $calculatedItems = [];
+        foreach ($items as $item) {
+            $lineTotal = $item['line_total'] ?? (($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0));
+            
+            // Calculate proration ratio based on line total
+            $ratio = $totalLineValue > 0 ? ($lineTotal / $totalLineValue) : 0;
+            
+            // Calculate prorated values
+            $itemFob = $totalFob > 0 ? round($totalFob * $ratio, 2) : round($lineTotal, 2);
+            $itemFreight = round($totalFreight * $ratio, 2);
+            $itemInsurance = round($totalInsurance * $ratio, 2);
+            $itemCif = $itemFob + $itemFreight + $itemInsurance;
+            
+            // Calculate duty (duty_rate is percentage)
+            $dutyRate = floatval($item['duty_rate'] ?? 0);
+            $itemDuty = round($itemCif * ($dutyRate / 100), 2);
+            
+            // Calculate wharfage (4% of CIF for BVI)
+            $itemWharfage = round($itemCif * 0.04, 2);
+
+            $calculatedItems[] = array_merge($item, [
+                'fob_value' => $itemFob,
+                'prorated_freight' => $itemFreight,
+                'prorated_insurance' => $itemInsurance,
+                'cif_value' => $itemCif,
+                'customs_duty' => $itemDuty,
+                'wharfage' => $itemWharfage,
+                'total_duty' => $itemDuty + $itemWharfage,
+            ]);
+        }
+
+        return $calculatedItems;
+    }
+
+    /**
      * Get a specific field value from an item array
      */
-    protected function getItemFieldValue(array $item, string $field): mixed
+    protected function getItemFieldValue(array $item, string $field, ?DeclarationForm $declaration = null): mixed
     {
         // Handle special computed fields
         switch ($field) {
@@ -314,7 +392,10 @@ class WebFormFieldMapping extends Model
                 return $this->formatCustomsCode($code);
                 
             case 'wharfage':
-                // Wharfage is typically 4% of CIF for BVI
+                // Use calculated value if available, otherwise calculate from CIF
+                if (isset($item['wharfage'])) {
+                    return $item['wharfage'];
+                }
                 return round(($item['cif_value'] ?? 0) * 0.04, 2);
                 
             default:
