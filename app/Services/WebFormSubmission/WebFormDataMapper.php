@@ -5,6 +5,7 @@ namespace App\Services\WebFormSubmission;
 use App\Models\DeclarationForm;
 use App\Models\WebFormTarget;
 use App\Models\WebFormFieldMapping;
+use App\Services\ClaudeJsonClient;
 use Illuminate\Support\Facades\Log;
 
 /**
@@ -12,9 +13,17 @@ use Illuminate\Support\Facades\Log;
  * 
  * Maps data from a DeclarationForm to the field structure expected by
  * an external web form based on stored field mappings.
+ * Uses Claude AI for intelligent field discovery when standard paths fail.
  */
 class WebFormDataMapper
 {
+    protected ?ClaudeJsonClient $claude = null;
+    
+    public function __construct(?ClaudeJsonClient $claude = null)
+    {
+        $this->claude = $claude;
+    }
+
     /**
      * Map declaration data to target web form fields
      */
@@ -205,8 +214,9 @@ class WebFormDataMapper
     /**
      * Build CAPS-specific data structure for multi-item submissions
      * Separates header-level fields from item-level fields
+     * Uses AI assistance when critical data is missing
      */
-    public function buildCapsSubmissionData(DeclarationForm $declaration, WebFormTarget $target): array
+    public function buildCapsSubmissionData(DeclarationForm $declaration, WebFormTarget $target, bool $useAI = true): array
     {
         $declaration->load([
             'invoice.invoiceItems',
@@ -225,11 +235,21 @@ class WebFormDataMapper
         // Get item data for each declaration item
         $items = $this->extractItemsData($declaration, $target);
 
+        // Use AI to fill missing critical fields
+        $aiResult = null;
+        if ($useAI) {
+            $aiResult = $this->aiAssistCapsMapping($declaration, $headerData, $items);
+            $headerData = $aiResult['headerData'];
+            $items = $aiResult['items'];
+        }
+
         return [
             'headerData' => $headerData,
             'items' => $items,
             'credentials' => $target->getPlaywrightCredentials(),
             'loginUrl' => $target->full_login_url,
+            'ai_assisted' => $aiResult['ai_assisted'] ?? false,
+            'ai_notes' => $aiResult['ai_notes'] ?? null,
         ];
     }
 
@@ -469,5 +489,176 @@ class WebFormDataMapper
         }
 
         return strtoupper(substr($unit, 0, 2));
+    }
+
+    /**
+     * Use Claude AI to analyze declaration and fill missing CAPS fields
+     */
+    public function aiAssistCapsMapping(DeclarationForm $declaration, array $headerData, array $items): array
+    {
+        if (!$this->claude) {
+            $this->claude = app(ClaudeJsonClient::class);
+        }
+
+        // Check which critical fields are missing
+        $missingFields = [];
+        $criticalHeaderFields = ['supplier_name', 'carrier_id', 'arrival_date', 'bill_of_lading'];
+        foreach ($criticalHeaderFields as $field) {
+            if (empty($headerData[$field])) {
+                $missingFields[] = $field;
+            }
+        }
+
+        // Check if items have required data
+        $itemsMissingData = false;
+        foreach ($items as $item) {
+            if (empty($item['tariff_number']) || empty($item['description']) || empty($item['fob_value'])) {
+                $itemsMissingData = true;
+                break;
+            }
+        }
+
+        // If nothing critical is missing, return as-is
+        if (empty($missingFields) && !$itemsMissingData) {
+            return ['headerData' => $headerData, 'items' => $items, 'ai_assisted' => false];
+        }
+
+        Log::info('CapsMapper: Using AI to fill missing fields', ['missing' => $missingFields]);
+
+        // Gather all available declaration data for AI analysis
+        $declarationData = $this->gatherDeclarationData($declaration);
+
+        $prompt = <<<PROMPT
+You are helping map a customs declaration to the BVI CAPS system fields.
+
+**Available Declaration Data:**
+```json
+{$declarationData}
+```
+
+**Current Header Mapping (some fields may be empty):**
+```json
+{json_encode($headerData, JSON_PRETTY_PRINT)}
+```
+
+**Current Items (may need enhancement):**
+```json
+{json_encode($items, JSON_PRETTY_PRINT)}
+```
+
+**Missing/Empty Fields to Fill:**
+- {implode("\n- ", $missingFields ?: ['Review all fields'])}
+
+**Instructions:**
+1. Analyze the available declaration data to find values for missing fields
+2. Look for data in: reference_number, notes, items JSON, any attached records
+3. Use reasonable defaults when exact data isn't available:
+   - supplier_country: default to country from shipper or 'US'
+   - carrier_id: try to identify from any shipping references
+   - port_of_arrival: default to 'PP' (Port Purcell, Road Town)
+   - cpc: default to 'C400' for imports
+4. For items, ensure each has: description, tariff_number, quantity, fob_value
+
+**Return JSON only:**
+{
+  "headerData": { ...complete header with filled values... },
+  "items": [ ...complete items array... ],
+  "ai_notes": "Brief explanation of what was filled/inferred"
+}
+PROMPT;
+
+        try {
+            $result = $this->claude->promptForJson($prompt, 60, 2000);
+
+            if (!empty($result['headerData'])) {
+                $headerData = array_merge($headerData, array_filter($result['headerData']));
+            }
+            if (!empty($result['items'])) {
+                $items = $result['items'];
+            }
+
+            Log::info('CapsMapper: AI assisted mapping complete', [
+                'notes' => $result['ai_notes'] ?? 'No notes',
+            ]);
+
+            return [
+                'headerData' => $headerData,
+                'items' => $items,
+                'ai_assisted' => true,
+                'ai_notes' => $result['ai_notes'] ?? '',
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('CapsMapper: AI assistance failed', ['error' => $e->getMessage()]);
+            return ['headerData' => $headerData, 'items' => $items, 'ai_assisted' => false];
+        }
+    }
+
+    /**
+     * Gather all available data from a declaration for AI analysis
+     */
+    protected function gatherDeclarationData(DeclarationForm $declaration): string
+    {
+        $data = [
+            'id' => $declaration->id,
+            'reference_number' => $declaration->reference_number,
+            'status' => $declaration->status,
+            'total_packages' => $declaration->total_packages,
+            'total_value' => $declaration->total_value,
+            'notes' => $declaration->notes,
+            'items_json' => $declaration->items,
+        ];
+
+        // Add shipment data if available
+        if ($declaration->shipment) {
+            $data['shipment'] = [
+                'bill_of_lading' => $declaration->shipment->bill_of_lading,
+                'carrier' => $declaration->shipment->carrier,
+                'vessel_name' => $declaration->shipment->vessel_name,
+                'arrival_date' => $declaration->shipment->arrival_date,
+                'port_of_arrival' => $declaration->shipment->port_of_arrival,
+                'freight_cost' => $declaration->shipment->freight_cost,
+                'insurance_cost' => $declaration->shipment->insurance_cost,
+            ];
+        }
+
+        // Add shipper data if available
+        $shipper = $declaration->shipperContact ?? $declaration->shipment?->shipperContact;
+        if ($shipper) {
+            $data['shipper'] = [
+                'company_name' => $shipper->company_name,
+                'name' => $shipper->name,
+                'address' => $shipper->address_line_1,
+                'city' => $shipper->city,
+                'country' => $shipper->country?->name ?? $shipper->country_code,
+            ];
+        }
+
+        // Add invoice data if available
+        if ($declaration->invoice) {
+            $data['invoice'] = [
+                'invoice_number' => $declaration->invoice->invoice_number,
+                'total_amount' => $declaration->invoice->total_amount,
+                'currency' => $declaration->invoice->currency,
+            ];
+
+            // Add invoice items
+            if ($declaration->invoice->invoiceItems) {
+                $data['invoice_items'] = $declaration->invoice->invoiceItems->map(fn($i) => [
+                    'description' => $i->description,
+                    'quantity' => $i->quantity,
+                    'unit_price' => $i->unit_price,
+                    'hs_code' => $i->hs_code,
+                ])->toArray();
+            }
+        }
+
+        // Add filled form data if available
+        $filledForm = $declaration->filledForms()->latest()->first();
+        if ($filledForm) {
+            $data['filled_form'] = $filledForm->data;
+        }
+
+        return json_encode($data, JSON_PRETTY_PRINT);
     }
 }
