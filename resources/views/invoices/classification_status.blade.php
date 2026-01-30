@@ -310,12 +310,54 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
     
+    // Simulated progress for sync queue (shows activity while waiting)
+    let simulatedProgress = 0;
+    let simulationInterval = null;
+    const statusMessages = [
+        'Analyzing item descriptions...',
+        'Searching tariff database...',
+        'Matching HS codes...',
+        'Running AI classification...',
+        'Checking restrictions...',
+        'Finalizing classifications...'
+    ];
+    
+    function startSimulatedProgress() {
+        simulationInterval = setInterval(() => {
+            if (simulatedProgress < 90) {
+                simulatedProgress += Math.random() * 8 + 2; // Random increment 2-10%
+                if (simulatedProgress > 90) simulatedProgress = 90;
+                
+                const progress = Math.round(simulatedProgress);
+                progressBar.style.width = progress + '%';
+                progressText.textContent = progress + '%';
+                
+                // Update status message based on progress
+                const messageIndex = Math.min(Math.floor(progress / 18), statusMessages.length - 1);
+                statusMessage.textContent = statusMessages[messageIndex];
+                
+                // Update step badges
+                updateStepBadges(progress);
+            }
+        }, 800);
+    }
+    
+    function stopSimulatedProgress() {
+        if (simulationInterval) {
+            clearInterval(simulationInterval);
+            simulationInterval = null;
+        }
+    }
+    
     // Function to start classification via AJAX
     function startClassification() {
         if (classificationStarted) return;
         classificationStarted = true;
         
         statusMessage.textContent = 'Starting classification process...';
+        
+        // Start simulated progress animation
+        startSimulatedProgress();
         
         fetch('/invoices/' + invoiceId + '/start-classification', {
             method: 'POST',
@@ -328,13 +370,14 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(response => response.json())
         .then(data => {
             console.log('Classification start response:', data);
+            stopSimulatedProgress();
             
             if (data.status === 'completed_sync') {
                 // Sync queue - job already completed, redirect to results
                 showCompleted();
                 setTimeout(() => {
                     window.location.href = '/invoices/' + invoiceId + '/assign-codes-results';
-                }, 1000);
+                }, 1500);
             } else if (data.status === 'already_completed') {
                 // Already classified before
                 showCompleted();
@@ -348,6 +391,7 @@ document.addEventListener('DOMContentLoaded', function() {
         })
         .catch(error => {
             console.error('Error starting classification:', error);
+            stopSimulatedProgress();
             // May already be in progress, try polling
             pollInterval = setInterval(checkProgress, 2000);
         });
