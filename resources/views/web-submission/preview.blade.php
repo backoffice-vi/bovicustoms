@@ -80,7 +80,7 @@
                                 </tr>
                                 <tr>
                                     <th>Items</th>
-                                    <td>{{ $declaration->items->count() ?? 0 }}</td>
+                                    <td>{{ is_countable($declaration->items) ? count($declaration->items) : 0 }}</td>
                                 </tr>
                                 <tr>
                                     <th>Total Value</th>
