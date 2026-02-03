@@ -26,6 +26,32 @@
     </div>
     @endif
 
+    {{-- Classification Alert for stuck/failed invoices --}}
+    @php
+        $hasUnclassifiedItems = $items->contains(fn($item) => empty($item->customs_code));
+        $isStuck = $invoice->status === 'classifying' || ($invoice->status !== 'processed' && $hasUnclassifiedItems);
+    @endphp
+    
+    @if($isStuck)
+    <div class="alert alert-warning d-flex align-items-center justify-content-between" role="alert">
+        <div>
+            <i class="fas fa-exclamation-triangle me-2"></i>
+            <strong>Classification incomplete.</strong> 
+            @if($invoice->status === 'classifying')
+                This invoice is still being classified or the classification job may have failed.
+            @else
+                Some items don't have HS codes assigned.
+            @endif
+        </div>
+        <form action="{{ route('invoices.retry_classification', $invoice) }}" method="POST" class="d-inline">
+            @csrf
+            <button type="submit" class="btn btn-warning">
+                <i class="fas fa-redo me-1"></i>Retry Classification
+            </button>
+        </form>
+    </div>
+    @endif
+
     {{-- Invoice Header --}}
     <div class="card mb-4">
         <div class="card-body">
@@ -54,6 +80,7 @@
                         $statusClass = match($invoice->status) {
                             'processed' => 'success',
                             'pending' => 'warning',
+                            'classifying' => 'info',
                             'draft' => 'secondary',
                             default => 'primary'
                         };

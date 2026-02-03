@@ -30,10 +30,55 @@
 
     <div class="row">
         <div class="col-lg-8">
+            @php
+                $country = $declaration->country;
+                $ftpEnabled = $country && $country->isFtpEnabled();
+            @endphp
+
+            @if($ftpEnabled)
+            <!-- FTP Submission Option -->
+            <div class="card mb-4 border-primary">
+                <div class="card-header bg-primary text-white">
+                    <h5 class="card-title mb-0"><i class="fas fa-upload me-2"></i>FTP Submission</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <div>
+                            <h5 class="mb-1">{{ $country->name }} CAPS - FTP Upload</h5>
+                            <p class="text-muted mb-2">
+                                Submit directly to CAPS via FTP using the T12 file format.
+                                <span class="badge bg-info">Recommended</span>
+                            </p>
+                            @php
+                                $organization = $declaration->organization ?? auth()->user()->organization;
+                                $hasCredentials = $organization && $organization->hasFtpCredentials($country->id);
+                            @endphp
+                            @if($hasCredentials)
+                                <span class="badge bg-success"><i class="fas fa-check me-1"></i>FTP Credentials Configured</span>
+                            @else
+                                <span class="badge bg-warning"><i class="fas fa-exclamation-triangle me-1"></i>FTP Credentials Required</span>
+                            @endif
+                        </div>
+                        <div class="btn-group">
+                            @if($hasCredentials)
+                                <a href="{{ route('ftp-submission.index', $declaration) }}" class="btn btn-primary">
+                                    <i class="fas fa-upload me-1"></i>FTP Submit
+                                </a>
+                            @else
+                                <a href="{{ route('settings.submission-credentials') }}" class="btn btn-outline-warning">
+                                    <i class="fas fa-key me-1"></i>Configure Credentials
+                                </a>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            </div>
+            @endif
+
             <!-- Available Targets -->
             <div class="card mb-4">
                 <div class="card-header">
-                    <h5 class="card-title mb-0"><i class="fas fa-globe me-2"></i>Available Portals</h5>
+                    <h5 class="card-title mb-0"><i class="fas fa-globe me-2"></i>Web Portal Submission</h5>
                 </div>
                 <div class="card-body">
                     @if($targets->isEmpty())

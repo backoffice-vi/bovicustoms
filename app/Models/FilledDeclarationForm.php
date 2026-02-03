@@ -155,6 +155,29 @@ class FilledDeclarationForm extends Model
         return $this->belongsTo(TradeContact::class, 'bank_contact_id');
     }
 
+    /**
+     * Get the country through the template
+     */
+    public function country()
+    {
+        return $this->hasOneThrough(
+            Country::class,
+            CountryFormTemplate::class,
+            'id', // Foreign key on country_form_templates table
+            'id', // Foreign key on countries table
+            'country_form_template_id', // Local key on filled_declaration_forms table
+            'country_id' // Local key on country_form_templates table
+        );
+    }
+
+    /**
+     * Get country ID attribute (accessor for convenience)
+     */
+    public function getCountryIdAttribute()
+    {
+        return $this->template?->country_id;
+    }
+
     // ==========================================
     // Scopes
     // ==========================================

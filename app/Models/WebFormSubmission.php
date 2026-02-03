@@ -19,13 +19,23 @@ class WebFormSubmission extends Model
     const STATUS_CONFIRMED = 'confirmed';
     const STATUS_REJECTED = 'rejected';
 
+    /**
+     * Submission type constants
+     */
+    const TYPE_WEB = 'web';
+    const TYPE_FTP = 'ftp';
+
     protected $fillable = [
         'web_form_target_id',
         'declaration_form_id',
         'user_id',
         'organization_id',
+        'submission_type',
         'status',
+        'is_successful',
         'mapped_data',
+        'request_data',
+        'response_data',
         'submission_log',
         'ai_decisions',
         'screenshots',
@@ -35,17 +45,22 @@ class WebFormSubmission extends Model
         'errors_encountered',
         'retry_count',
         'started_at',
+        'submitted_at',
         'completed_at',
         'duration_seconds',
     ];
 
     protected $casts = [
         'mapped_data' => 'array',
+        'request_data' => 'array',
+        'response_data' => 'array',
         'submission_log' => 'array',
         'ai_decisions' => 'array',
         'screenshots' => 'array',
         'errors_encountered' => 'array',
+        'is_successful' => 'boolean',
         'started_at' => 'datetime',
+        'submitted_at' => 'datetime',
         'completed_at' => 'datetime',
     ];
 
@@ -122,6 +137,21 @@ class WebFormSubmission extends Model
         return $query->where('created_at', '>=', now()->subDays($days));
     }
 
+    public function scopeWeb($query)
+    {
+        return $query->where('submission_type', self::TYPE_WEB);
+    }
+
+    public function scopeFtp($query)
+    {
+        return $query->where('submission_type', self::TYPE_FTP);
+    }
+
+    public function scopeForDeclaration($query, $declarationId)
+    {
+        return $query->where('declaration_form_id', $declarationId);
+    }
+
     // ==========================================
     // Accessors
     // ==========================================
@@ -167,10 +197,42 @@ class WebFormSubmission extends Model
 
     /**
      * Check if submission was successful
+     * Uses stored value if set, otherwise derives from status
      */
     public function getIsSuccessfulAttribute(): bool
     {
+        if (isset($this->attributes['is_successful'])) {
+            return (bool) $this->attributes['is_successful'];
+        }
         return in_array($this->status, [self::STATUS_SUBMITTED, self::STATUS_CONFIRMED]);
+    }
+
+    /**
+     * Check if this is an FTP submission
+     */
+    public function getIsFtpAttribute(): bool
+    {
+        return $this->submission_type === self::TYPE_FTP;
+    }
+
+    /**
+     * Check if this is a web submission
+     */
+    public function getIsWebAttribute(): bool
+    {
+        return $this->submission_type === self::TYPE_WEB;
+    }
+
+    /**
+     * Get submission type label
+     */
+    public function getSubmissionTypeLabelAttribute(): string
+    {
+        return match ($this->submission_type) {
+            self::TYPE_WEB => 'Web Portal',
+            self::TYPE_FTP => 'FTP Upload',
+            default => 'Unknown',
+        };
     }
 
     /**

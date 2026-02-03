@@ -109,37 +109,57 @@
                     <li class="nav-item">
                         <a class="nav-link" href="{{ route('dashboard') }}">Dashboard</a>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ route('invoices.create') }}">Upload Invoice</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ route('declaration-forms.index') }}">Declaration Forms</a>
-                    </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ route('legacy-clearances.index') }}">
-                            <i class="fas fa-archive me-1"></i>Legacy Clearances
+                    
+                    {{-- Classify Dropdown --}}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            Classify
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ route('classification.index') }}">
+                                <i class="fas fa-search me-2"></i>Lookup
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ route('settings.classification-rules') }}">
+                                <i class="fas fa-cogs me-2"></i>Classification Rules
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ route('legacy-clearances.index') }}">
+                                <i class="fas fa-archive me-2"></i>Legacy Clearances
+                            </a></li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ route('classification.index') }}">
-                            <i class="fas fa-robot me-1"></i>Classify Item
+                    
+                    {{-- Invoices Dropdown --}}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            Invoices
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ route('invoices.create') }}">
+                                <i class="fas fa-upload me-2"></i>Upload
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ route('invoices.index') }}">
+                                <i class="fas fa-list me-2"></i>View
+                            </a></li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ route('trade-contacts.index') }}">
-                            <i class="fas fa-address-book me-1"></i>Trade Contacts
+                    
+                    {{-- Declarations Dropdown --}}
+                    <li class="nav-item dropdown">
+                        <a class="nav-link dropdown-toggle" href="#" role="button" data-bs-toggle="dropdown">
+                            Declarations
                         </a>
+                        <ul class="dropdown-menu">
+                            <li><a class="dropdown-item" href="{{ route('shipments.index') }}">
+                                <i class="fas fa-ship me-2"></i>Shipments
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ route('declaration-forms.index') }}">
+                                <i class="fas fa-file-alt me-2"></i>Declarations
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ route('trade-contacts.index') }}">
+                                <i class="fas fa-address-book me-2"></i>Trade Contacts
+                            </a></li>
+                        </ul>
                     </li>
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ route('shipments.index') }}">
-                            <i class="fas fa-ship me-1"></i>Shipments
-                        </a>
-                    </li>
-                    @if(auth()->user()->organization)
-                    <li class="nav-item">
-                        <a class="nav-link" href="{{ route('subscription.index') }}">Subscription</a>
-                    </li>
-                    @endif
                     @endif
                     @if(auth()->user()->isAdmin())
                     <li class="nav-item dropdown">
@@ -179,6 +199,9 @@
                             <li><a class="dropdown-item" href="{{ route('admin.web-form-targets.index') }}">
                                 <i class="fas fa-globe me-1"></i>Web Form Targets
                             </a></li>
+                            <li><a class="dropdown-item" href="{{ route('admin.ftp-test.index') }}">
+                                <i class="fas fa-upload me-1"></i>FTP Submission Test
+                            </a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ route('admin.analytics.index') }}">
                                 <i class="fas fa-chart-line me-1"></i>Site Analytics
@@ -195,15 +218,27 @@
                             {{ auth()->user()->name }}
                         </a>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><a class="dropdown-item" href="#">Profile</a></li>
-                            <li><a class="dropdown-item" href="{{ route('settings.classification-rules') }}">
-                                <i class="fas fa-cogs me-1"></i>Classification Rules
+                            <li><a class="dropdown-item" href="#">
+                                <i class="fas fa-user me-2"></i>Profile
+                            </a></li>
+                            @if(auth()->user()->organization)
+                            <li><a class="dropdown-item" href="{{ route('subscription.index') }}">
+                                <i class="fas fa-credit-card me-2"></i>Subscription
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ route('settings.submission-credentials') }}">
+                                <i class="fas fa-key me-2"></i>Submission Credentials
+                            </a></li>
+                            @endif
+                            <li><a class="dropdown-item" href="{{ route('settings.help-center') }}">
+                                <i class="fas fa-question-circle me-2"></i>Help Center
                             </a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li>
                                 <form method="POST" action="{{ route('logout') }}">
                                     @csrf
-                                    <button type="submit" class="dropdown-item">Logout</button>
+                                    <button type="submit" class="dropdown-item">
+                                        <i class="fas fa-sign-out-alt me-2"></i>Logout
+                                    </button>
                                 </form>
                             </li>
                         </ul>

@@ -115,6 +115,108 @@
                             </div>
                         </div>
 
+                        <hr class="my-4">
+
+                        <h5 class="mb-3"><i class="fas fa-upload me-2"></i>FTP Submission Settings</h5>
+                        <p class="text-muted small mb-3">Configure FTP submission for this country's customs system (e.g., CAPS for BVI). Organizations will need to enter their own FTP credentials.</p>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" name="ftp_enabled" id="ftp_enabled" class="form-check-input" value="1" 
+                                       {{ old('ftp_enabled', $country->ftp_enabled) ? 'checked' : '' }}
+                                       onchange="toggleFtpFields()">
+                                <label class="form-check-label" for="ftp_enabled">
+                                    <strong>Enable FTP Submission</strong>
+                                </label>
+                                <div class="form-text">Allow organizations to submit declarations via FTP to this country's customs system</div>
+                            </div>
+                        </div>
+
+                        <div id="ftpSettingsSection" style="{{ old('ftp_enabled', $country->ftp_enabled) ? '' : 'display: none;' }}">
+                            <div class="row">
+                                <div class="col-md-8">
+                                    <div class="mb-3">
+                                        <label for="ftp_host" class="form-label">FTP Server Host <span class="text-danger">*</span></label>
+                                        <input type="text" name="ftp_host" id="ftp_host" 
+                                               class="form-control @error('ftp_host') is-invalid @enderror" 
+                                               value="{{ old('ftp_host', $country->ftp_host) }}" 
+                                               placeholder="e.g., ftp.caps.gov.vg">
+                                        <div class="form-text">The FTP server hostname provided by customs</div>
+                                        @error('ftp_host')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
+                                <div class="col-md-4">
+                                    <div class="mb-3">
+                                        <label for="ftp_port" class="form-label">FTP Port</label>
+                                        <input type="number" name="ftp_port" id="ftp_port" 
+                                               class="form-control @error('ftp_port') is-invalid @enderror" 
+                                               value="{{ old('ftp_port', $country->ftp_port ?? 21) }}" 
+                                               min="1" max="65535">
+                                        <div class="form-text">Default: 21</div>
+                                        @error('ftp_port')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="ftp_base_path" class="form-label">Base Path</label>
+                                        <input type="text" name="ftp_base_path" id="ftp_base_path" 
+                                               class="form-control @error('ftp_base_path') is-invalid @enderror" 
+                                               value="{{ old('ftp_base_path', $country->ftp_base_path ?? '/') }}" 
+                                               placeholder="e.g., /submissions/">
+                                        <div class="form-text">Base directory for uploads (trader folders created here)</div>
+                                        @error('ftp_base_path')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="ftp_file_format" class="form-label">File Format</label>
+                                        <select name="ftp_file_format" id="ftp_file_format" class="form-select @error('ftp_file_format') is-invalid @enderror">
+                                            <option value="caps_t12" {{ old('ftp_file_format', $country->ftp_file_format) == 'caps_t12' ? 'selected' : '' }}>CAPS T12 Format</option>
+                                        </select>
+                                        <div class="form-text">Electronic declaration file format</div>
+                                        @error('ftp_file_format')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div class="row">
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <div class="form-check">
+                                            <input type="checkbox" name="ftp_passive_mode" id="ftp_passive_mode" class="form-check-input" value="1" 
+                                                   {{ old('ftp_passive_mode', $country->ftp_passive_mode ?? true) ? 'checked' : '' }}>
+                                            <label class="form-check-label" for="ftp_passive_mode">Use Passive Mode</label>
+                                            <div class="form-text">Recommended for most firewalls</div>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div class="col-md-6">
+                                    <div class="mb-3">
+                                        <label for="ftp_notification_email" class="form-label">Notification Email</label>
+                                        <input type="email" name="ftp_notification_email" id="ftp_notification_email" 
+                                               class="form-control @error('ftp_notification_email') is-invalid @enderror" 
+                                               value="{{ old('ftp_notification_email', $country->ftp_notification_email) }}" 
+                                               placeholder="e.g., customs@gov.vg">
+                                        <div class="form-text">Where customs sends submission confirmations</div>
+                                        @error('ftp_notification_email')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
                         <div class="d-flex justify-content-between mt-4">
                             <a href="{{ route('admin.countries.index') }}" class="btn btn-secondary">
                                 <i class="fas fa-times me-1"></i> Cancel
@@ -168,7 +270,28 @@
                 </div>
             </div>
             @endif
+
+            @if($country->isFtpEnabled())
+            <div class="card mt-3 border-success">
+                <div class="card-body">
+                    <h5 class="card-title text-success"><i class="fas fa-upload me-2"></i>FTP Enabled</h5>
+                    <p class="card-text mb-0">
+                        FTP submission is enabled for this country. Organizations can configure their own FTP credentials to submit declarations.
+                    </p>
+                </div>
+            </div>
+            @endif
         </div>
     </div>
 </div>
+
+@push('scripts')
+<script>
+function toggleFtpFields() {
+    const ftpEnabled = document.getElementById('ftp_enabled').checked;
+    const ftpSection = document.getElementById('ftpSettingsSection');
+    ftpSection.style.display = ftpEnabled ? 'block' : 'none';
+}
+</script>
+@endpush
 @endsection

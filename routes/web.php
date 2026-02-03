@@ -97,6 +97,7 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         Route::post('invoices/{invoice}/start-classification', [InvoiceController::class, 'startClassification'])->name('invoices.start_classification');
         Route::get('invoices/{invoice}/classification-progress', [InvoiceController::class, 'classificationProgress'])->name('invoices.classification_progress');
         Route::get('invoices/{invoice}/assign-codes-results', [InvoiceController::class, 'assignCodesResults'])->name('invoices.assign_codes_results');
+        Route::post('invoices/{invoice}/retry-classification', [InvoiceController::class, 'retryClassification'])->name('invoices.retry_classification');
         
         // Resource route for index and show (must be last to avoid catching /create, /review, etc)
         Route::resource('invoices', InvoiceController::class)->only(['index', 'show']);
@@ -123,6 +124,17 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
     });
     Route::post('web-submission/{submission}/retry', [App\Http\Controllers\WebSubmissionController::class, 'retry'])->name('web-submission.retry');
     Route::get('api/web-submission/targets', [App\Http\Controllers\WebSubmissionController::class, 'getTargetsForCountry'])->name('api.web-submission.targets');
+
+    // FTP Submission (CAPS T12)
+    Route::prefix('declaration-forms/{declaration}/ftp-submit')->name('ftp-submission.')->group(function () {
+        Route::get('/', [App\Http\Controllers\FtpSubmissionController::class, 'index'])->name('index');
+        Route::get('/preview', [App\Http\Controllers\FtpSubmissionController::class, 'preview'])->name('preview');
+        Route::post('/submit', [App\Http\Controllers\FtpSubmissionController::class, 'submit'])->name('submit');
+        Route::get('/download', [App\Http\Controllers\FtpSubmissionController::class, 'download'])->name('download');
+        Route::get('/result/{submission}', [App\Http\Controllers\FtpSubmissionController::class, 'result'])->name('result');
+        Route::get('/history', [App\Http\Controllers\FtpSubmissionController::class, 'history'])->name('history');
+    });
+    Route::post('ftp-submission/{submission}/retry', [App\Http\Controllers\FtpSubmissionController::class, 'retry'])->name('ftp-submission.retry');
 
     // Trade Contacts (reusable shipper, consignee, broker data)
     Route::resource('trade-contacts', TradeContactController::class);
@@ -170,6 +182,9 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
     
     // Classification Rules Settings
     Route::prefix('settings')->name('settings.')->group(function () {
+        // Help Center
+        Route::get('/help-center', [App\Http\Controllers\HelpCenterController::class, 'index'])->name('help-center');
+        
         Route::get('/classification-rules', [App\Http\Controllers\ClassificationRuleController::class, 'index'])->name('classification-rules');
         Route::post('/classification-rules', [App\Http\Controllers\ClassificationRuleController::class, 'store'])->name('classification-rules.store');
         Route::put('/classification-rules/{rule}', [App\Http\Controllers\ClassificationRuleController::class, 'update'])->name('classification-rules.update');
@@ -177,6 +192,14 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         Route::post('/classification-rules/{rule}/toggle', [App\Http\Controllers\ClassificationRuleController::class, 'toggle'])->name('classification-rules.toggle');
         Route::get('/classification-rules/search-codes', [App\Http\Controllers\ClassificationRuleController::class, 'searchCodes'])->name('classification-rules.search-codes');
         Route::post('/classification-rules/test', [App\Http\Controllers\ClassificationRuleController::class, 'testRule'])->name('classification-rules.test');
+        
+        // Submission Credentials (FTP and Web portal)
+        Route::get('/submission-credentials', [App\Http\Controllers\OrganizationCredentialController::class, 'index'])->name('submission-credentials');
+        Route::post('/submission-credentials', [App\Http\Controllers\OrganizationCredentialController::class, 'store'])->name('submission-credentials.store');
+        Route::put('/submission-credentials/{credential}', [App\Http\Controllers\OrganizationCredentialController::class, 'update'])->name('submission-credentials.update');
+        Route::delete('/submission-credentials/{credential}', [App\Http\Controllers\OrganizationCredentialController::class, 'destroy'])->name('submission-credentials.destroy');
+        Route::post('/submission-credentials/{credential}/test', [App\Http\Controllers\OrganizationCredentialController::class, 'test'])->name('submission-credentials.test');
+        Route::get('/submission-credentials/targets', [App\Http\Controllers\OrganizationCredentialController::class, 'getTargetsForCountry'])->name('submission-credentials.targets');
     });
     
     // API-style routes for AJAX requests
@@ -303,6 +326,16 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
             Route::get('/{webFormTarget}/pages/{page}/mappings/{mapping}/edit', [App\Http\Controllers\Admin\WebFormTargetController::class, 'editMapping'])->name('mappings.edit');
             Route::put('/{webFormTarget}/pages/{page}/mappings/{mapping}', [App\Http\Controllers\Admin\WebFormTargetController::class, 'updateMapping'])->name('mappings.update');
             Route::delete('/{webFormTarget}/pages/{page}/mappings/{mapping}', [App\Http\Controllers\Admin\WebFormTargetController::class, 'destroyMapping'])->name('mappings.destroy');
+        });
+
+        // FTP Submission Testing (Admin)
+        Route::prefix('ftp-test')->name('ftp-test.')->group(function () {
+            Route::get('/', [App\Http\Controllers\Admin\FtpTestController::class, 'index'])->name('index');
+            Route::post('/test-connection', [App\Http\Controllers\Admin\FtpTestController::class, 'testConnection'])->name('test-connection');
+            Route::post('/preview-t12', [App\Http\Controllers\Admin\FtpTestController::class, 'previewT12'])->name('preview-t12');
+            Route::get('/download/{declaration}', [App\Http\Controllers\Admin\FtpTestController::class, 'downloadT12'])->name('download');
+            Route::post('/submit', [App\Http\Controllers\Admin\FtpTestController::class, 'submit'])->name('submit');
+            Route::get('/credentials', [App\Http\Controllers\Admin\FtpTestController::class, 'getCredentials'])->name('credentials');
         });
     });
 

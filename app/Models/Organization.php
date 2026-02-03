@@ -100,4 +100,104 @@ class Organization extends Model
     {
         return $this->users()->wherePivot('role', 'owner')->first();
     }
+
+    // ==========================================
+    // Submission Credentials
+    // ==========================================
+
+    /**
+     * Get all submission credentials for this organization
+     */
+    public function submissionCredentials()
+    {
+        return $this->hasMany(OrganizationSubmissionCredential::class);
+    }
+
+    /**
+     * Get FTP credentials for a specific country
+     */
+    public function getFtpCredentials($countryId): ?OrganizationSubmissionCredential
+    {
+        return $this->submissionCredentials()
+            ->forFtp()
+            ->forCountry($countryId)
+            ->active()
+            ->first();
+    }
+
+    /**
+     * Get web credentials for a specific country and target
+     */
+    public function getWebCredentials($countryId, $targetId = null): ?OrganizationSubmissionCredential
+    {
+        $query = $this->submissionCredentials()
+            ->forWeb()
+            ->forCountry($countryId)
+            ->active();
+
+        if ($targetId) {
+            $query->forTarget($targetId);
+        }
+
+        return $query->first();
+    }
+
+    /**
+     * Check if organization has credentials for a specific type and country
+     */
+    public function hasCredentialsFor(string $type, $countryId, $targetId = null): bool
+    {
+        $query = $this->submissionCredentials()
+            ->where('credential_type', $type)
+            ->forCountry($countryId)
+            ->active();
+
+        if ($targetId) {
+            $query->forTarget($targetId);
+        }
+
+        return $query->exists();
+    }
+
+    /**
+     * Check if organization has FTP credentials for a country
+     */
+    public function hasFtpCredentials($countryId): bool
+    {
+        return $this->hasCredentialsFor('ftp', $countryId);
+    }
+
+    /**
+     * Check if organization has web credentials for a country/target
+     */
+    public function hasWebCredentials($countryId, $targetId = null): bool
+    {
+        return $this->hasCredentialsFor('web', $countryId, $targetId);
+    }
+
+    /**
+     * Get all credentials for a specific country
+     */
+    public function getCredentialsForCountry($countryId)
+    {
+        return $this->submissionCredentials()
+            ->forCountry($countryId)
+            ->active()
+            ->with(['country', 'webFormTarget'])
+            ->get();
+    }
+
+    /**
+     * Get the effective FTP credentials (org-level or fall back to trader_id from settings)
+     */
+    public function getEffectiveFtpCredentials($countryId): ?array
+    {
+        $credential = $this->getFtpCredentials($countryId);
+        
+        if ($credential && $credential->hasCompleteFtpCredentials()) {
+            return $credential->getFtpCredentials();
+        }
+
+        return null;
+    }
 }

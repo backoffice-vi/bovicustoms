@@ -120,6 +120,15 @@ class TradeContact extends Model
         return $this->company_name;
     }
 
+    /**
+     * Get trader ID (alias for customs_registration_id)
+     * Used for FTP submission T12 file generation
+     */
+    public function getTraderIdAttribute(): ?string
+    {
+        return $this->customs_registration_id;
+    }
+
     // ==========================================
     // Relationships
     // ==========================================

@@ -723,6 +723,78 @@ class InvoiceController extends Controller
     }
 
     /**
+     * Retry classification for an invoice that failed or is stuck
+     */
+    public function retryClassification(Invoice $invoice)
+    {
+        // Verify the user owns this invoice
+        $user = auth()->user();
+        if ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id) {
+            abort(403, 'Unauthorized access to this invoice.');
+        }
+
+        // Get items from the invoice
+        $items = $invoice->items;
+        if (empty($items)) {
+            // Try to get from InvoiceItems
+            $invoiceItems = InvoiceItem::where('invoice_id', $invoice->id)->get();
+            $items = $invoiceItems->map(function ($item) {
+                return [
+                    'description' => $item->description,
+                    'quantity' => $item->quantity,
+                    'unit_price' => $item->unit_price,
+                    'sku' => $item->sku,
+                    'item_number' => $item->item_number,
+                    'line_number' => $item->line_number,
+                ];
+            })->toArray();
+        }
+
+        if (empty($items)) {
+            return redirect()->route('invoices.show', $invoice)
+                ->with('error', 'No items found to classify. Please re-upload the invoice.');
+        }
+
+        // Reset invoice status
+        $invoice->update(['status' => 'classifying']);
+
+        // Clear any old cached classification data
+        Cache::forget("invoice_classification_{$invoice->id}");
+
+        // Initialize the classification status in cache
+        Cache::put("invoice_classification_{$invoice->id}", [
+            'status' => 'queued',
+            'progress' => 0,
+            'message' => 'Classification job queued for retry...',
+            'started_at' => now()->toIso8601String(),
+        ], now()->addHours(2));
+
+        // Store classification data in session for the AJAX trigger
+        session([
+            'pending_classification' => [
+                'invoice_id' => $invoice->id,
+                'items' => $items,
+                'country_id' => $invoice->country_id,
+                'invoice_header' => [
+                    'invoice_number' => $invoice->invoice_number,
+                    'invoice_date' => $invoice->invoice_date,
+                    'total_amount' => $invoice->total_amount,
+                ],
+            ],
+            'classifying_invoice_id' => $invoice->id,
+            'invoice_country_id' => $invoice->country_id,
+        ]);
+
+        Log::info('Invoice classification retry requested', [
+            'invoice_id' => $invoice->id,
+            'item_count' => count($items),
+        ]);
+
+        return redirect()->route('invoices.classification_status', ['invoice' => $invoice->id])
+            ->with('info', 'Retrying classification...');
+    }
+
+    /**
      * Search customs codes for manual override lookup
      */
     public function searchCustomsCodes(Request $request): JsonResponse

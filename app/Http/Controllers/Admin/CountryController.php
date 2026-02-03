@@ -142,9 +142,19 @@ class CountryController extends Controller
             'is_active' => 'boolean',
             'default_insurance_method' => 'nullable|in:manual,percentage,document',
             'default_insurance_percentage' => 'nullable|numeric|min:0|max:100',
+            // FTP settings
+            'ftp_enabled' => 'boolean',
+            'ftp_host' => 'nullable|string|max:255',
+            'ftp_port' => 'nullable|integer|min:1|max:65535',
+            'ftp_passive_mode' => 'boolean',
+            'ftp_base_path' => 'nullable|string|max:255',
+            'ftp_file_format' => 'nullable|string|max:50',
+            'ftp_notification_email' => 'nullable|email|max:255',
         ]);
 
         $validated['is_active'] = $request->has('is_active');
+        $validated['ftp_enabled'] = $request->has('ftp_enabled');
+        $validated['ftp_passive_mode'] = $request->has('ftp_passive_mode');
 
         $country->update($validated);
 

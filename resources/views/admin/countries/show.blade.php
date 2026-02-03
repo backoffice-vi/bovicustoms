@@ -145,6 +145,16 @@
                 <span class="badge bg-secondary ms-1">{{ $stats['reference_count'] }}</span>
             </button>
         </li>
+        <li class="nav-item" role="presentation">
+            <button class="nav-link" id="ftp-tab" data-bs-toggle="tab" data-bs-target="#ftp" type="button" role="tab">
+                <i class="fas fa-upload me-1"></i> FTP Submission
+                @if($country->isFtpEnabled())
+                    <span class="badge bg-success ms-1"><i class="fas fa-check"></i></span>
+                @else
+                    <span class="badge bg-secondary ms-1"><i class="fas fa-times"></i></span>
+                @endif
+            </button>
+        </li>
     </ul>
 
     <!-- Tab Content -->
@@ -599,6 +609,136 @@
                                 </div>
                             @endforeach
                         </div>
+                    </div>
+                </div>
+            @endif
+        </div>
+
+        <!-- FTP Submission Tab -->
+        <div class="tab-pane fade" id="ftp" role="tabpanel">
+            @if($country->isFtpEnabled())
+                <div class="card border-success">
+                    <div class="card-header bg-success text-white">
+                        <h5 class="mb-0"><i class="fas fa-check-circle me-2"></i>FTP Submission Enabled</h5>
+                    </div>
+                    <div class="card-body">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-muted mb-3">Connection Settings</h6>
+                                <table class="table table-sm">
+                                    <tr>
+                                        <th style="width: 40%;">FTP Host</th>
+                                        <td><code class="fs-6">{{ $country->ftp_host }}</code></td>
+                                    </tr>
+                                    <tr>
+                                        <th>FTP Port</th>
+                                        <td><code>{{ $country->ftp_port ?? 21 }}</code></td>
+                                    </tr>
+                                    <tr>
+                                        <th>Passive Mode</th>
+                                        <td>
+                                            @if($country->ftp_passive_mode)
+                                                <span class="badge bg-info">Yes</span>
+                                            @else
+                                                <span class="badge bg-secondary">No</span>
+                                            @endif
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th>Base Path</th>
+                                        <td><code>{{ $country->ftp_base_path ?? '/' }}</code></td>
+                                    </tr>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-muted mb-3">File Configuration</h6>
+                                <table class="table table-sm">
+                                    <tr>
+                                        <th style="width: 40%;">File Format</th>
+                                        <td>
+                                            <span class="badge bg-primary fs-6">
+                                                {{ strtoupper(str_replace('_', ' ', $country->ftp_file_format ?? 'caps_t12')) }}
+                                            </span>
+                                        </td>
+                                    </tr>
+                                    <tr>
+                                        <th>Notification Email</th>
+                                        <td>{{ $country->ftp_notification_email ?: '-' }}</td>
+                                    </tr>
+                                    <tr>
+                                        <th>Available Methods</th>
+                                        <td>
+                                            @foreach($country->getSubmissionMethods() as $method)
+                                                <span class="badge {{ $method === 'ftp' ? 'bg-success' : 'bg-primary' }} me-1">
+                                                    {{ strtoupper($method) }}
+                                                </span>
+                                            @endforeach
+                                        </td>
+                                    </tr>
+                                </table>
+                            </div>
+                        </div>
+
+                        <hr>
+
+                        <div class="row">
+                            <div class="col-md-6">
+                                <h6 class="text-muted mb-3"><i class="fas fa-file-code me-2"></i>T12 File Format</h6>
+                                <p class="small text-muted">
+                                    The CAPS T12 format is a comma-delimited ASCII text file with the following record types:
+                                </p>
+                                <table class="table table-sm table-bordered">
+                                    <thead class="table-light">
+                                        <tr>
+                                            <th>Record</th>
+                                            <th>Description</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody>
+                                        <tr><td><code>R10</code></td><td>Header (supplier, importer, carrier, dates)</td></tr>
+                                        <tr><td><code>R25</code></td><td>Container information</td></tr>
+                                        <tr><td><code>R26</code></td><td>Header additional info</td></tr>
+                                        <tr><td><code>R30</code></td><td>Item/record (tariff, origin, values)</td></tr>
+                                        <tr><td><code>R40</code></td><td>Charges & deductions per item</td></tr>
+                                        <tr><td><code>R50</code></td><td>Tax records per item</td></tr>
+                                        <tr><td><code>R60</code></td><td>Item additional info</td></tr>
+                                        <tr><td><code>R70</code></td><td>Trailer (line count)</td></tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                            <div class="col-md-6">
+                                <h6 class="text-muted mb-3"><i class="fas fa-file-signature me-2"></i>File Naming Convention</h6>
+                                <p class="small text-muted">Files are named using the following format:</p>
+                                <div class="bg-light p-3 rounded mb-3">
+                                    <code class="fs-6">[TraderID:6][DDMMYYYY:8].[SEQ:3]</code>
+                                </div>
+                                <p class="small text-muted">Example: <code>123456030220026.001</code></p>
+                                <ul class="small text-muted">
+                                    <li><strong>123456</strong> - 6-digit Trader ID</li>
+                                    <li><strong>03022026</strong> - Date (3rd Feb 2026)</li>
+                                    <li><strong>.001</strong> - Sequence number</li>
+                                </ul>
+
+                                <div class="alert alert-info mt-3">
+                                    <i class="fas fa-info-circle me-2"></i>
+                                    <strong>For Organizations:</strong><br>
+                                    <small>Configure FTP credentials in Settings → Submission Credentials to enable FTP submission for your declarations.</small>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            @else
+                <div class="card">
+                    <div class="card-body text-center py-5">
+                        <i class="fas fa-upload fa-4x text-muted mb-3"></i>
+                        <h4 class="text-muted">FTP Submission Not Configured</h4>
+                        <p class="text-muted mb-4">
+                            FTP submission is not enabled for this country. Enable it to allow organizations to submit declarations via FTP.
+                        </p>
+                        <a href="{{ route('admin.countries.edit', $country) }}" class="btn btn-primary">
+                            <i class="fas fa-cog me-2"></i>Configure FTP Settings
+                        </a>
                     </div>
                 </div>
             @endif
