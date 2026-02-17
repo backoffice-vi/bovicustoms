@@ -90,7 +90,7 @@ class FtpSubmissionService
 
             // Update submission as successful
             $submission->update([
-                'status' => 'success',
+                'status' => 'submitted',
                 'is_successful' => true,
                 'external_reference' => $t12Data['filename'],
                 'response_data' => [
