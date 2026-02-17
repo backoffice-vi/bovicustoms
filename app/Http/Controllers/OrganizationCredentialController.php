@@ -264,6 +264,72 @@ class OrganizationCredentialController extends Controller
     }
 
     /**
+     * Test connection with provided credentials before saving
+     */
+    public function testUnsavedConnection(Request $request)
+    {
+        $user = auth()->user();
+        $organization = $user->organization;
+
+        if (!$organization) {
+            return response()->json([
+                'success' => false,
+                'message' => 'You must be part of an organization to test credentials.',
+            ]);
+        }
+
+        $validated = $request->validate([
+            'country_id' => 'required|exists:countries,id',
+            'credential_type' => 'required|in:ftp,web',
+            'username' => 'required|string',
+            'password' => 'required|string',
+            'trader_id' => 'nullable|required_if:credential_type,ftp|string|max:10',
+        ]);
+
+        $country = Country::findOrFail($validated['country_id']);
+
+        if ($validated['credential_type'] === 'ftp') {
+            if (!$country->isFtpEnabled()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'FTP is not enabled for this country.',
+                ]);
+            }
+
+            $tempCredential = new OrganizationSubmissionCredential([
+                'credential_type' => 'ftp',
+                'trader_id' => $validated['trader_id'],
+                'credentials' => [
+                    'username' => $validated['username'],
+                    'password' => $validated['password'],
+                    'trader_id' => $validated['trader_id'],
+                ],
+            ]);
+
+            try {
+                $result = $this->ftpService->testConnection($country, $tempCredential);
+                return response()->json($result);
+            } catch (\Exception $e) {
+                Log::error('FTP test connection failed', [
+                    'organization_id' => $organization->id,
+                    'error' => $e->getMessage(),
+                ]);
+
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Connection test failed: ' . $e->getMessage(),
+                ]);
+            }
+        }
+
+        // Web credential test (placeholder)
+        return response()->json([
+            'success' => true,
+            'message' => 'Web credentials format appears valid. Full verification requires a submission attempt.',
+        ]);
+    }
+
+    /**
      * Get web form targets for a country (AJAX)
      */
     public function getTargetsForCountry(Request $request)

@@ -74,6 +74,8 @@ class FtpTestController extends Controller
 
         // Create a temporary credential object for testing
         $tempCredential = new OrganizationSubmissionCredential([
+            'credential_type' => 'ftp',
+            'trader_id' => $validated['trader_id'],
             'credentials' => [
                 'username' => $validated['username'],
                 'password' => $validated['password'],
@@ -165,11 +167,10 @@ class FtpTestController extends Controller
         try {
             // The generator handles its own relationship loading with proper scope bypassing
             $result = $this->t12Generator->generate($declaration, $tempCredential);
-            $filename = $this->t12Generator->generateFilename($traderId);
 
             return response($result['content'])
                 ->header('Content-Type', 'text/plain')
-                ->header('Content-Disposition', 'attachment; filename="' . $filename . '"');
+                ->header('Content-Disposition', 'attachment; filename="' . $result['filename'] . '"');
         } catch (\Exception $e) {
             return back()->with('error', 'Failed to generate T12 file: ' . $e->getMessage());
         }
@@ -209,6 +210,7 @@ class FtpTestController extends Controller
 
         // Create a temporary credential object
         $tempCredential = new OrganizationSubmissionCredential([
+            'credential_type' => 'ftp',
             'trader_id' => $validated['trader_id'],
             'credentials' => [
                 'username' => $validated['username'],
@@ -218,13 +220,13 @@ class FtpTestController extends Controller
         ]);
 
         try {
-            $result = $this->ftpService->submit($declaration, $tempCredential);
+            $submission = $this->ftpService->submit($declaration, $tempCredential);
 
             return response()->json([
-                'success' => $result['success'],
-                'message' => $result['message'] ?? ($result['success'] ? 'FTP submission successful!' : 'FTP submission failed'),
-                'filename' => $result['filename'] ?? null,
-                'submission_id' => $result['submission_id'] ?? null,
+                'success' => $submission->is_successful,
+                'message' => $submission->is_successful ? 'FTP submission successful!' : ('FTP submission failed: ' . $submission->error_message),
+                'filename' => $submission->external_reference,
+                'submission_id' => $submission->id,
             ]);
         } catch (\Exception $e) {
             Log::error('Admin FTP submission failed', [

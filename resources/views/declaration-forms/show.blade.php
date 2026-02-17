@@ -24,6 +24,11 @@
                     <i class="fas fa-cloud-upload-alt me-2"></i>Submit to Portal
                 </a>
             @endif
+            @if($declarationForm->country && $declarationForm->country->isFtpEnabled())
+                <a href="{{ route('ftp-submission.index', $declarationForm) }}" class="btn btn-info">
+                    <i class="fas fa-upload me-2"></i>Submit via FTP
+                </a>
+            @endif
             <a href="{{ route('declaration-forms.index') }}" class="btn btn-outline-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Back
             </a>

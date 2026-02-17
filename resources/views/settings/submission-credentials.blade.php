@@ -263,11 +263,16 @@
                     </div>
                 </div>
                 
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary">
-                        <i class="fas fa-save me-1"></i><span id="submitBtnText">Save Credentials</span>
+                <div class="modal-footer justify-content-between">
+                    <button type="button" class="btn btn-info text-white" id="testConnectionBtn" onclick="testUnsavedCredential()">
+                        <i class="fas fa-plug me-1"></i>Test Connection
                     </button>
+                    <div>
+                        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-save me-1"></i><span id="submitBtnText">Save Credentials</span>
+                        </button>
+                    </div>
                 </div>
             </form>
         </div>
@@ -490,6 +495,70 @@
         .catch(error => {
             document.getElementById('testResultHeader').className = 'modal-header bg-danger text-white';
             document.getElementById('testResultContent').innerHTML = '<div class="text-center"><i class="fas fa-times-circle fa-3x text-danger mb-3"></i><h5>Error</h5><p>Failed to test connection. Please try again.</p></div>';
+        });
+    }
+
+    window.testUnsavedCredential = function() {
+        const countryId = document.getElementById('country_id').value;
+        const type = document.getElementById('credential_type').value;
+        const username = document.getElementById('username').value;
+        const password = document.getElementById('password').value;
+        const traderId = document.getElementById('trader_id').value;
+
+        if (!countryId || !type || !username || !password) {
+            alert('Please fill in Country, Type, Username, and Password before testing.');
+            return;
+        }
+        if (type === 'ftp' && !traderId) {
+            alert('Trader ID is required to test FTP credentials.');
+            return;
+        }
+
+        const btn = document.getElementById('testConnectionBtn');
+        btn.disabled = true;
+        btn.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Testing...';
+
+        const modal = new bootstrap.Modal(document.getElementById('testResultModal'));
+        document.getElementById('testResultContent').innerHTML = '<div class="text-center"><i class="fas fa-spinner fa-spin fa-2x"></i><p class="mt-2">Testing connection...</p></div>';
+        document.getElementById('testResultHeader').className = 'modal-header';
+        modal.show();
+
+        fetch('{{ route("settings.submission-credentials.test-connection") }}', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': '{{ csrf_token() }}',
+                'Accept': 'application/json',
+            },
+            body: JSON.stringify({
+                country_id: countryId,
+                credential_type: type,
+                username: username,
+                password: password,
+                trader_id: traderId,
+            }),
+        })
+        .then(response => response.json())
+        .then(data => {
+            const header = document.getElementById('testResultHeader');
+            const content = document.getElementById('testResultContent');
+
+            if (data.success) {
+                header.className = 'modal-header bg-success text-white';
+                content.innerHTML = '<div class="text-center"><i class="fas fa-check-circle fa-3x text-success mb-3"></i><h5>Connection Successful!</h5><p>' + data.message + '</p></div>';
+            } else {
+                header.className = 'modal-header bg-danger text-white';
+                content.innerHTML = '<div class="text-center"><i class="fas fa-times-circle fa-3x text-danger mb-3"></i><h5>Connection Failed</h5><p>' + (data.message || 'Unknown error') + '</p></div>';
+            }
+        })
+        .catch(error => {
+            console.error('Test error:', error);
+            document.getElementById('testResultHeader').className = 'modal-header bg-danger text-white';
+            document.getElementById('testResultContent').innerHTML = '<div class="text-center"><i class="fas fa-times-circle fa-3x text-danger mb-3"></i><h5>Error</h5><p>Failed to communicate with server. Please try again.</p></div>';
+        })
+        .finally(() => {
+            btn.disabled = false;
+            btn.innerHTML = '<i class="fas fa-plug me-1"></i>Test Connection';
         });
     }
 

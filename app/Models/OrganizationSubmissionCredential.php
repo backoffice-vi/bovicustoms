@@ -237,7 +237,9 @@ class OrganizationSubmissionCredential extends Model
      */
     public function markUsed(): void
     {
-        $this->update(['last_used_at' => now()]);
+        if ($this->exists) {
+            $this->update(['last_used_at' => now()]);
+        }
     }
 
     /**
@@ -245,7 +247,9 @@ class OrganizationSubmissionCredential extends Model
      */
     public function markTested(): void
     {
-        $this->update(['last_tested_at' => now()]);
+        if ($this->exists) {
+            $this->update(['last_tested_at' => now()]);
+        }
     }
 
     /**

@@ -195,6 +195,7 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         
         // Submission Credentials (FTP and Web portal)
         Route::get('/submission-credentials', [App\Http\Controllers\OrganizationCredentialController::class, 'index'])->name('submission-credentials');
+        Route::post('/submission-credentials/test-connection', [App\Http\Controllers\OrganizationCredentialController::class, 'testUnsavedConnection'])->name('submission-credentials.test-connection');
         Route::post('/submission-credentials', [App\Http\Controllers\OrganizationCredentialController::class, 'store'])->name('submission-credentials.store');
         Route::put('/submission-credentials/{credential}', [App\Http\Controllers\OrganizationCredentialController::class, 'update'])->name('submission-credentials.update');
         Route::delete('/submission-credentials/{credential}', [App\Http\Controllers\OrganizationCredentialController::class, 'destroy'])->name('submission-credentials.destroy');

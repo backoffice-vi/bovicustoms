@@ -385,31 +385,53 @@ class CapsT12Generator
     /**
      * Get declaration items in a normalized format
      */
+    /**
+     * Look up duty data for an item, trying the exact description first,
+     * then the composite key (description|fob_value) for duplicates.
+     */
+    protected function findDutyData(array $dutyLookup, string $description, float $fobValue = 0): array
+    {
+        if (isset($dutyLookup[$description])) {
+            return $dutyLookup[$description];
+        }
+        // Try composite key used when duplicate descriptions exist
+        $compositeKey = $description . '|' . $fobValue;
+        if (isset($dutyLookup[$compositeKey])) {
+            return $dutyLookup[$compositeKey];
+        }
+        return [];
+    }
+
     protected function getDeclarationItems(DeclarationForm $declaration): array
     {
         $items = [];
+        
+        // Build lookup map from duty_breakdown for duty/tax data by description
+        $dutyLookup = $this->buildDutyLookup($declaration);
 
         // First try declaration items
         if ($declaration->declarationItems && $declaration->declarationItems->count() > 0) {
             foreach ($declaration->declarationItems as $declItem) {
+                $dutyData = $this->findDutyData($dutyLookup, $declItem->description, (float) ($declItem->line_total ?? 0));
+                
                 $items[] = [
-                    'tariff_number' => $declItem->hs_code ?? $declItem->tariff_code,
+                    'tariff_number' => $declItem->hs_code ?? $dutyData['tariff_code'] ?? '',
                     'description' => $declItem->description,
-                    'quantity' => $declItem->quantity ?? 1,
+                    'quantity' => $declItem->quantity ?? $dutyData['quantity'] ?? 1,
                     'units' => $declItem->unit_of_measure ?? 'EA',
-                    'fob_value' => $declItem->fob_value ?? $declItem->value,
-                    'cif_value' => $declItem->cif_value ?? $declItem->fob_value ?? $declItem->value,
-                    'customs_duty' => $declItem->customs_duty ?? 0,
-                    'duty_rate' => $declItem->duty_rate ?? 0,
-                    'wharfage' => $declItem->wharfage ?? 0,
-                    'net_weight' => $declItem->net_weight ?? 0,
-                    'packages' => $declItem->packages ?? 1,
-                    'package_type' => $declItem->package_type ?? '',
-                    'country_of_origin' => $declItem->country_of_origin ?? $declaration->country_of_origin,
-                    'freight_amount' => $declItem->freight_amount ?? 0,
-                    'insurance_amount' => $declItem->insurance_amount ?? 0,
-                    'total_due' => $declItem->total_duty ?? 0,
-                    'other_levies' => $declItem->other_levies ?? [],
+                    'fob_value' => $dutyData['fob_value'] ?? $declItem->line_total ?? 0,
+                    'cif_value' => $dutyData['cif_value'] ?? $declItem->line_total ?? 0,
+                    'customs_duty' => $dutyData['customs_duty'] ?? 0,
+                    'duty_rate' => $dutyData['duty_rate'] ?? 0,
+                    'wharfage' => $dutyData['wharfage'] ?? 0,
+                    'net_weight' => $dutyData['net_weight'] ?? 0,
+                    'packages' => $dutyData['packages'] ?? 1,
+                    'package_type' => $dutyData['package_type'] ?? '',
+                    'country_of_origin' => $dutyData['country_of_origin'] ?? $declaration->country_of_origin,
+                    'freight_amount' => $dutyData['freight_amount'] ?? 0,
+                    'insurance_amount' => $dutyData['insurance_amount'] ?? 0,
+                    'total_due' => $dutyData['total_due'] ?? 0,
+                    'other_levies' => $dutyData['other_levies'] ?? [],
                     'additional_info' => [],
                 ];
             }
@@ -417,23 +439,26 @@ class CapsT12Generator
         // Fall back to invoice items
         elseif ($declaration->invoice && $declaration->invoice->invoiceItems) {
             foreach ($declaration->invoice->invoiceItems as $invoiceItem) {
+                $itemFob = (float) ($invoiceItem->total_value ?? ($invoiceItem->unit_price * ($invoiceItem->quantity ?? 1)));
+                $dutyData = $this->findDutyData($dutyLookup, $invoiceItem->description, $itemFob);
+                
                 $items[] = [
-                    'tariff_number' => $invoiceItem->classified_hs_code ?? $invoiceItem->hs_code,
+                    'tariff_number' => $invoiceItem->classified_hs_code ?? $invoiceItem->hs_code ?? $dutyData['tariff_code'] ?? '',
                     'description' => $invoiceItem->description,
-                    'quantity' => $invoiceItem->quantity ?? 1,
+                    'quantity' => $invoiceItem->quantity ?? $dutyData['quantity'] ?? 1,
                     'units' => $invoiceItem->unit_of_measure ?? 'EA',
-                    'fob_value' => $invoiceItem->total_value ?? ($invoiceItem->unit_price * ($invoiceItem->quantity ?? 1)),
-                    'cif_value' => $invoiceItem->cif_value ?? $invoiceItem->total_value,
-                    'customs_duty' => $invoiceItem->customs_duty ?? 0,
-                    'duty_rate' => $invoiceItem->duty_rate ?? 0,
-                    'wharfage' => $invoiceItem->wharfage ?? 0,
+                    'fob_value' => $dutyData['fob_value'] ?? $itemFob,
+                    'cif_value' => $dutyData['cif_value'] ?? $invoiceItem->total_value ?? 0,
+                    'customs_duty' => $dutyData['customs_duty'] ?? 0,
+                    'duty_rate' => $dutyData['duty_rate'] ?? 0,
+                    'wharfage' => $dutyData['wharfage'] ?? 0,
                     'net_weight' => $invoiceItem->weight ?? 0,
                     'packages' => 1,
                     'package_type' => '',
                     'country_of_origin' => $invoiceItem->country_of_origin ?? $declaration->country_of_origin,
-                    'freight_amount' => 0,
-                    'insurance_amount' => 0,
-                    'total_due' => $invoiceItem->total_duty ?? 0,
+                    'freight_amount' => $dutyData['freight_amount'] ?? 0,
+                    'insurance_amount' => $dutyData['insurance_amount'] ?? 0,
+                    'total_due' => $dutyData['total_due'] ?? 0,
                     'other_levies' => [],
                     'additional_info' => [],
                 ];
@@ -442,23 +467,25 @@ class CapsT12Generator
         // Fall back to items JSON field
         elseif (!empty($declaration->items) && is_array($declaration->items)) {
             foreach ($declaration->items as $item) {
+                $dutyData = $this->findDutyData($dutyLookup, $item['description'] ?? '', (float) ($item['fob_value'] ?? $item['value'] ?? 0));
+                
                 $items[] = [
-                    'tariff_number' => $item['tariff_code'] ?? $item['hs_code'] ?? '',
+                    'tariff_number' => $item['tariff_code'] ?? $item['hs_code'] ?? $dutyData['tariff_code'] ?? '',
                     'description' => $item['description'] ?? '',
-                    'quantity' => $item['quantity'] ?? 1,
+                    'quantity' => $item['quantity'] ?? $dutyData['quantity'] ?? 1,
                     'units' => $item['units'] ?? 'EA',
-                    'fob_value' => $item['fob_value'] ?? $item['value'] ?? 0,
-                    'cif_value' => $item['cif_value'] ?? $item['fob_value'] ?? $item['value'] ?? 0,
-                    'customs_duty' => $item['customs_duty'] ?? 0,
-                    'duty_rate' => $item['duty_rate'] ?? 0,
-                    'wharfage' => $item['wharfage'] ?? 0,
+                    'fob_value' => $dutyData['fob_value'] ?? $item['fob_value'] ?? $item['value'] ?? 0,
+                    'cif_value' => $dutyData['cif_value'] ?? $item['cif_value'] ?? $item['fob_value'] ?? $item['value'] ?? 0,
+                    'customs_duty' => $dutyData['customs_duty'] ?? $item['customs_duty'] ?? 0,
+                    'duty_rate' => $dutyData['duty_rate'] ?? $item['duty_rate'] ?? 0,
+                    'wharfage' => $dutyData['wharfage'] ?? $item['wharfage'] ?? 0,
                     'net_weight' => $item['net_weight'] ?? 0,
                     'packages' => $item['packages'] ?? 1,
                     'package_type' => $item['package_type'] ?? '',
                     'country_of_origin' => $item['country_of_origin'] ?? $declaration->country_of_origin,
-                    'freight_amount' => $item['freight'] ?? 0,
-                    'insurance_amount' => $item['insurance'] ?? 0,
-                    'total_due' => $item['total_duty'] ?? 0,
+                    'freight_amount' => $dutyData['freight_amount'] ?? $item['freight'] ?? 0,
+                    'insurance_amount' => $dutyData['insurance_amount'] ?? $item['insurance'] ?? 0,
+                    'total_due' => $dutyData['total_due'] ?? $item['total_duty'] ?? 0,
                     'other_levies' => $item['other_levies'] ?? [],
                     'additional_info' => [],
                 ];
@@ -466,6 +493,79 @@ class CapsT12Generator
         }
 
         return $items;
+    }
+    
+    /**
+     * Build a lookup map of duty data by item description from duty_breakdown
+     */
+    protected function buildDutyLookup(DeclarationForm $declaration): array
+    {
+        $lookup = [];
+        
+        if (empty($declaration->duty_breakdown) || !is_array($declaration->duty_breakdown)) {
+            return $lookup;
+        }
+        
+        // Calculate wharfage rate (typically 1% of CIF in BVI)
+        $wharfageRate = 0.01;
+        
+        foreach ($declaration->duty_breakdown as $tariffGroup) {
+            $tariffCode = $tariffGroup['tariff_code'] ?? '';
+            $dutyRate = $tariffGroup['duty_rate'] ?? 0;
+            $itemCount = $tariffGroup['item_count'] ?? count($tariffGroup['items'] ?? []);
+            
+            // Per-item values for freight/insurance (prorated within tariff group)
+            $groupTotalFob = $tariffGroup['total_fob'] ?? 0;
+            $groupTotalFreight = $tariffGroup['total_freight'] ?? 0;
+            $groupTotalInsurance = $tariffGroup['total_insurance'] ?? 0;
+            $groupTotalDuty = $tariffGroup['total_duty'] ?? 0;
+            
+            if (!empty($tariffGroup['items'])) {
+                foreach ($tariffGroup['items'] as $item) {
+                    $description = $item['description'] ?? '';
+                    $fobValue = $item['fob_value'] ?? 0;
+                    $cifValue = $item['cif_value'] ?? $fobValue;
+                    
+                    // Calculate prorated freight/insurance based on FOB proportion
+                    $fobProportion = $groupTotalFob > 0 ? ($fobValue / $groupTotalFob) : (1 / max(1, $itemCount));
+                    $itemFreight = $groupTotalFreight * $fobProportion;
+                    $itemInsurance = $groupTotalInsurance * $fobProportion;
+                    
+                    // Calculate item duty based on CIF and rate
+                    $itemDuty = $cifValue * ($dutyRate / 100);
+                    
+                    // Calculate wharfage
+                    $itemWharfage = $cifValue * $wharfageRate;
+                    
+                    $dutyEntry = [
+                        'tariff_code' => $tariffCode,
+                        'duty_rate' => $dutyRate,
+                        'quantity' => $item['quantity'] ?? 1,
+                        'fob_value' => $fobValue,
+                        'cif_value' => $cifValue,
+                        'customs_duty' => round($itemDuty, 2),
+                        'wharfage' => round($itemWharfage, 2),
+                        'freight_amount' => round($itemFreight, 2),
+                        'insurance_amount' => round($itemInsurance, 2),
+                        'total_due' => round($itemDuty + $itemWharfage, 2),
+                        'net_weight' => 0,
+                        'packages' => 1,
+                        'package_type' => '',
+                        'country_of_origin' => '',
+                        'other_levies' => [],
+                    ];
+                    
+                    // Use description as primary key; on collision, add fob_value to disambiguate
+                    $key = $description;
+                    if (isset($lookup[$key])) {
+                        $key = $description . '|' . $fobValue;
+                    }
+                    $lookup[$key] = $dutyEntry;
+                }
+            }
+        }
+        
+        return $lookup;
     }
 
     /**
