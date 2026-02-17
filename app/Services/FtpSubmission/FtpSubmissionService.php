@@ -314,8 +314,8 @@ class FtpSubmissionService
     {
         $basePath = rtrim($ftpSettings['base_path'] ?? '', '/');
         
-        // CAPS expects files in trader-specific directories
-        return "{$basePath}/{$traderId}/{$filename}";
+        // Upload directly to the base path (root)
+        return "{$basePath}/{$filename}";
     }
 
     /**
