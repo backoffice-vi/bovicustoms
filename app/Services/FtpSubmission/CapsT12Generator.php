@@ -2,6 +2,7 @@
 
 namespace App\Services\FtpSubmission;
 
+use App\Models\CountryReferenceData;
 use App\Models\DeclarationForm;
 use App\Models\OrganizationSubmissionCredential;
 use Carbon\Carbon;
@@ -28,6 +29,16 @@ class CapsT12Generator
     protected const LINE_ENDING = "\r\n";
 
     /**
+     * Country ID for reference data lookups
+     */
+    protected ?int $countryId = null;
+
+    /**
+     * Cache of reference data lookups to avoid repeated DB queries
+     */
+    protected array $refCache = [];
+
+    /**
      * Generate a T12 file content from a declaration
      */
     public function generate(DeclarationForm $declaration, OrganizationSubmissionCredential $credentials): array
@@ -42,6 +53,10 @@ class CapsT12Generator
             'invoice.invoiceItems' => fn($q) => $q->withoutGlobalScopes(),
             'organization',
         ]);
+
+        // Set country ID for reference data lookups and reset cache
+        $this->countryId = $declaration->country_id;
+        $this->refCache = [];
 
         $ftpCreds = $credentials->getFtpCredentials();
         $traderId = $ftpCreds['trader_id'] ?? '';
@@ -165,9 +180,9 @@ class CapsT12Generator
             $this->formatField($importer?->address_line_1, 30),            // Importer Address 1
             $this->formatField($importer?->address_line_2 ?? $importer?->city, 40), // Importer Address 2
             $this->formatField($importer?->postal_code, 9),                // Importer Post Code
-            $this->formatField($declaration->carrier_name, 3),             // Carrier ID (3 chars - vessel code)
-            $this->formatField($declaration->vessel_name, 10),             // Carrier No.
-            $this->formatField($declaration->port_of_arrival, 3),          // Port of Arrival (3 char code)
+            $this->mapCarrierCode($declaration->carrier_name),                 // Carrier ID (3 char code)
+            $this->formatField($declaration->vessel_name, 10),             // Carrier No. (vessel name/number)
+            $this->mapPortCode($declaration->port_of_arrival),             // Port of Arrival (CAPS port code)
             $this->formatDate($declaration->arrival_date),                 // Arrival Date (DD/MM/YYYY)
             $this->formatField($declaration->manifest_number, 20),         // Manifest No.
             $this->formatNumber($declaration->total_packages ?? 1, 6),     // No. of Packages
@@ -181,7 +196,7 @@ class CapsT12Generator
             $this->formatDecimal($declaration->insurance_total ?? 0, 11, 2), // Total Insurance
             $declaration->insurance_prorated ? 'Y' : 'N',                  // Is Insurance Prorated?
             $this->formatDecimal($declaration->total_duty ?? 0, 11, 2),    // Total Payable
-            $this->formatField('', 3),                                     // Payment method code (optional for imports)
+            $this->mapPaymentMethod($declaration->payment_method),           // Payment method code (from reference data)
             $this->formatField($ftpCreds['email'] ?? '', 30),              // Declarant Person Name
             $this->formatField($declaration->organization?->trader_id ?? $traderId, 6), // Declarant Company ID
             $this->formatDate($declaration->declaration_date ?? now()),    // Declarant Date
@@ -246,15 +261,15 @@ class CapsT12Generator
     {
         $fields = [
             'R30',                                                  // Record Type
-            $this->formatField($declaration->cpc_code ?? 'C400', 4), // CPC Code (4 chars)
+            $this->mapCpcCode($declaration->cpc_code),                 // CPC Code (4 chars, from reference data)
             $this->formatTariffNumber($item['tariff_number'] ?? ''), // Tariff Number (7 digits, no periods)
             $this->formatCountryCode($item['country_of_origin'] ?? $declaration->country_of_origin), // Country of Origin
             $this->formatNumber($item['packages'] ?? 1, 6),        // No. of Packages
-            $this->formatField($item['package_type'] ?? '', 10),   // Type of Packages
+            $this->mapPackageType($item['package_type'] ?? ''),    // Type of Packages (CAPS code)
             $this->formatField($item['description'] ?? '', 200),   // Description
             $this->formatDecimal($item['net_weight'] ?? 0, 11, 2), // Net Weight
             $this->formatDecimal($item['quantity'] ?? 1, 11, 2),   // Quantity
-            $this->formatField($item['units'] ?? '', 3),           // Units
+            $this->mapUnitCode($item['units'] ?? ''),              // Units (CAPS unit code)
             $this->formatDecimal($item['fob_value'] ?? 0, 11, 2),  // FOB Value
             $this->formatDecimal($item['cif_value'] ?? $item['fob_value'] ?? 0, 11, 2), // CIF Value
             $this->formatDecimal($item['total_due'] ?? 0, 11, 2),  // Total Due
@@ -274,7 +289,7 @@ class CapsT12Generator
         if (!empty($item['freight_amount']) && $item['freight_amount'] > 0) {
             $fields = [
                 'R40',                                              // Record Type
-                'FRT',                                              // Charge/Deduction Code (Freight)
+                $this->mapChargeCode('FRT'),                        // Charge/Deduction Code (Freight)
                 $this->formatDecimal($item['freight_amount'], 11, 2), // Amount
             ];
             $lines[] = implode(',', $fields);
@@ -284,7 +299,7 @@ class CapsT12Generator
         if (!empty($item['insurance_amount']) && $item['insurance_amount'] > 0) {
             $fields = [
                 'R40',                                              // Record Type
-                'INS',                                              // Charge/Deduction Code (Insurance)
+                $this->mapChargeCode('INS'),                        // Charge/Deduction Code (Insurance)
                 $this->formatDecimal($item['insurance_amount'], 11, 2), // Amount
             ];
             $lines[] = implode(',', $fields);
@@ -304,7 +319,7 @@ class CapsT12Generator
         if (!empty($item['customs_duty']) && $item['customs_duty'] > 0) {
             $fields = [
                 'R50',                                              // Record Type
-                'CUD',                                              // Tax Type (Custom Duty)
+                $this->mapTaxType('CUD'),                           // Tax Type (Custom Duty, from reference data)
                 '',                                                 // Exemption Indicator (E if exempt)
                 $this->formatDecimal($item['cif_value'] ?? 0, 11, 2), // Value for Tax
                 $this->formatDecimal($item['duty_rate'] ?? 0, 7, 3), // Tax Rate
@@ -317,7 +332,7 @@ class CapsT12Generator
         if (!empty($item['wharfage']) && $item['wharfage'] > 0) {
             $fields = [
                 'R50',                                              // Record Type
-                'WHA',                                              // Tax Type (Wharfage)
+                $this->mapTaxType('WHA'),                           // Tax Type (Wharfage, from reference data)
                 '',                                                 // Exemption Indicator
                 $this->formatDecimal($item['cif_value'] ?? 0, 11, 2), // Value for Tax
                 $this->formatDecimal(1.00, 7, 3),                   // Tax Rate (usually 1%)
@@ -331,8 +346,8 @@ class CapsT12Generator
             foreach ($item['other_levies'] as $levy) {
                 $fields = [
                     'R50',
-                    $this->formatField($levy['code'] ?? 'OTH', 3),
-                    $levy['exempt'] ? 'E' : '',
+                    $this->mapTaxType($levy['code'] ?? 'OTH'),
+                    !empty($levy['exempt']) ? 'E' : '',
                     $this->formatDecimal($levy['value'] ?? 0, 11, 2),
                     $this->formatDecimal($levy['rate'] ?? 0, 7, 3),
                     $this->formatDecimal($levy['amount'] ?? 0, 11, 2),
@@ -617,6 +632,156 @@ class CapsT12Generator
     }
 
     // ==========================================
+    // Code Mapping Helpers (uses CountryReferenceData from DB)
+    // ==========================================
+
+    /**
+     * Look up a CAPS reference code from the database.
+     * Caches results per type+value to avoid repeated queries.
+     */
+    protected function lookupReferenceCode(string $type, ?string $value, string $fallback = ''): string
+    {
+        if (empty($value) || !$this->countryId) {
+            return $fallback;
+        }
+
+        $cacheKey = $type . '|' . strtolower(trim($value));
+
+        if (isset($this->refCache[$cacheKey])) {
+            return $this->refCache[$cacheKey];
+        }
+
+        $ref = CountryReferenceData::findByLocalMatch($this->countryId, $type, $value);
+
+        $code = $ref ? $ref->code : $fallback;
+        $this->refCache[$cacheKey] = $code;
+
+        return $code;
+    }
+
+    /**
+     * Map port name to CAPS port code via reference data
+     */
+    protected function mapPortCode(?string $port): string
+    {
+        return $this->lookupReferenceCode(CountryReferenceData::TYPE_PORT, $port, '');
+    }
+
+    /**
+     * Map carrier/vessel name to CAPS carrier code via reference data
+     */
+    protected function mapCarrierCode(?string $carrier): string
+    {
+        return $this->lookupReferenceCode(CountryReferenceData::TYPE_CARRIER, $carrier, '');
+    }
+
+    /**
+     * Map unit of measure to CAPS unit code via reference data
+     */
+    protected function mapUnitCode(?string $unit): string
+    {
+        return $this->lookupReferenceCode(CountryReferenceData::TYPE_UNIT, $unit, 'EA');
+    }
+
+    /**
+     * Map CPC code via reference data, default to C400 (Release to Free Circulation)
+     */
+    protected function mapCpcCode(?string $cpc): string
+    {
+        if (!empty($cpc)) {
+            $code = $this->lookupReferenceCode(CountryReferenceData::TYPE_CPC, $cpc, '');
+            if (!empty($code)) {
+                return $code;
+            }
+            // Already a valid short code
+            if (strlen(trim($cpc)) <= 4) {
+                return strtoupper(trim($cpc));
+            }
+        }
+
+        // Look up default CPC from reference data
+        if ($this->countryId) {
+            $default = CountryReferenceData::where('country_id', $this->countryId)
+                ->ofType(CountryReferenceData::TYPE_CPC)
+                ->default()
+                ->first();
+            if ($default) {
+                return $default->code;
+            }
+        }
+
+        return 'C400';
+    }
+
+    /**
+     * Map payment method via reference data
+     */
+    protected function mapPaymentMethod(?string $method): string
+    {
+        if (!empty($method)) {
+            $code = $this->lookupReferenceCode(CountryReferenceData::TYPE_PAYMENT_METHOD, $method, '');
+            if (!empty($code)) {
+                return $code;
+            }
+            if (strlen(trim($method)) <= 3) {
+                return strtoupper(trim($method));
+            }
+        }
+
+        // Look up default payment method from reference data
+        if ($this->countryId) {
+            $default = CountryReferenceData::where('country_id', $this->countryId)
+                ->ofType(CountryReferenceData::TYPE_PAYMENT_METHOD)
+                ->default()
+                ->first();
+            if ($default) {
+                return $default->code;
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Validate/map charge code against reference data
+     */
+    protected function mapChargeCode(?string $code): string
+    {
+        if (empty($code)) {
+            return 'OTH';
+        }
+        $mapped = $this->lookupReferenceCode(CountryReferenceData::TYPE_CHARGE_CODE, $code, '');
+        return !empty($mapped) ? $mapped : strtoupper(trim($code));
+    }
+
+    /**
+     * Validate/map tax type against reference data
+     */
+    protected function mapTaxType(?string $code): string
+    {
+        if (empty($code)) {
+            return '';
+        }
+        $mapped = $this->lookupReferenceCode(CountryReferenceData::TYPE_TAX_TYPE, $code, '');
+        return !empty($mapped) ? $mapped : strtoupper(trim($code));
+    }
+
+    /**
+     * Map package type -- not a separate reference type, so use a simple fallback
+     */
+    protected function mapPackageType(?string $type): string
+    {
+        if (empty($type)) {
+            return '';
+        }
+        // If it's already a short code, return as-is
+        if (strlen(trim($type)) <= 3) {
+            return strtoupper(trim($type));
+        }
+        return strtoupper(substr(trim($type), 0, 3));
+    }
+
+    // ==========================================
     // Formatting Helpers
     // ==========================================
 
@@ -671,6 +836,7 @@ class CapsT12Generator
 
     /**
      * Format country code (2 characters, ISO 3166-1 alpha-2)
+     * Uses CountryReferenceData for lookups, with ISO fallback
      */
     protected function formatCountryCode(?string $code): string
     {
@@ -678,25 +844,29 @@ class CapsT12Generator
             return '';
         }
 
-        // Convert 3-letter to 2-letter if needed
         $code = strtoupper(trim($code));
-        
-        // Common 3-letter to 2-letter mappings
-        $mappings = [
-            'USA' => 'US',
-            'GBR' => 'GB',
-            'VGB' => 'VG',
-            'CHN' => 'CN',
-            'JPN' => 'JP',
-            'DEU' => 'DE',
-            'FRA' => 'FR',
-            'ITA' => 'IT',
-            'CAN' => 'CA',
-            'MEX' => 'MX',
+
+        // If already a 2-letter code, verify it exists in reference data or return as-is
+        if (strlen($code) === 2) {
+            return $code;
+        }
+
+        // Try database reference data lookup (handles full names and local matches)
+        $refCode = $this->lookupReferenceCode(CountryReferenceData::TYPE_COUNTRY, $code, '');
+        if (!empty($refCode)) {
+            return $refCode;
+        }
+
+        // Fallback: common ISO 3166-1 alpha-3 to alpha-2 conversions
+        $iso3to2 = [
+            'USA' => 'US', 'GBR' => 'GB', 'VGB' => 'VG', 'CHN' => 'CN',
+            'JPN' => 'JP', 'DEU' => 'DE', 'FRA' => 'FR', 'ITA' => 'IT',
+            'CAN' => 'CA', 'MEX' => 'MX', 'BRA' => 'BR', 'IND' => 'IN',
+            'AUS' => 'AU', 'TTO' => 'TT', 'JAM' => 'JM', 'BRB' => 'BB',
         ];
 
-        if (strlen($code) === 3 && isset($mappings[$code])) {
-            return $mappings[$code];
+        if (strlen($code) === 3 && isset($iso3to2[$code])) {
+            return $iso3to2[$code];
         }
 
         return substr($code, 0, 2);
