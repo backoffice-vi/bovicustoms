@@ -206,6 +206,16 @@ class CapsT12Generator
     {
         $shipper = $declaration->shipperContact ?? $declaration->shipment?->shipperContact;
         $importer = $declaration->consigneeContact ?? $declaration->shipment?->consigneeContact;
+        $shipment = $declaration->shipment;
+
+        // Resolve fields with fallbacks from shipment data
+        $arrivalDate = $declaration->arrival_date ?? $shipment?->arrival_date;
+        $manifestNo = $declaration->manifest_number ?? $shipment?->manifest_number;
+        $billOfLading = $declaration->bill_of_lading_number ?? $declaration->awb_number ?? $shipment?->bill_of_lading_number;
+        $totalPackages = $declaration->total_packages ?? $shipment?->total_packages ?? 1;
+        $countryOfOrigin = $declaration->country_of_origin ?? $shipment?->origin_country_code;
+        $cityOfShipment = $shipper?->city ?? $shipment?->port_of_loading ?? '';
+        $supplierCountry = $shipper?->country_code ?? $countryOfOrigin;
 
         $fields = [
             'R10',                                                          // Record Type (mandatory)
@@ -214,29 +224,29 @@ class CapsT12Generator
             $this->formatField($shipper?->address_line_1, 30),             // Supplier Address 1
             $this->formatField($shipper?->address_line_2 ?? $shipper?->city, 40), // Supplier Address 2
             $this->formatField($shipper?->postal_code, 9),                 // Supplier Post Code
-            $this->formatCountryCode($shipper?->country_code ?? $declaration->country_of_origin), // Supplier Country (2 chars)
+            $this->formatCountryCode($supplierCountry),                    // Supplier Country (2 chars)
             $this->formatField($importer?->trader_id ?? $traderId, 6),     // Importer ID
             $this->formatField($importer?->company_name ?? $importer?->name, 40), // Importer Name
             $this->formatField($importer?->address_line_1, 30),            // Importer Address 1
             $this->formatField($importer?->address_line_2 ?? $importer?->city, 40), // Importer Address 2
             $this->formatField($importer?->postal_code, 9),                // Importer Post Code
-            $this->mapCarrierCode($declaration->carrier_name),                 // Carrier ID (3 char code)
-            $this->mapCarrierCode($declaration->vessel_name),             // Carrier No. (vessel code from reference data)
-            $this->mapPortCode($declaration->port_of_arrival),             // Port of Arrival (CAPS port code)
-            $this->formatDate($declaration->arrival_date),                 // Arrival Date (DD/MM/YYYY)
-            $this->formatField($declaration->manifest_number, 20),         // Manifest No.
-            $this->formatNumber($declaration->total_packages ?? 1, 6),     // No. of Packages
-            $this->formatField($declaration->bill_of_lading_number ?? $declaration->awb_number, 20), // Bill of Lading
-            $this->formatField($shipper?->city ?? '', 20),                 // City (Direct Shipment)
-            $this->formatCountryCode($shipper?->country_code ?? $declaration->country_of_origin), // Country (Direct Shipment)
-            $this->formatCountryCode($declaration->country_of_origin),     // Country (Original Shipment)
+            $this->mapCarrierCode($declaration->carrier_name ?? $shipment?->carrier_name), // Carrier ID
+            $this->mapCarrierCode($declaration->vessel_name ?? $shipment?->vessel_name),   // Carrier No. (vessel code)
+            $this->mapPortCode($declaration->port_of_arrival ?? $shipment?->port_of_discharge), // Port of Arrival
+            $this->formatDate($arrivalDate),                               // Arrival Date (DD/MM/YYYY)
+            $this->formatField($manifestNo, 20),                           // Manifest No.
+            $this->formatNumber($totalPackages, 6),                        // No. of Packages
+            $this->formatField($billOfLading, 20),                         // Bill of Lading
+            $this->formatField($cityOfShipment, 20),                       // City (Direct Shipment) - 5a
+            $this->formatCountryCode($supplierCountry),                    // Country (Direct Shipment) - 5b
+            $this->formatCountryCode($countryOfOrigin),                    // Country (Original Shipment) - 5c
             $this->formatNumber($this->getItemCount($declaration), 3),     // Total No. of Records
-            $this->formatDecimal($declaration->freight_total ?? 0, 11, 2), // Total Freight
+            $this->formatDecimal($declaration->freight_total ?? $shipment?->freight_total ?? 0, 11, 2), // Total Freight
             $declaration->freight_prorated ? 'Y' : 'N',                    // Is Freight Prorated?
-            $this->formatDecimal($declaration->insurance_total ?? 0, 11, 2), // Total Insurance
+            $this->formatDecimal($declaration->insurance_total ?? $shipment?->insurance_total ?? 0, 11, 2), // Total Insurance
             $declaration->insurance_prorated ? 'Y' : 'N',                  // Is Insurance Prorated?
             $this->formatDecimal($declaration->total_duty ?? 0, 11, 2),    // Total Payable
-            $this->mapPaymentMethod($declaration->payment_method),           // Payment method code (from reference data)
+            $this->mapPaymentMethod($declaration->payment_method),           // Payment method code
             $this->formatField($ftpCreds['declarant_name'] ?? '', 30),       // Declarant Person Name
             $this->formatField($declaration->organization?->trader_id ?? $traderId, 6), // Declarant Company ID
             $this->formatDate($declaration->declaration_date ?? now()),    // Declarant Date
