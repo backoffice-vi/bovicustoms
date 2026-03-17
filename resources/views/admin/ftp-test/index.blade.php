@@ -74,6 +74,12 @@
                             <div class="form-text">6-digit trader ID used for file naming</div>
                         </div>
 
+                        <div class="mb-3">
+                            <label class="form-label">Declarant Name <span class="text-danger">*</span></label>
+                            <input type="text" name="declarant_name" class="form-control" required maxlength="30" placeholder="e.g., John Smith">
+                            <div class="form-text">Person responsible for this declaration (required by CAPS)</div>
+                        </div>
+
                         <button type="submit" class="btn btn-primary" id="testConnectionBtn">
                             <i class="fas fa-plug me-1"></i>Test Connection
                         </button>
@@ -129,6 +135,11 @@
                                 <i class="fas fa-check-circle text-success me-1"></i>
                                 Auto-filled from consignee: <strong id="consigneeName"></strong>
                             </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label class="form-label">Declarant Name <span class="text-danger">*</span></label>
+                            <input type="text" name="submit_declarant_name" id="submitDeclarantName" class="form-control" required maxlength="30" placeholder="e.g., John Smith">
                         </div>
 
                         <div class="btn-group w-100 mb-3">
@@ -379,6 +390,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 document.getElementById('submitUsername').value = formData.get('username');
                 document.getElementById('submitPassword').value = formData.get('password');
                 document.getElementById('submitTraderId').value = formData.get('trader_id');
+                document.getElementById('submitDeclarantName').value = formData.get('declarant_name');
             }
         })
         .catch(error => {
@@ -421,7 +433,8 @@ document.addEventListener('DOMContentLoaded', function() {
             },
             body: JSON.stringify({
                 declaration_id: declarationId,
-                trader_id: traderId
+                trader_id: traderId,
+                declarant_name: document.getElementById('submitDeclarantName').value
             })
         })
         .then(response => response.json())
@@ -494,8 +507,10 @@ document.addEventListener('DOMContentLoaded', function() {
         const declaration = document.getElementById('declarationSelect').options[document.getElementById('declarationSelect').selectedIndex];
         const countryId = declaration?.dataset?.country;
         
-        if (!declarationId || !traderId || !username || !password) {
-            alert('Please fill in all fields (Declaration, Trader ID, Username, Password)');
+        const declarantName = document.getElementById('submitDeclarantName').value;
+        
+        if (!declarationId || !traderId || !username || !password || !declarantName) {
+            alert('Please fill in all fields (Declaration, Trader ID, Declarant Name, Username, Password)');
             return;
         }
         
@@ -522,6 +537,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 declaration_id: declarationId,
                 country_id: countryId,
                 trader_id: traderId,
+                declarant_name: declarantName,
                 username: username,
                 password: password
             })

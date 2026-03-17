@@ -108,6 +108,7 @@ class FtpTestController extends Controller
         $validated = $request->validate([
             'declaration_id' => 'required|exists:declaration_forms,id',
             'trader_id' => 'required|string|max:10',
+            'declarant_name' => 'nullable|string|max:30',
         ]);
 
         $declaration = DeclarationForm::withoutGlobalScopes()
@@ -126,6 +127,7 @@ class FtpTestController extends Controller
             'trader_id' => $validated['trader_id'],
             'credentials' => [
                 'trader_id' => $validated['trader_id'],
+                'declarant_name' => $validated['declarant_name'] ?? '',
                 'username' => '',
                 'password' => '',
             ],
@@ -152,6 +154,7 @@ class FtpTestController extends Controller
     public function downloadT12(Request $request, DeclarationForm $declaration)
     {
         $traderId = $request->input('trader_id', '000000');
+        $declarantName = $request->input('declarant_name', '');
 
         // Create temporary credential for download
         $tempCredential = new OrganizationSubmissionCredential([
@@ -159,6 +162,7 @@ class FtpTestController extends Controller
             'trader_id' => $traderId,
             'credentials' => [
                 'trader_id' => $traderId,
+                'declarant_name' => $declarantName,
                 'username' => '',
                 'password' => '',
             ],
@@ -187,6 +191,7 @@ class FtpTestController extends Controller
             'username' => 'required|string',
             'password' => 'required|string',
             'trader_id' => 'required|string|max:10',
+            'declarant_name' => 'nullable|string|max:30',
         ]);
 
         $declaration = DeclarationForm::withoutGlobalScopes()
@@ -216,6 +221,7 @@ class FtpTestController extends Controller
                 'username' => $validated['username'],
                 'password' => $validated['password'],
                 'trader_id' => $validated['trader_id'],
+                'declarant_name' => $validated['declarant_name'] ?? '',
             ],
         ]);
 
