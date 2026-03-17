@@ -221,7 +221,7 @@ class CapsT12Generator
             $this->formatField($importer?->address_line_2 ?? $importer?->city, 40), // Importer Address 2
             $this->formatField($importer?->postal_code, 9),                // Importer Post Code
             $this->mapCarrierCode($declaration->carrier_name),                 // Carrier ID (3 char code)
-            $this->formatField($declaration->vessel_name, 10),             // Carrier No. (vessel name/number)
+            $this->formatCarrierNumber($declaration->vessel_name),         // Carrier No. (numeric, 000 if unavailable)
             $this->mapPortCode($declaration->port_of_arrival),             // Port of Arrival (CAPS port code)
             $this->formatDate($declaration->arrival_date),                 // Arrival Date (DD/MM/YYYY)
             $this->formatField($declaration->manifest_number, 20),         // Manifest No.
@@ -843,6 +843,25 @@ class CapsT12Generator
             return strtoupper(trim($type));
         }
         return strtoupper(substr(trim($type), 0, 3));
+    }
+
+    /**
+     * Format carrier number as numeric. CAPS expects a number, not a vessel name.
+     * Extracts digits if present, otherwise returns '000'.
+     */
+    protected function formatCarrierNumber(?string $value): string
+    {
+        if (empty($value)) {
+            return '000';
+        }
+
+        $digits = preg_replace('/[^0-9]/', '', $value);
+
+        if (!empty($digits)) {
+            return substr($digits, 0, 10);
+        }
+
+        return '000';
     }
 
     // ==========================================
