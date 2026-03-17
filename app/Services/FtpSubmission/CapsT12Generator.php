@@ -163,8 +163,10 @@ class CapsT12Generator
     }
 
     /**
-     * Determine the next available sequence number for a given trader+date combination
+     * Determine the next available sequence number for a specific declaration form
      * by checking previously submitted filenames in web_form_submissions.
+     * Scoped per declaration so brokers submitting multiple forms for the same
+     * trader on the same day each get their own sequence starting at .001.
      */
     public function getNextSequence(string $traderId, DeclarationForm $declaration, bool $isAmendment = false): int
     {
@@ -176,6 +178,7 @@ class CapsT12Generator
             : "{$paddedTraderId}{$date}.";
 
         $maxSequence = WebFormSubmission::ftp()
+            ->where('declaration_form_id', $declaration->id)
             ->where(function ($query) use ($prefix) {
                 $query->where('external_reference', 'like', $prefix . '%')
                     ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(request_data, '$.filename')) LIKE ?", [$prefix . '%']);
