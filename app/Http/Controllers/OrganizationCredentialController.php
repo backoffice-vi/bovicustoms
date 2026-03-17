@@ -78,6 +78,7 @@ class OrganizationCredentialController extends Controller
             'web_form_target_id' => 'nullable|exists:web_form_targets,id',
             'display_name' => 'nullable|string|max:255',
             'trader_id' => 'required_if:credential_type,ftp|nullable|string|max:10',
+            'declarant_name' => 'required_if:credential_type,ftp|nullable|string|max:30',
             'username' => 'required|string|max:255',
             'password' => 'required|string|max:255',
             'email' => 'nullable|email|max:255',
@@ -104,6 +105,7 @@ class OrganizationCredentialController extends Controller
 
         if ($validated['credential_type'] === 'ftp') {
             $credentials['trader_id'] = $validated['trader_id'];
+            $credentials['declarant_name'] = $validated['declarant_name'] ?? '';
             $credentials['email'] = $validated['email'] ?? '';
         } else {
             // Web credentials may need field selectors
@@ -143,6 +145,7 @@ class OrganizationCredentialController extends Controller
         $validated = $request->validate([
             'display_name' => 'nullable|string|max:255',
             'trader_id' => 'nullable|string|max:10',
+            'declarant_name' => 'nullable|string|max:30',
             'username' => 'nullable|string|max:255',
             'password' => 'nullable|string|max:255',
             'email' => 'nullable|email|max:255',
@@ -163,6 +166,9 @@ class OrganizationCredentialController extends Controller
         if ($credential->isFtp()) {
             if (!empty($validated['trader_id'])) {
                 $existingCreds['trader_id'] = $validated['trader_id'];
+            }
+            if (isset($validated['declarant_name'])) {
+                $existingCreds['declarant_name'] = $validated['declarant_name'];
             }
             if (isset($validated['email'])) {
                 $existingCreds['email'] = $validated['email'];

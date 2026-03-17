@@ -246,6 +246,14 @@
                             </div>
                         </div>
 
+                        <!-- FTP-specific: Declarant Name -->
+                        <div class="col-md-6 d-none" id="declarantNameField">
+                            <label for="declarant_name" class="form-label">Declarant Name <span class="text-danger">*</span></label>
+                            <input type="text" class="form-control" id="declarant_name" name="declarant_name"
+                                   placeholder="e.g., John Smith" maxlength="30">
+                            <small class="text-muted">Person responsible for this declaration (required by CAPS)</small>
+                        </div>
+
                         <!-- FTP-specific: Email -->
                         <div class="col-md-6 d-none" id="emailField">
                             <label for="email" class="form-label">Notification Email</label>
@@ -368,25 +376,33 @@
     function toggleCredentialFields() {
         const type = document.getElementById('credential_type').value;
         const traderIdField = document.getElementById('traderIdField');
+        const declarantNameField = document.getElementById('declarantNameField');
         const emailField = document.getElementById('emailField');
         const webTargetField = document.getElementById('webTargetField');
         const traderIdInput = document.getElementById('trader_id');
+        const declarantNameInput = document.getElementById('declarant_name');
 
         if (type === 'ftp') {
             traderIdField.classList.remove('d-none');
+            declarantNameField.classList.remove('d-none');
             emailField.classList.remove('d-none');
             webTargetField.classList.add('d-none');
             traderIdInput.required = true;
+            declarantNameInput.required = true;
         } else if (type === 'web') {
             traderIdField.classList.add('d-none');
+            declarantNameField.classList.add('d-none');
             emailField.classList.add('d-none');
             webTargetField.classList.remove('d-none');
             traderIdInput.required = false;
+            declarantNameInput.required = false;
         } else {
             traderIdField.classList.add('d-none');
+            declarantNameField.classList.add('d-none');
             emailField.classList.add('d-none');
             webTargetField.classList.add('d-none');
             traderIdInput.required = false;
+            declarantNameInput.required = false;
         }
     }
 
@@ -439,6 +455,7 @@
         
         if (credential.decrypted_credentials) {
             document.getElementById('username').value = credential.decrypted_credentials.username || '';
+            document.getElementById('declarant_name').value = credential.decrypted_credentials.declarant_name || '';
             document.getElementById('email').value = credential.decrypted_credentials.email || '';
         }
         

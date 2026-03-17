@@ -5,6 +5,7 @@ namespace App\Services\FtpSubmission;
 use App\Models\CountryReferenceData;
 use App\Models\DeclarationForm;
 use App\Models\OrganizationSubmissionCredential;
+use App\Models\WebFormSubmission;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -122,7 +123,8 @@ class CapsT12Generator
         $lines[] = $trailerLine;
 
         $content = implode(self::LINE_ENDING, $lines);
-        $filename = $this->generateFilename($traderId, $declaration);
+        $sequence = $this->getNextSequence($traderId, $declaration);
+        $filename = $this->generateFilename($traderId, $declaration, $sequence);
 
         return [
             'content' => $content,
@@ -130,6 +132,7 @@ class CapsT12Generator
             'trader_id' => $traderId,
             'line_count' => $lineCount + 1,
             'item_count' => count($items),
+            'sequence' => $sequence,
         ];
     }
 
@@ -157,6 +160,40 @@ class CapsT12Generator
         $paddedSequence = str_pad($sequence, 3, '0', STR_PAD_LEFT);
 
         return "{$paddedTraderId}{$date}A.{$paddedSequence}";
+    }
+
+    /**
+     * Determine the next available sequence number for a given trader+date combination
+     * by checking previously submitted filenames in web_form_submissions.
+     */
+    public function getNextSequence(string $traderId, DeclarationForm $declaration, bool $isAmendment = false): int
+    {
+        $paddedTraderId = str_pad(substr($traderId, 0, 6), 6, '0', STR_PAD_LEFT);
+        $date = Carbon::parse($declaration->declaration_date ?? now())->format('dmY');
+
+        $prefix = $isAmendment
+            ? "{$paddedTraderId}{$date}A."
+            : "{$paddedTraderId}{$date}.";
+
+        $maxSequence = WebFormSubmission::ftp()
+            ->where(function ($query) use ($prefix) {
+                $query->where('external_reference', 'like', $prefix . '%')
+                    ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(request_data, '$.filename')) LIKE ?", [$prefix . '%']);
+            })
+            ->get()
+            ->map(function ($submission) use ($prefix) {
+                $filename = $submission->external_reference;
+                if (empty($filename)) {
+                    $filename = $submission->request_data['filename'] ?? '';
+                }
+                if (str_starts_with($filename, $prefix)) {
+                    return (int) substr($filename, strlen($prefix));
+                }
+                return 0;
+            })
+            ->max();
+
+        return ($maxSequence ?? 0) + 1;
     }
 
     /**
@@ -197,7 +234,7 @@ class CapsT12Generator
             $declaration->insurance_prorated ? 'Y' : 'N',                  // Is Insurance Prorated?
             $this->formatDecimal($declaration->total_duty ?? 0, 11, 2),    // Total Payable
             $this->mapPaymentMethod($declaration->payment_method),           // Payment method code (from reference data)
-            $this->formatField($ftpCreds['email'] ?? '', 30),              // Declarant Person Name
+            $this->formatField($ftpCreds['declarant_name'] ?? '', 30),       // Declarant Person Name
             $this->formatField($declaration->organization?->trader_id ?? $traderId, 6), // Declarant Company ID
             $this->formatDate($declaration->declaration_date ?? now()),    // Declarant Date
             $this->formatField('Agent', 20),                               // Declarant Role

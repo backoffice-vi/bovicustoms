@@ -206,6 +206,7 @@ class OrganizationSubmissionCredential extends Model
 
         return [
             'trader_id' => $this->trader_id ?? ($creds['trader_id'] ?? ''),
+            'declarant_name' => $creds['declarant_name'] ?? '',
             'username' => $creds['username'] ?? '',
             'password' => $creds['password'] ?? '',
             'email' => $creds['email'] ?? '',
