@@ -368,14 +368,14 @@ class CapsT12Generator
             $lines[] = implode(',', $fields);
         }
 
-        // Wharfage
+        // Wharfage — based on FOB value at 2% per CAPS spec
         if (!empty($item['wharfage']) && $item['wharfage'] > 0) {
             $fields = [
                 'R50',                                              // Record Type
-                $this->mapTaxType('WHA'),                           // Tax Type (Wharfage, from reference data)
+                $this->mapTaxType('WHA'),                           // Tax Type (Wharfage)
                 '',                                                 // Exemption Indicator
-                $this->formatDecimal($item['cif_value'] ?? 0, 11, 2), // Value for Tax
-                $this->formatDecimal(1.00, 7, 3),                   // Tax Rate (usually 1%)
+                $this->formatDecimal($item['fob_value'] ?? 0, 11, 2), // Value for Tax (FOB, not CIF)
+                $this->formatDecimal(2.00, 7, 3),                   // Tax Rate (2%)
                 $this->formatDecimal($item['wharfage'], 11, 2),     // Tax Amount
             ];
             $lines[] = implode(',', $fields);
@@ -561,8 +561,8 @@ class CapsT12Generator
             return $lookup;
         }
         
-        // Calculate wharfage rate (typically 1% of CIF in BVI)
-        $wharfageRate = 0.01;
+        // Wharfage is 2% of FOB per CAPS spec
+        $wharfageRate = 0.02;
         
         foreach ($declaration->duty_breakdown as $tariffGroup) {
             $tariffCode = $tariffGroup['tariff_code'] ?? '';
@@ -589,8 +589,8 @@ class CapsT12Generator
                     // Calculate item duty based on CIF and rate
                     $itemDuty = $cifValue * ($dutyRate / 100);
                     
-                    // Calculate wharfage
-                    $itemWharfage = $cifValue * $wharfageRate;
+                    // Wharfage is based on FOB value, not CIF
+                    $itemWharfage = $fobValue * $wharfageRate;
                     
                     $dutyEntry = [
                         'tariff_code' => $tariffCode,
@@ -716,11 +716,35 @@ class CapsT12Generator
     }
 
     /**
-     * Map unit of measure to CAPS unit code via reference data
+     * Map unit of measure to CAPS unit code via reference data.
+     * CAPS only accepts specific codes (NO, UNT, PCS, CTN, etc.).
      */
     protected function mapUnitCode(?string $unit): string
     {
-        return $this->lookupReferenceCode(CountryReferenceData::TYPE_UNIT, $unit, 'EA');
+        $nonCapsAliases = [
+            'EA' => 'NO',
+            'EACH' => 'NO',
+            'UNIT' => 'UNT',
+            'PC' => 'PCS',
+            'PIECE' => 'PCS',
+            'PIECES' => 'PCS',
+            'LB' => 'LBS',
+            'POUND' => 'LBS',
+            'POUNDS' => 'LBS',
+            '100LB' => 'LBS',
+        ];
+
+        $normalized = strtoupper(trim($unit ?? ''));
+        if (isset($nonCapsAliases[$normalized])) {
+            return $nonCapsAliases[$normalized];
+        }
+
+        $code = $this->lookupReferenceCode(CountryReferenceData::TYPE_UNIT, $unit, '');
+        if (!empty($code) && isset($nonCapsAliases[strtoupper($code)])) {
+            return $nonCapsAliases[strtoupper($code)];
+        }
+
+        return !empty($code) ? $code : 'NO';
     }
 
     /**
