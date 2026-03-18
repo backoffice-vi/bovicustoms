@@ -336,6 +336,11 @@ class DeclarationForm extends Model
         $this->package_type = $shipment->package_type;
         $this->gross_weight_kg = $shipment->gross_weight_kg;
         $this->net_weight_kg = $shipment->net_weight_kg;
+
+        if (!$this->country_of_origin && $shipment->country_of_origin_id) {
+            $shipment->loadMissing('countryOfOrigin');
+            $this->country_of_origin = $shipment->countryOfOrigin?->code;
+        }
     }
 
     /**

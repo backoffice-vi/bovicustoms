@@ -150,6 +150,7 @@ Return ONLY valid JSON in this format:
   "final_destination": "string or null",
   "shipping_date": "YYYY-MM-DD or null",
   "estimated_arrival": "YYYY-MM-DD or null",
+  "country_of_origin": "string or null (2-letter ISO country code of shipment origin, inferred from port of loading or shipper country)",
   
   "freight_charges": number or null,
   "freight_terms": "prepaid or collect or null",
@@ -173,6 +174,7 @@ Rules:
 - For addresses, try to parse into components but also preserve the full address.
 - If freight shows "COLLECT", set freight_terms to "collect"; if "PREPAID", set to "prepaid".
 - Look for invoice numbers mentioned in remarks or description sections.
+- For country_of_origin, use the 2-letter ISO code. Infer from the port of loading or shipper address if not explicitly stated.
 - Do not include explanations, only JSON.
 PROMPT;
     }
@@ -237,6 +239,7 @@ Return ONLY valid JSON in this format:
   "final_destination": "string or null",
   "shipping_date": "YYYY-MM-DD or null",
   "estimated_arrival": "YYYY-MM-DD or null",
+  "country_of_origin": "string or null (2-letter ISO country code of shipment origin, inferred from port of loading or shipper country)",
   
   "freight_charges": number or null,
   "freight_terms": "prepaid or collect or null",
@@ -258,6 +261,7 @@ Rules:
 - Extract ALL information you can find.
 - For weights, convert to kilograms if shown in pounds.
 - Look for invoice numbers in remarks, references, or description sections.
+- For country_of_origin, use the 2-letter ISO code. Infer from the port of loading or shipper address if not explicitly stated.
 - Do not include explanations, only JSON.
 
 DOCUMENT TEXT:
@@ -334,6 +338,7 @@ PROMPT;
             'final_destination' => $this->normalizeString($json['final_destination'] ?? null),
             'shipping_date' => $this->normalizeDate($json['shipping_date'] ?? null),
             'estimated_arrival' => $this->normalizeDate($json['estimated_arrival'] ?? null),
+            'country_of_origin' => $this->normalizeCountryCode($json['country_of_origin'] ?? null),
             
             'freight_charges' => $this->normalizeNumber($json['freight_charges'] ?? null),
             'freight_terms' => $this->normalizeString($json['freight_terms'] ?? null),
@@ -436,6 +441,16 @@ PROMPT;
         } catch (\Exception $e) {
             return null;
         }
+    }
+
+    protected function normalizeCountryCode(?string $value): ?string
+    {
+        if ($value === null || trim($value) === '') {
+            return null;
+        }
+
+        $code = strtoupper(trim($value));
+        return strlen($code) === 2 ? $code : null;
     }
 
     /**

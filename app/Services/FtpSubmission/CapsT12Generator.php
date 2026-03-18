@@ -48,6 +48,7 @@ class CapsT12Generator
             'country',
             'shipment.shipperContact',
             'shipment.consigneeContact',
+            'shipment.countryOfOrigin',
             'shipperContact',
             'consigneeContact',
             'declarationItems' => fn($q) => $q->withoutGlobalScopes(),
@@ -213,13 +214,15 @@ class CapsT12Generator
         $manifestNo = $declaration->manifest_number ?? $shipment?->manifest_number;
         $billOfLading = $declaration->bill_of_lading_number ?? $declaration->awb_number ?? $shipment?->bill_of_lading_number;
         $totalPackages = $declaration->total_packages ?? $shipment?->total_packages ?? 1;
-        $countryOfOrigin = $declaration->country_of_origin ?? $shipment?->origin_country_code;
+        $countryOfOrigin = $declaration->country_of_origin
+            ?? $shipment?->countryOfOrigin?->code
+            ?? $this->inferCountryFromPort($shipment?->port_of_loading);
         $cityOfShipment = $shipper?->city ?? $shipment?->port_of_loading ?? '';
         $supplierCountry = $shipper?->country_code ?? $countryOfOrigin;
 
         $fields = [
             'R10',                                                          // Record Type (mandatory)
-            $this->formatField($traderId, 6),                              // Supplier/Trader ID (6 chars)
+            $this->formatField($shipper?->customs_registration_id ?? '', 6),  // Supplier/Trader ID (6 chars)
             $this->formatField($shipper?->company_name ?? $shipper?->name, 40), // Supplier Name
             $this->formatField($shipper?->address_line_1, 30),             // Supplier Address 1
             $this->formatField($shipper?->address_line_2 ?? $shipper?->city, 40), // Supplier Address 2
@@ -715,6 +718,47 @@ class CapsT12Generator
     protected function mapPortCode(?string $port): string
     {
         return $this->lookupReferenceCode(CountryReferenceData::TYPE_PORT, $port, '');
+    }
+
+    /**
+     * Infer a 2-letter country code from a port of loading name.
+     * Uses port reference data metadata first, then falls back to a
+     * hardcoded map of major Caribbean/Atlantic shipping ports.
+     */
+    protected function inferCountryFromPort(?string $port): ?string
+    {
+        if (empty($port)) {
+            return null;
+        }
+
+        $portUpper = strtoupper(trim($port));
+
+        if ($this->countryId) {
+            $ref = CountryReferenceData::findByLocalMatch(
+                $this->countryId,
+                CountryReferenceData::TYPE_PORT,
+                $port
+            );
+            if ($ref && !empty($ref->metadata['country_code'])) {
+                return $ref->metadata['country_code'];
+            }
+        }
+
+        $portCountryMap = [
+            'SAN JUAN' => 'US', 'MIAMI' => 'US', 'JACKSONVILLE' => 'US',
+            'PORT EVERGLADES' => 'US', 'HOUSTON' => 'US', 'NEW YORK' => 'US',
+            'CHARLESTON' => 'US', 'SAVANNAH' => 'US', 'LOS ANGELES' => 'US',
+            'LONG BEACH' => 'US', 'NEWARK' => 'US', 'BALTIMORE' => 'US',
+            'ST THOMAS' => 'VI', 'ST CROIX' => 'VI', 'CHARLOTTE AMALIE' => 'VI',
+            'KINGSTON' => 'JM', 'FREEPORT' => 'BS', 'NASSAU' => 'BS',
+            'PORT OF SPAIN' => 'TT', 'BRIDGETOWN' => 'BB', 'CASTRIES' => 'LC',
+            'BASSETERRE' => 'KN', 'ROSEAU' => 'DM', 'ST GEORGES' => 'GD',
+            'SHANGHAI' => 'CN', 'SHENZHEN' => 'CN', 'HONG KONG' => 'HK',
+            'LONDON' => 'GB', 'FELIXSTOWE' => 'GB', 'SOUTHAMPTON' => 'GB',
+            'ROTTERDAM' => 'NL', 'HAMBURG' => 'DE', 'ANTWERP' => 'BE',
+        ];
+
+        return $portCountryMap[$portUpper] ?? null;
     }
 
     /**

@@ -181,6 +181,15 @@ class Shipment extends Model
     }
 
     // ==========================================
+    // Accessors
+    // ==========================================
+
+    public function getArrivalDateAttribute()
+    {
+        return $this->actual_arrival_date ?? $this->estimated_arrival_date;
+    }
+
+    // ==========================================
     // Scopes
     // ==========================================
 
@@ -445,6 +454,19 @@ class Shipment extends Model
         }
         if ($document->estimated_arrival) {
             $updates['estimated_arrival_date'] = $document->estimated_arrival;
+        }
+
+        if (!$this->country_of_origin_id) {
+            $countryCode = $document->extracted_data['country_of_origin'] ?? null;
+            if (!$countryCode && $document->shipper_details) {
+                $countryCode = $document->shipper_details['country'] ?? null;
+            }
+            if ($countryCode) {
+                $country = Country::where('code', strtoupper(trim($countryCode)))->first();
+                if ($country) {
+                    $updates['country_of_origin_id'] = $country->id;
+                }
+            }
         }
 
         if (!empty($updates)) {
