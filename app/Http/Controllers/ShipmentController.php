@@ -118,6 +118,7 @@ class ShipmentController extends Controller
     {
         $shipment->load([
             'country',
+            'countryOfOrigin',
             'invoices.invoiceItems',
             'shippingDocuments',
             'shipperContact',
@@ -136,8 +137,9 @@ class ShipmentController extends Controller
         $shippers = TradeContact::shippers()->orderBy('company_name')->get();
         $consignees = TradeContact::consignees()->orderBy('company_name')->get();
         $notifyParties = TradeContact::notifyParties()->orderBy('company_name')->get();
+        $countries = \App\Models\Country::active()->orderBy('name')->get();
 
-        return view('shipments.show', compact('shipment', 'calculation', 'shippers', 'consignees', 'notifyParties'));
+        return view('shipments.show', compact('shipment', 'calculation', 'shippers', 'consignees', 'notifyParties', 'countries'));
     }
 
     /**
@@ -161,6 +163,8 @@ class ShipmentController extends Controller
             'port_of_discharge' => 'nullable|string|max:255',
             'final_destination' => 'nullable|string|max:255',
             'estimated_arrival_date' => 'nullable|date',
+            'actual_arrival_date' => 'nullable|date',
+            'country_of_origin_id' => 'nullable|exists:countries,id',
             'total_packages' => 'nullable|integer|min:0',
             'package_type' => 'nullable|string|max:100',
             'gross_weight_kg' => 'nullable|numeric|min:0',

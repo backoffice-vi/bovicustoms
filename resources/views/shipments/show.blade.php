@@ -410,6 +410,18 @@
                         <dt class="col-5">Port Discharge</dt>
                         <dd class="col-7">{{ $shipment->port_of_discharge ?? '-' }}</dd>
 
+                        <dt class="col-5">Final Dest.</dt>
+                        <dd class="col-7">{{ $shipment->final_destination ?? '-' }}</dd>
+
+                        <dt class="col-5">Country Origin</dt>
+                        <dd class="col-7">{{ $shipment->countryOfOrigin?->name ?? '-' }}</dd>
+
+                        <dt class="col-5">ETA</dt>
+                        <dd class="col-7">{{ $shipment->estimated_arrival_date?->format('M d, Y') ?? '-' }}</dd>
+
+                        <dt class="col-5">Actual Arrival</dt>
+                        <dd class="col-7">{{ $shipment->actual_arrival_date?->format('M d, Y') ?? '-' }}</dd>
+
                         <dt class="col-5">Packages</dt>
                         <dd class="col-7">
                             @if($shipment->total_packages)
@@ -722,6 +734,32 @@
                         <label class="form-label">Gross Weight (kg)</label>
                         <input type="number" step="0.001" name="gross_weight_kg" class="form-control" 
                                value="{{ $shipment->gross_weight_kg }}">
+                    </div>
+                    <hr>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Country of Origin</label>
+                            <select name="country_of_origin_id" class="form-select">
+                                <option value="">-- Select --</option>
+                                @foreach($countries as $country)
+                                    <option value="{{ $country->id }}" {{ $shipment->country_of_origin_id == $country->id ? 'selected' : '' }}>
+                                        {{ $country->name }}
+                                    </option>
+                                @endforeach
+                            </select>
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Final Destination</label>
+                            <input type="text" name="final_destination" class="form-control" 
+                                   value="{{ $shipment->final_destination }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Actual Arrival Date</label>
+                            <input type="date" name="actual_arrival_date" class="form-control" 
+                                   value="{{ $shipment->actual_arrival_date?->format('Y-m-d') }}">
+                        </div>
                     </div>
                 </div>
                 <div class="modal-footer">

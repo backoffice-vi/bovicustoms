@@ -358,4 +358,27 @@ class DeclarationFormController extends Controller
     {
         return back()->with('error', 'Please use the "Generate Official Forms" button to create declaration forms.');
     }
+
+    /**
+     * Refresh declaration form data from its linked shipment
+     */
+    public function refreshFromShipment(DeclarationForm $declarationForm)
+    {
+        if (!$declarationForm->shipment_id) {
+            return back()->with('error', 'This declaration is not linked to a shipment.');
+        }
+
+        $shipment = $declarationForm->shipment()->withoutGlobalScopes()->first();
+
+        if (!$shipment) {
+            return back()->with('error', 'The linked shipment could not be found.');
+        }
+
+        $shipment->load(['shipperContact', 'consigneeContact', 'countryOfOrigin']);
+
+        $declarationForm->populateFromShipment($shipment);
+        $declarationForm->save();
+
+        return back()->with('success', 'Declaration refreshed from shipment data successfully.');
+    }
 }

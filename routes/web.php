@@ -113,6 +113,7 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
     Route::post('declaration-forms/{declarationForm}/fill/{filledForm}', [DeclarationFormController::class, 'processFill'])->name('declaration-forms.process-fill');
     Route::get('declaration-forms/{declarationForm}/preview/{filledForm}', [DeclarationFormController::class, 'preview'])->name('declaration-forms.preview');
     Route::get('declaration-forms/{declarationForm}/auto-map/{filledForm}', [DeclarationFormController::class, 'getAutoMappedData'])->name('declaration-forms.auto-map');
+    Route::post('declaration-forms/{declarationForm}/refresh-shipment', [DeclarationFormController::class, 'refreshFromShipment'])->name('declaration-forms.refresh-shipment');
 
     // Web Portal Submission
     Route::prefix('declaration-forms/{declaration}/web-submit')->name('web-submission.')->group(function () {

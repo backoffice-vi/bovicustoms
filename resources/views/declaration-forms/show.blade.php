@@ -29,6 +29,15 @@
                     <i class="fas fa-upload me-2"></i>Submit via FTP
                 </a>
             @endif
+            @if($declarationForm->shipment_id)
+                <form action="{{ route('declaration-forms.refresh-shipment', $declarationForm) }}" method="POST" class="d-inline"
+                      onsubmit="return confirm('This will update the declaration with the latest data from the shipment. Continue?')">
+                    @csrf
+                    <button type="submit" class="btn btn-warning">
+                        <i class="fas fa-sync-alt me-2"></i>Refresh from Shipment
+                    </button>
+                </form>
+            @endif
             <a href="{{ route('declaration-forms.index') }}" class="btn btn-outline-secondary">
                 <i class="fas fa-arrow-left me-2"></i>Back
             </a>
