@@ -178,8 +178,9 @@ class CapsT12Generator
             ? "{$paddedTraderId}{$date}A."
             : "{$paddedTraderId}{$date}.";
 
-        $maxSequence = WebFormSubmission::ftp()
-            ->where('declaration_form_id', $declaration->id)
+        // Search ALL FTP submissions for this trader+date, not just this declaration,
+        // because CAPS enforces filename uniqueness globally
+        $maxSequence = WebFormSubmission::where('submission_type', 'ftp')
             ->where(function ($query) use ($prefix) {
                 $query->where('external_reference', 'like', $prefix . '%')
                     ->orWhereRaw("JSON_UNQUOTE(JSON_EXTRACT(request_data, '$.filename')) LIKE ?", [$prefix . '%']);
