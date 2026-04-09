@@ -217,6 +217,48 @@
                             </div>
                         </div>
 
+                        <hr class="my-4">
+
+                        <h5 class="mb-3"><i class="fas fa-cogs me-2"></i>CAPS Submission Settings</h5>
+                        <p class="text-muted small mb-3">Configure how declarations are prepared for submission to CAPS.</p>
+
+                        <div class="mb-3">
+                            <div class="form-check">
+                                <input type="checkbox" name="caps_group_items" id="caps_group_items" class="form-check-input" value="1" 
+                                       {{ old('caps_group_items', $country->caps_group_items ?? true) ? 'checked' : '' }}>
+                                <label class="form-check-label" for="caps_group_items">
+                                    <strong>Group items by HS code</strong>
+                                </label>
+                                <div class="form-text">When enabled, invoice line items sharing the same HS code are consolidated into a single declaration record with aggregated quantities, values, and a summarized description. This reduces the number of CAPS records and is standard customs practice.</div>
+                            </div>
+                        </div>
+
+                        <div class="mb-3">
+                            <label for="caps_default_payment_method" class="form-label">Default Payment Method</label>
+                            <select name="caps_default_payment_method" id="caps_default_payment_method" class="form-select @error('caps_default_payment_method') is-invalid @enderror">
+                                @php
+                                    $paymentMethods = \App\Models\CountryReferenceData::where('country_id', $country->id)
+                                        ->where('reference_type', 'payment_method')
+                                        ->where('is_active', true)
+                                        ->orderBy('code')
+                                        ->get();
+                                    $currentMethod = old('caps_default_payment_method', $country->caps_default_payment_method ?? '22');
+                                @endphp
+                                @forelse($paymentMethods as $method)
+                                    <option value="{{ $method->code }}" {{ $currentMethod == $method->code ? 'selected' : '' }}>
+                                        {{ $method->code }} — {{ $method->label }}
+                                    </option>
+                                @empty
+                                    <option value="22" {{ $currentMethod == '22' ? 'selected' : '' }}>22 — Cheque - USD</option>
+                                    <option value="10" {{ $currentMethod == '10' ? 'selected' : '' }}>10 — CASH / TC - BVI</option>
+                                @endforelse
+                            </select>
+                            <div class="form-text">Payment method used on the CAPS TD (Box 6a). Default: Cheque - USD (22).</div>
+                            @error('caps_default_payment_method')
+                                <div class="invalid-feedback">{{ $message }}</div>
+                            @enderror
+                        </div>
+
                         <div class="d-flex justify-content-between mt-4">
                             <a href="{{ route('admin.countries.index') }}" class="btn btn-secondary">
                                 <i class="fas fa-times me-1"></i> Cancel

@@ -36,6 +36,7 @@ class OrganizationSubmissionCredential extends Model
 
     const TYPE_FTP = 'ftp';
     const TYPE_WEB = 'web';
+    const TYPE_CAPS = 'caps';
 
     // ==========================================
     // Relationships
@@ -83,6 +84,11 @@ class OrganizationSubmissionCredential extends Model
     public function scopeForWeb($query)
     {
         return $query->where('credential_type', self::TYPE_WEB);
+    }
+
+    public function scopeForCaps($query)
+    {
+        return $query->where('credential_type', self::TYPE_CAPS);
     }
 
     /**
@@ -191,6 +197,36 @@ class OrganizationSubmissionCredential extends Model
     public function isWeb(): bool
     {
         return $this->credential_type === self::TYPE_WEB;
+    }
+
+    public function isCaps(): bool
+    {
+        return $this->credential_type === self::TYPE_CAPS;
+    }
+
+    public function getCapsCredentials(): array
+    {
+        $creds = $this->decrypted_credentials;
+
+        if (!$creds || !$this->isCaps()) {
+            return [];
+        }
+
+        return [
+            'username' => $creds['username'] ?? '',
+            'password' => $creds['password'] ?? '',
+            'url' => $creds['url'] ?? 'https://caps.gov.vg',
+        ];
+    }
+
+    public function hasCompleteCapsCredentials(): bool
+    {
+        if (!$this->isCaps()) {
+            return false;
+        }
+
+        $creds = $this->getCapsCredentials();
+        return !empty($creds['username']) && !empty($creds['password']);
     }
 
     /**

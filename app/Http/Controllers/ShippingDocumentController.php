@@ -136,6 +136,10 @@ class ShippingDocumentController extends Controller
             // Find matching contacts
             $contactMatches = $this->findContactMatches($extracted);
 
+            // Auto-link high-confidence matches to the shipment
+            $shipment = $shippingDocument->shipment;
+            $autoLinked = $this->autoLinkContacts($shipment, $contactMatches);
+
             return response()->json([
                 'success' => true,
                 'document' => [
@@ -154,6 +158,7 @@ class ShippingDocumentController extends Controller
                 ],
                 'extracted' => $extracted,
                 'contact_matches' => $contactMatches,
+                'auto_linked' => $autoLinked,
                 'message' => 'Data extracted successfully.',
             ]);
 
@@ -454,6 +459,39 @@ class ShippingDocumentController extends Controller
             ],
             'message' => 'Contact created and linked to shipment.',
         ]);
+    }
+
+    /**
+     * Auto-link high-confidence contact matches to the shipment.
+     * Returns an array of which contact types were auto-linked.
+     */
+    protected function autoLinkContacts(Shipment $shipment, array $contactMatches): array
+    {
+        $autoLinked = [];
+        $typeFieldMap = [
+            'shipper' => 'shipper_contact_id',
+            'consignee' => 'consignee_contact_id',
+            'notify_party' => 'notify_party_contact_id',
+        ];
+
+        foreach ($typeFieldMap as $type => $field) {
+            if (!isset($contactMatches[$type])) {
+                continue;
+            }
+
+            $match = $contactMatches[$type];
+            if (($match['is_high_confidence'] ?? false) && !empty($match['best_match']['id'])) {
+                $shipment->update([$field => $match['best_match']['id']]);
+                $autoLinked[$type] = $match['best_match']['id'];
+                Log::info("Auto-linked {$type} contact", [
+                    'shipment_id' => $shipment->id,
+                    'contact_id' => $match['best_match']['id'],
+                    'confidence' => $match['confidence'],
+                ]);
+            }
+        }
+
+        return $autoLinked;
     }
 
     /**

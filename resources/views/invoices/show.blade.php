@@ -28,27 +28,63 @@
 
     {{-- Classification Alert for stuck/failed invoices --}}
     @php
-        $hasUnclassifiedItems = $items->contains(fn($item) => empty($item->customs_code));
+        $unclassifiedItems = $items->filter(fn($item) => empty($item->customs_code));
+        $classifiedItems = $items->filter(fn($item) => !empty($item->customs_code));
+        $hasUnclassifiedItems = $unclassifiedItems->isNotEmpty();
         $isStuck = $invoice->status === 'classifying' || ($invoice->status !== 'processed' && $hasUnclassifiedItems);
     @endphp
     
     @if($isStuck)
-    <div class="alert alert-warning d-flex align-items-center justify-content-between" role="alert">
-        <div>
-            <i class="fas fa-exclamation-triangle me-2"></i>
-            <strong>Classification incomplete.</strong> 
-            @if($invoice->status === 'classifying')
-                This invoice is still being classified or the classification job may have failed.
-            @else
-                Some items don't have HS codes assigned.
+    <div class="alert alert-warning" role="alert">
+        <div class="d-flex align-items-center justify-content-between mb-2">
+            <div>
+                <i class="fas fa-exclamation-triangle me-2"></i>
+                <strong>{{ $classifiedItems->count() }}/{{ $items->count() }} items classified.</strong>
+                @if($invoice->status === 'classifying')
+                    Classification is still running or may have failed.
+                @else
+                    {{ $unclassifiedItems->count() }} {{ Str::plural('item', $unclassifiedItems->count()) }} still need HS codes — you can assign them manually below or retry.
+                @endif
+            </div>
+        </div>
+        <div class="d-flex gap-2 flex-wrap">
+            <form action="{{ route('invoices.retry_classification', $invoice) }}" method="POST" class="d-inline">
+                @csrf
+                <button type="submit" class="btn btn-sm btn-warning">
+                    <i class="fas fa-redo me-1"></i>Retry Failed ({{ $unclassifiedItems->count() }})
+                </button>
+            </form>
+            <form action="{{ route('invoices.retry_classification', $invoice) }}" method="POST" class="d-inline">
+                @csrf
+                <input type="hidden" name="retry_all" value="1">
+                <button type="submit" class="btn btn-sm btn-outline-danger">
+                    <i class="fas fa-sync me-1"></i>Reclassify All
+                </button>
+            </form>
+            @if($invoice->status !== 'classifying' && $classifiedItems->count() > 0)
+                <form action="{{ route('invoices.accept_classification', $invoice) }}" method="POST" class="d-inline">
+                    @csrf
+                    <button type="submit" class="btn btn-sm btn-success">
+                        <i class="fas fa-check me-1"></i>Proceed as Is
+                    </button>
+                </form>
             @endif
         </div>
-        <form action="{{ route('invoices.retry_classification', $invoice) }}" method="POST" class="d-inline">
-            @csrf
-            <button type="submit" class="btn btn-warning">
-                <i class="fas fa-redo me-1"></i>Retry Classification
-            </button>
-        </form>
+    </div>
+    @endif
+
+    @if(in_array($invoice->status, ['classified', 'partially_classified']) && $classifiedItems->count() > 0)
+    <div class="alert alert-info" role="alert">
+        <div class="d-flex align-items-center justify-content-between">
+            <div>
+                <i class="fas fa-clipboard-check me-2"></i>
+                <strong>Ready for review.</strong>
+                Compare BoVi AI recommendations against historical classifications before finalizing.
+            </div>
+            <a href="{{ route('invoices.assign_codes_results', $invoice) }}" class="btn btn-primary btn-sm">
+                <i class="fas fa-balance-scale me-2"></i>Review &amp; Confirm Codes
+            </a>
+        </div>
     </div>
     @endif
 
@@ -79,13 +115,19 @@
                     @php
                         $statusClass = match($invoice->status) {
                             'processed' => 'success',
+                            'classified' => 'success',
+                            'partially_classified' => 'warning',
                             'pending' => 'warning',
                             'classifying' => 'info',
                             'draft' => 'secondary',
                             default => 'primary'
                         };
+                        $statusLabel = match($invoice->status) {
+                            'partially_classified' => 'Partially Classified',
+                            default => ucfirst($invoice->status),
+                        };
                     @endphp
-                    <span class="badge bg-{{ $statusClass }} fs-6">{{ ucfirst($invoice->status) }}</span>
+                    <span class="badge bg-{{ $statusClass }} fs-6">{{ $statusLabel }}</span>
                 </div>
             </div>
             <hr>
@@ -165,12 +207,30 @@
                                     <span class="text-muted">-</span>
                                 @endif
                             </td>
-                            <td>
-                                @if($item->customs_code)
-                                    <code class="fw-bold text-primary">{{ $item->customs_code }}</code>
-                                @else
-                                    <span class="text-muted">Not assigned</span>
-                                @endif
+                            <td class="hs-code-cell" data-item-id="{{ $item->id }}">
+                                <div class="hs-display" style="cursor: pointer;" title="Click to edit">
+                                    @if($item->customs_code)
+                                        <code class="fw-bold text-primary">{{ $item->customs_code }}</code>
+                                        <i class="fas fa-pencil-alt text-muted ms-1" style="font-size: 0.65rem;"></i>
+                                    @else
+                                        <span class="text-danger"><i class="fas fa-plus-circle me-1"></i>Assign</span>
+                                    @endif
+                                </div>
+                                <div class="hs-edit" style="display: none;">
+                                    <div class="input-group input-group-sm">
+                                        <input type="text" class="form-control form-control-sm hs-search"
+                                            placeholder="Search HS code..."
+                                            value="{{ $item->customs_code }}"
+                                            data-item-id="{{ $item->id }}">
+                                        <button class="btn btn-sm btn-success hs-save" type="button" title="Save">
+                                            <i class="fas fa-check"></i>
+                                        </button>
+                                        <button class="btn btn-sm btn-outline-secondary hs-cancel" type="button" title="Cancel">
+                                            <i class="fas fa-times"></i>
+                                        </button>
+                                    </div>
+                                    <div class="hs-results list-group mt-1" style="display: none; position: absolute; z-index: 100; max-height: 200px; overflow-y: auto; width: 280px;"></div>
+                                </div>
                             </td>
                         </tr>
                         @endforeach
@@ -281,12 +341,122 @@
 @push('styles')
 <style>
 @media print {
-    .btn, nav, .alert {
+    .btn, nav, .alert, .hs-edit {
         display: none !important;
     }
     .card {
         border: 1px solid #ddd !important;
     }
 }
+.hs-code-cell { position: relative; min-width: 160px; }
+.hs-display:hover { background: #f0f4ff; border-radius: 4px; padding: 2px 4px; margin: -2px -4px; }
+.hs-results .list-group-item { cursor: pointer; padding: 6px 10px; font-size: 0.8rem; }
+.hs-results .list-group-item:hover { background: #e8f0fe; }
+.hs-results .list-group-item code { font-weight: 700; }
 </style>
+@endpush
+
+@push('scripts')
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    const csrfToken = '{{ csrf_token() }}';
+    let searchTimeout = null;
+
+    document.querySelectorAll('.hs-code-cell').forEach(cell => {
+        const display = cell.querySelector('.hs-display');
+        const edit = cell.querySelector('.hs-edit');
+        const input = cell.querySelector('.hs-search');
+        const results = cell.querySelector('.hs-results');
+        const saveBtn = cell.querySelector('.hs-save');
+        const cancelBtn = cell.querySelector('.hs-cancel');
+        const itemId = cell.dataset.itemId;
+
+        display.addEventListener('click', () => {
+            display.style.display = 'none';
+            edit.style.display = 'block';
+            input.focus();
+            input.select();
+        });
+
+        cancelBtn.addEventListener('click', () => {
+            edit.style.display = 'none';
+            display.style.display = 'block';
+            results.style.display = 'none';
+        });
+
+        saveBtn.addEventListener('click', () => saveCode(itemId, input.value.trim(), cell));
+
+        input.addEventListener('keydown', e => {
+            if (e.key === 'Enter') {
+                e.preventDefault();
+                saveCode(itemId, input.value.trim(), cell);
+            }
+            if (e.key === 'Escape') {
+                cancelBtn.click();
+            }
+        });
+
+        input.addEventListener('input', () => {
+            clearTimeout(searchTimeout);
+            const q = input.value.trim();
+            if (q.length < 2) { results.style.display = 'none'; return; }
+            searchTimeout = setTimeout(() => searchCodes(q, results, input, itemId, cell), 300);
+        });
+    });
+
+    function searchCodes(query, resultsEl, input, itemId, cell) {
+        fetch('/api/customs-codes/search?q=' + encodeURIComponent(query) + '&country_id={{ $invoice->country_id }}', {
+            headers: { 'Accept': 'application/json', 'X-CSRF-TOKEN': csrfToken }
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (!data.length) {
+                resultsEl.innerHTML = '<div class="list-group-item text-muted small">No codes found</div>';
+                resultsEl.style.display = 'block';
+                return;
+            }
+            resultsEl.innerHTML = data.slice(0, 8).map(code =>
+                `<div class="list-group-item" data-code="${code.code}" data-desc="${code.description || ''}">
+                    <code>${code.code}</code> <span class="text-muted small">${(code.description || '').substring(0, 60)}</span>
+                </div>`
+            ).join('');
+            resultsEl.style.display = 'block';
+
+            resultsEl.querySelectorAll('.list-group-item[data-code]').forEach(item => {
+                item.addEventListener('click', () => {
+                    input.value = item.dataset.code;
+                    resultsEl.style.display = 'none';
+                    saveCode(itemId, item.dataset.code, cell, item.dataset.desc);
+                });
+            });
+        })
+        .catch(() => { resultsEl.style.display = 'none'; });
+    }
+
+    function saveCode(itemId, code, cell, description) {
+        if (!code) return;
+        fetch('/invoices/items/' + itemId + '/update-code', {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRF-TOKEN': csrfToken,
+                'Accept': 'application/json'
+            },
+            body: JSON.stringify({ customs_code: code, customs_code_description: description || null })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                const display = cell.querySelector('.hs-display');
+                const edit = cell.querySelector('.hs-edit');
+                display.innerHTML = `<code class="fw-bold text-primary">${data.customs_code}</code> <i class="fas fa-pencil-alt text-muted ms-1" style="font-size: 0.65rem;"></i>`;
+                edit.style.display = 'none';
+                display.style.display = 'block';
+                cell.querySelector('.hs-results').style.display = 'none';
+            }
+        })
+        .catch(err => alert('Failed to save: ' + err.message));
+    }
+});
+</script>
 @endpush

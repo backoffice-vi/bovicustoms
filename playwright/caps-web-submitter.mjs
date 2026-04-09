@@ -9,7 +9,8 @@
  * 
  * Input JSON structure:
  * {
- *   "action": "submit" | "save" | "test",
+ *   "action": "submit" | "save" | "test" | "validate",
+ *   "td_number": "004463956",          // optional — if set, opens existing TD instead of creating new
  *   "credentials": { "username": "...", "password": "..." },
  *   "headerData": { ... header-level fields ... },
  *   "items": [ { ... item fields ... }, ... ],
@@ -44,6 +45,8 @@ const config = {
     credentials: input.credentials || {},
     headerData: input.headerData || {},
     items: input.items || [],
+    attachments: input.attachments || [],
+    td_number: input.td_number || null,
     headless: input.headless !== false,
     screenshotDir: input.screenshotDir || './storage/app/playwright-screenshots',
     timeout: input.timeout || 30000,
@@ -238,774 +241,329 @@ async function createNewTD(page) {
 }
 
 /**
- * Fill a text field by various selector strategies
+ * Open an existing TD by its number using direct URL navigation.
+ * The TD must be in an editable state (not yet submitted).
  */
-async function fillField(page, selectors, value, fieldName) {
-    if (value === null || value === undefined || value === '') {
-        log(`Skipping empty field: ${fieldName}`, 'debug');
-        return false;
+async function openExistingTD(page, tdNumber) {
+    log(`Opening existing TD: ${tdNumber}...`);
+    
+    const tdUrl = `https://caps.gov.vg/CAPSWeb/TDDataEntryServlet?method=tddataentry.RetrieveTD&bcdNumber=${tdNumber}&isWebTrader=Y`;
+    
+    try {
+        await page.goto(tdUrl, { waitUntil: 'domcontentloaded', timeout: 120000 });
+    } catch (e) {
+        log(`TD page load wait: ${e.message}`, 'warn');
     }
-    
-    const selectorList = Array.isArray(selectors) ? selectors : [selectors];
-    
-    for (const selector of selectorList) {
-        try {
-            const element = await page.$(selector);
-            if (element) {
-                // Check if field is editable
-                const isDisabled = await element.getAttribute('disabled');
-                const isReadonly = await element.getAttribute('readonly');
-                
-                if (isDisabled || isReadonly) {
-                    log(`Field ${fieldName} is readonly/disabled, skipping`, 'debug');
-                    return false;
-                }
-                
-                await element.fill(String(value));
-                log(`Filled ${fieldName}: ${value}`);
-                return true;
-            }
-        } catch (e) {
-            // Try next selector
+
+    // Wait for the form to be ready — large TDs can be very slow to render
+    const formTimeout = 45000 + (config.items.length * 5000);
+    try {
+        await page.waitForSelector('input[name="head_TraderReference"]', { timeout: Math.min(formTimeout, 180000) });
+    } catch (e) {
+        // The page might still be loading; give it extra time
+        log(`Waiting extra time for form to render (${config.items.length} items)...`, 'warn');
+        await page.waitForTimeout(15000);
+        const field = await page.$('input[name="head_TraderReference"]');
+        if (!field) {
+            throw new Error(`TD ${tdNumber} form did not load — field head_TraderReference not found`);
         }
     }
-    
-    log(`Could not find field ${fieldName} with selectors: ${selectorList.join(', ')}`, 'warn');
-    result.warnings.push(`Field not found: ${fieldName}`);
-    return false;
+
+    result.td_number = tdNumber;
+    log(`Opened existing TD: ${tdNumber}`);
+    await takeScreenshot(page, '03-td-opened');
+    return true;
 }
 
 /**
- * Select a dropdown value
+ * Fill a CAPS input field by its exact name attribute.
+ * Uses page.fill() which triggers proper input/change/blur events.
+ * For readonly fields, removes readonly first via JS, then fills.
  */
-async function selectField(page, selectors, value, fieldName) {
+async function fillByName(page, inputName, value, fieldLabel) {
     if (value === null || value === undefined || value === '') {
         return false;
     }
-    
-    const selectorList = Array.isArray(selectors) ? selectors : [selectors];
-    
-    for (const selector of selectorList) {
-        try {
-            const element = await page.$(selector);
-            if (element) {
-                await element.selectOption(String(value));
-                log(`Selected ${fieldName}: ${value}`);
-                return true;
-            }
-        } catch (e) {
-            // Try next selector
-        }
+    const strValue = String(value);
+
+    // Try input first, then textarea (Description fields use textarea)
+    let selector = `input[name="${inputName}"]`;
+    let el = await page.$(selector);
+    if (!el) {
+        selector = `textarea[name="${inputName}"]`;
+        el = await page.$(selector);
     }
     
-    log(`Could not find dropdown ${fieldName}`, 'warn');
-    return false;
+    if (!el) {
+        log(`Field not found: ${fieldLabel} (${inputName})`, 'warn');
+        result.warnings.push(`Field not found: ${inputName}`);
+        return false;
+    }
+
+    try {
+        const isDisabled = await el.getAttribute('disabled');
+        if (isDisabled !== null) {
+            log(`Field ${fieldLabel} is disabled, skipping`, 'debug');
+            return false;
+        }
+
+        const isReadonly = await el.getAttribute('readonly');
+        if (isReadonly !== null) {
+            await page.evaluate((sel) => {
+                const input = document.querySelector(sel);
+                if (input) input.removeAttribute('readonly');
+            }, selector);
+        }
+
+        await el.fill(strValue);
+
+        if (isReadonly !== null) {
+            await page.evaluate((sel) => {
+                const input = document.querySelector(sel);
+                if (input) input.setAttribute('readonly', 'readonly');
+            }, selector);
+        }
+
+        await el.dispatchEvent('change');
+        log(`Filled ${fieldLabel}: ${strValue}`);
+        return true;
+    } catch (e) {
+        log(`Error filling ${fieldLabel} (${inputName}): ${e.message}`, 'warn');
+        return false;
+    }
 }
 
 /**
- * Fill header section (Summary Detail + Header Detail)
+ * Fill header section using exact input[name] selectors.
+ *
+ * CAPS input names (extracted from live form):
+ *   Summary: head_TraderReference, head_LinkedTdNumber
+ *   Supplier: head_SupplierName, head_SupplierStreet, head_SupplierState,
+ *             head_SupplierZip, head_SupplierCountry (Lookup)
+ *   Transport: head_CarrierID (Lookup), head_CarrierNo,
+ *              head_PortOfArrival (Lookup), head_ArrDepDate
+ *   Manifest: head_ManifestNo, head_TotalNoOfPackages, head_MasterBOL,
+ *             head_ContainerID_line1, head_ContainerLength_line1
+ *   Shipment: head_CityDirShip, head_CountryDirShip (Lookup),
+ *             head_CountryOrgShip (Lookup)
+ *   Additional: head_AdditionalInfoCode_line1 (Lookup),
+ *               head_AdditionalInfoText_line1
+ *   Payment: head_PaymentCode_line1 (Lookup, readonly)
+ *   Totals: head_TotalFreight, head_TotalInsurance, head_TotalPayableAmount
  */
-async function fillHeaderSection(page, data) {
+async function fillHeaderSection(page, data, context) {
     log('Filling header section...');
-    
-    // Fill all header fields at once using direct name-based selectors
-    // CAPS uses predictable input names that we can target directly
-    const headerResult = await page.evaluate((headerData) => {
-        const results = [];
-        
-        // Helper to fill a field by trying multiple selectors
-        function fillByName(namePattern, value, fieldName) {
-            if (!value) return null;
-            
-            // Try exact name match first
-            const inputs = document.querySelectorAll(`input[name="${namePattern}"], input[name*="${namePattern}"]`);
-            for (const input of inputs) {
-                if (!input.readOnly && input.type !== 'hidden' && input.type !== 'checkbox' && input.type !== 'button') {
-                    input.value = value;
-                    input.dispatchEvent(new Event('input', { bubbles: true }));
-                    input.dispatchEvent(new Event('change', { bubbles: true }));
-                    return { field: fieldName, success: true };
-                }
-            }
-            return { field: fieldName, success: false };
+
+    // Summary Detail
+    await fillByName(page, 'head_TraderReference', data.trader_reference, 'Trader Reference');
+
+    // Section 1 – Supplier
+    // Clear supplier ID if empty (important when editing existing TDs)
+    if (!data.supplier_id) {
+        const supplierField = await page.$('input[name="head_SupplierID"]');
+        if (supplierField) {
+            await supplierField.fill('');
+            log('Cleared Supplier ID field');
         }
-        
-        // Helper to find input in a specific section (by section number)
-        function fillInSection(sectionNumber, subField, value, fieldName) {
-            if (!value) return null;
-            
-            // Find the section header (e.g., "1  SUPPLIER ID:" or "3  TRANSPORT DETAILS")
-            const cells = document.querySelectorAll('td');
-            let sectionTable = null;
-            
-            for (const cell of cells) {
-                const text = cell.textContent.trim();
-                // Match section headers like "1  SUPPLIER ID:" or "3  TRANSPORT DETAILS"
-                if (text.match(new RegExp(`^${sectionNumber}\\s+`)) || 
-                    text.includes(`${sectionNumber} `) && text.includes(':')) {
-                    sectionTable = cell.closest('table');
-                    break;
+    } else {
+        await fillByName(page, 'head_SupplierID', data.supplier_id, 'Supplier ID');
+    }
+    await fillByName(page, 'head_SupplierName', data.supplier_name, 'Supplier Name');
+    await fillByName(page, 'head_SupplierStreet', data.supplier_street, 'Supplier Street');
+    await fillByName(page, 'head_SupplierState', data.supplier_city, 'Supplier City/State');
+    await fillByName(page, 'head_SupplierZip', data.supplier_zip, 'Supplier ZIP');
+    await fillByName(page, 'head_SupplierCountry', data.supplier_country, 'Supplier Country');
+
+    // Section 3 – Transport (Box 3)
+    await fillByName(page, 'head_CarrierID', data.carrier_id, 'Carrier ID');
+    await fillByName(page, 'head_CarrierNo', data.carrier_number, 'Carrier/Voyage No (Box 3a)');
+    await fillByName(page, 'head_PortOfArrival', data.port_of_arrival, 'Port of Arrival');
+    await fillByName(page, 'head_ArrDepDate', data.arrival_date, 'Arrival Date');
+
+    // Section 4 – Manifest / B/L (Box 4)
+    await fillByName(page, 'head_ManifestNo', data.manifest_number, 'Manifest No.');
+    await fillByName(page, 'head_TotalNoOfPackages', data.packages_count, 'Total Packages');
+    await fillByName(page, 'head_MasterBOL', data.bill_of_lading, 'Bill of Lading');
+    await fillByName(page, 'head_ContainerID_line1', data.container_id, 'Container ID');
+
+    // Section 5 – Shipment origin
+    await fillByName(page, 'head_CityDirShip', data.city_of_shipment, 'City of Direct Shipment');
+    await fillByName(page, 'head_CountryDirShip', data.country_of_shipment, 'Country of Direct Shipment');
+    await fillByName(page, 'head_CountryOrgShip', data.country_of_origin_shipment, 'Country of Original Shipment');
+
+    // Section 6a – Payment Method (must use Lookup popup; direct JS doesn't persist)
+    if (data.payment_method && context) {
+        try {
+            const lookupLink = await page.evaluate(() => {
+                const codeField = document.querySelector('input[name="head_PaymentCode_line1"]');
+                if (!codeField) return null;
+                let el = codeField.nextElementSibling;
+                while (el) {
+                    if (el.tagName === 'A' && el.textContent.trim().toLowerCase() === 'lookup') return true;
+                    el = el.nextElementSibling;
                 }
-            }
-            
-            if (!sectionTable) {
-                // Fallback: search entire page for the subfield label
-                sectionTable = document;
-            }
-            
-            // Now find the specific subfield within this section
-            const sectionCells = sectionTable.querySelectorAll('td');
-            for (const cell of sectionCells) {
-                if (cell.textContent.includes(subField)) {
-                    const row = cell.closest('tr');
-                    if (row) {
-                        const inputs = row.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([type="button"]):not([readonly])');
-                        // Find the input that's closest to the label cell (in the same visual column)
-                        const cellRect = cell.getBoundingClientRect();
-                        let bestInput = null;
-                        let bestDistance = Infinity;
-                        
-                        for (const input of inputs) {
-                            if (input.offsetParent !== null) {
-                                const inputRect = input.getBoundingClientRect();
-                                // Check if input is to the right of the label and close to it
-                                if (inputRect.left >= cellRect.left - 100) {
-                                    const distance = Math.abs(inputRect.left - cellRect.right);
-                                    if (distance < bestDistance) {
-                                        bestDistance = distance;
-                                        bestInput = input;
-                                    }
-                                }
-                            }
-                        }
-                        
-                        if (bestInput) {
-                            bestInput.value = value;
-                            bestInput.dispatchEvent(new Event('input', { bubbles: true }));
-                            bestInput.dispatchEvent(new Event('change', { bubbles: true }));
-                            return { field: fieldName, success: true };
-                        }
+                const td = codeField.closest('td');
+                if (td) {
+                    const link = td.querySelector('a');
+                    if (link && link.textContent.trim().toLowerCase() === 'lookup') return true;
+                }
+                return null;
+            });
+
+            if (lookupLink) {
+                const popupPromise = context.waitForEvent('page', { timeout: 15000 });
+
+                await page.evaluate(() => {
+                    const codeField = document.querySelector('input[name="head_PaymentCode_line1"]');
+                    if (!codeField) return;
+                    let el = codeField.nextElementSibling;
+                    while (el) {
+                        if (el.tagName === 'A' && el.textContent.trim().toLowerCase() === 'lookup') { el.click(); return; }
+                        el = el.nextElementSibling;
                     }
-                }
-            }
-            return { field: fieldName, success: false };
-        }
-        
-        // Summary Detail - Trader Reference (right side of summary table)
-        if (headerData.trader_reference) {
-            const traderRefCells = document.querySelectorAll('td');
-            for (const cell of traderRefCells) {
-                if (cell.textContent.includes('Trader Reference:')) {
-                    // The input should be in the same row, to the right
-                    const row = cell.closest('tr');
-                    if (row) {
-                        const inputs = row.querySelectorAll('input:not([type="hidden"]):not([readonly])');
-                        if (inputs.length > 0) {
-                            inputs[0].value = headerData.trader_reference;
-                            inputs[0].dispatchEvent(new Event('change', { bubbles: true }));
-                            results.push({ field: 'Trader Reference', success: true });
-                        }
+                    const td = codeField.closest('td');
+                    if (td) {
+                        const link = td.querySelector('a');
+                        if (link) link.click();
                     }
-                    break;
-                }
-            }
-        }
-        
-        // Section 1 - SUPPLIER (left column)
-        results.push(fillInSection(1, 'a. NAME:', headerData.supplier_name, 'Supplier Name'));
-        results.push(fillInSection(1, 'b. STREET:', headerData.supplier_street, 'Supplier Street'));
-        results.push(fillInSection(1, 'c. CITY', headerData.supplier_city, 'Supplier City'));
-        results.push(fillInSection(1, 'd. ZIP', headerData.supplier_zip, 'Supplier ZIP'));
-        results.push(fillInSection(1, 'e. COUNTRY:', headerData.supplier_country, 'Supplier Country'));
-        
-        // Section 3 - TRANSPORT DETAILS
-        results.push(fillInSection(3, 'a. CARRIER ID', headerData.carrier_id, 'Carrier ID'));
-        results.push(fillInSection(3, 'b. PORT OF ARRIVAL:', headerData.port_of_arrival, 'Port of Arrival'));
-        results.push(fillInSection(3, 'c. ARRIVAL DATE:', headerData.arrival_date, 'Arrival Date'));
-        
-        // Section 4 - MANIFEST
-        results.push(fillInSection(4, 'a. NO. OF PACKAGES:', headerData.packages_count, 'Number of Packages'));
-        results.push(fillInSection(4, 'b. BILL OF LADING', headerData.bill_of_lading, 'Bill of Lading'));
-        results.push(fillInSection(4, 'c. CONTAINER ID', headerData.container_id, 'Container ID'));
-        
-        // Section 5 - Shipment Details (right column)
-        results.push(fillInSection(5, 'a. CITY OF DIR', headerData.city_of_shipment, 'City of Direct Shipment'));
-        results.push(fillInSection(5, 'b. COUNTRY OF DIR', headerData.country_of_direct_shipment, 'Country of Direct Shipment'));
-        results.push(fillInSection(5, 'c. COUNTRY OF ORIG', headerData.country_of_origin_shipment, 'Country of Original Shipment'));
-        
-        // Section 8 - TOTAL FREIGHT (right column)
-        if (headerData.total_freight) {
-            const cells = document.querySelectorAll('td');
-            for (const cell of cells) {
-                if (cell.textContent.includes('TOTAL FREIGHT:') && cell.textContent.includes('8')) {
-                    const row = cell.closest('tr');
-                    if (row) {
-                        const inputs = row.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([readonly])');
-                        for (const input of inputs) {
-                            if (input.offsetParent !== null) {
-                                input.value = headerData.total_freight;
-                                input.dispatchEvent(new Event('change', { bubbles: true }));
-                                results.push({ field: 'Total Freight', success: true });
-                                break;
-                            }
+                });
+
+                const popup = await popupPromise;
+                await popup.waitForLoadState('domcontentloaded', { timeout: 15000 });
+                await popup.waitForTimeout(1000);
+                log(`Payment Lookup popup opened: ${popup.url()}`);
+
+                const codeLink = await popup.$(`a:has-text("${data.payment_method}")`);
+                if (!codeLink) {
+                    const exactLink = await popup.evaluate((code) => {
+                        const links = [...document.querySelectorAll('a')];
+                        for (const a of links) {
+                            const row = a.closest('tr');
+                            if (row && row.textContent.includes(code)) { a.click(); return true; }
                         }
+                        return false;
+                    }, data.payment_method);
+                    if (exactLink) {
+                        log(`Clicked payment code ${data.payment_method} via row match`);
+                    } else {
+                        log(`Payment code ${data.payment_method} not found in Lookup popup`, 'warn');
                     }
-                    break;
+                } else {
+                    await codeLink.click();
+                    log(`Clicked payment code ${data.payment_method} in Lookup popup`);
                 }
+
+                await page.waitForTimeout(1000);
+                const finalValue = await page.evaluate(() => {
+                    const f = document.querySelector('input[name="head_PaymentCode_line1"]');
+                    return f ? f.value : null;
+                });
+                log(`Payment Method (Box 6a) after Lookup: ${finalValue}`);
+            } else {
+                log('Payment Lookup link not found, falling back to JS', 'warn');
+                await page.evaluate((method) => {
+                    const codeField = document.querySelector('input[name="head_PaymentCode_line1"]');
+                    if (codeField) { codeField.removeAttribute('readonly'); codeField.value = method; }
+                    const keyField = document.querySelector('input[name="head_PaymentKey_line1"]');
+                    if (keyField) keyField.value = method;
+                }, data.payment_method);
             }
-        }
-        
-        // Section 9 - TOTAL INSURANCE (right column)
-        if (headerData.total_insurance) {
-            const cells = document.querySelectorAll('td');
-            for (const cell of cells) {
-                if (cell.textContent.includes('TOTAL INSURANCE:') && cell.textContent.includes('9')) {
-                    const row = cell.closest('tr');
-                    if (row) {
-                        const inputs = row.querySelectorAll('input:not([type="hidden"]):not([type="checkbox"]):not([readonly])');
-                        for (const input of inputs) {
-                            if (input.offsetParent !== null) {
-                                input.value = headerData.total_insurance;
-                                input.dispatchEvent(new Event('change', { bubbles: true }));
-                                results.push({ field: 'Total Insurance', success: true });
-                                break;
-                            }
-                        }
-                    }
-                    break;
-                }
-            }
-        }
-        
-        return results.filter(r => r !== null);
-    }, data);
-    
-    // Log results
-    for (const r of headerResult) {
-        if (r.success) {
-            log(`Filled ${r.field}`);
-        } else {
-            log(`Could not fill ${r.field}`, 'warn');
+        } catch (e) {
+            log(`Payment Lookup failed: ${e.message}, falling back to JS`, 'warn');
+            await page.evaluate((method) => {
+                const codeField = document.querySelector('input[name="head_PaymentCode_line1"]');
+                if (codeField) { codeField.removeAttribute('readonly'); codeField.value = method; }
+                const keyField = document.querySelector('input[name="head_PaymentKey_line1"]');
+                if (keyField) keyField.value = method;
+            }, data.payment_method);
         }
     }
-    
-    // Handle prorated checkboxes
+
+    // Section 8/9 – Freight & Insurance
+    await fillByName(page, 'head_TotalFreight', data.total_freight, 'Total Freight');
+    await fillByName(page, 'head_TotalInsurance', data.total_insurance, 'Total Insurance');
+
+    // Prorated checkboxes
     if (data.freight_prorated) {
         await page.evaluate(() => {
-            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-            for (const cb of checkboxes) {
-                const row = cb.closest('tr');
-                if (row && row.textContent.includes('FREIGHT') && row.textContent.includes('Prorated')) {
-                    cb.checked = true;
-                    cb.dispatchEvent(new Event('change', { bubbles: true }));
-                    break;
-                }
-            }
+            const cb = document.querySelector('input[name="head_FreightProrated"]');
+            if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
         });
+        log('Set freight prorated');
     }
     if (data.insurance_prorated) {
         await page.evaluate(() => {
-            const checkboxes = document.querySelectorAll('input[type="checkbox"]');
-            for (const cb of checkboxes) {
-                const row = cb.closest('tr');
-                if (row && row.textContent.includes('INSURANCE') && row.textContent.includes('Prorated')) {
-                    cb.checked = true;
-                    cb.dispatchEvent(new Event('change', { bubbles: true }));
-                    break;
-                }
-            }
+            const cb = document.querySelector('input[name="head_InsuranceProrated"]');
+            if (cb) { cb.checked = true; cb.dispatchEvent(new Event('change', { bubbles: true })); }
         });
+        log('Set insurance prorated');
     }
-    
+
     await takeScreenshot(page, '04-header-filled');
     log('Header section filled');
 }
 
 /**
- * Fill a single item record using nth-of-type selectors
- * CAPS form uses complex table structures, so we select fields by their position
+ * Fill a single item record using direct input[name="recN_FieldName"] selectors.
+ *
+ * CAPS item field naming pattern (extracted from live form):
+ *   rec{N}_CPC, rec{N}_TariffNo, rec{N}_CountryOfOrigin,
+ *   rec{N}_NoOfPackages, rec{N}_TypeOfPackages, rec{N}_Description,
+ *   rec{N}_Quantity1 (net weight), rec{N}_Quantity2 (quantity),
+ *   rec{N}_UnitForQuantity (Lookup), rec{N}_RecordValue (FOB),
+ *   rec{N}_CurrencyCode (readonly Lookup),
+ *   rec{N}_ChargeCode_line1/2 (Lookup), rec{N}_ChargeAmount_line1/2,
+ *   rec{N}_TaxType_line1/2 (Lookup), rec{N}_TaxId_line1/2 (Lookup),
+ *   rec{N}_AdditionalInfoCode_line1, rec{N}_AdditionalInfoText_line1
  */
 async function fillItemRecord(page, item, recordIndex) {
-    log(`Filling item record #${recordIndex + 1}...`);
-    
-    // For multi-item forms, recordIndex determines which record section we're in
-    // First record is always present, additional records are added via "Add Record" button
     const recNum = recordIndex + 1;
-    
-    // Scroll to the record section first
+    log(`Filling item record #${recNum}...`);
+
+    try {
+        await page.waitForLoadState('domcontentloaded', { timeout: 15000 });
+    } catch (e) {
+        await page.waitForTimeout(3000);
+    }
+
+    // Scroll to this record's section
     await page.evaluate((num) => {
-        const recordHeader = document.evaluate(
-            `//td[contains(text(), 'RECORD #000${num}')]`,
+        const pat = num.toString().padStart(4, '0');
+        const el = document.evaluate(
+            `//td[contains(text(), 'RECORD #${pat}')]`,
             document, null, XPathResult.FIRST_ORDERED_NODE_TYPE, null
         ).singleNodeValue;
-        if (recordHeader) {
-            recordHeader.scrollIntoView({ behavior: 'smooth', block: 'center' });
-        }
+        if (el) el.scrollIntoView({ behavior: 'smooth', block: 'center' });
     }, recNum);
     await page.waitForTimeout(500);
-    
-    // CPC (Section 12)
-    if (item.cpc) {
-        await fillFieldByLabel(page, 'CPC:', item.cpc, `Item ${recNum} CPC`, recNum);
-    }
-    
-    // Tariff Number (Section 13)
-    if (item.tariff_number) {
-        await fillFieldByLabel(page, 'TARIFF NO.:', item.tariff_number, `Item ${recNum} Tariff`, recNum);
-    }
-    
-    // Country of Origin (Section 14)
-    if (item.country_of_origin) {
-        await fillFieldByLabel(page, 'COUNTRY OF ORIGIN:', item.country_of_origin, `Item ${recNum} Country of Origin`, recNum);
-    }
-    
-    // Number of Packages (Section 15) - first input after label
-    if (item.packages_number) {
-        await fillFieldByLabel(page, 'NO. AND TYPE OF PACKAGES:', item.packages_number, `Item ${recNum} No. of Packages`, recNum, 0);
-    }
-    // Type of Packages - second input after label
-    if (item.packages_type) {
-        await fillFieldByLabel(page, 'NO. AND TYPE OF PACKAGES:', item.packages_type, `Item ${recNum} Package Type`, recNum, 1);
-    }
-    
-    // Description (Section 16)
-    if (item.description) {
-        await fillFieldByLabel(page, 'DESCRIPTION:', item.description, `Item ${recNum} Description`, recNum);
-    }
-    
-    // Net Weight (Section 17a)
-    if (item.net_weight) {
-        await fillFieldByLabel(page, 'NET WEIGHT', item.net_weight, `Item ${recNum} Net Weight`, recNum);
-    }
-    
-    // Quantity (Section 17b) - first input
-    if (item.quantity) {
-        await fillFieldByLabel(page, 'QUANTITY / UNITS:', item.quantity, `Item ${recNum} Quantity`, recNum, 0);
-    }
-    // Units - second input
-    if (item.units) {
-        await fillFieldByLabel(page, 'QUANTITY / UNITS:', item.units, `Item ${recNum} Units`, recNum, 1);
-    }
-    
-    // FOB Value (Section 18)
-    if (item.fob_value) {
-        await fillFieldByLabel(page, 'F.O.B. VALUE:', item.fob_value, `Item ${recNum} FOB Value`, recNum);
-    }
-    
-    // Currency (Section 19) - Try direct value set for readonly field
-    // Must be in the item record section (RECORD #00XX), not header
-    if (item.currency) {
-        const currencyFilled = await page.evaluate((args) => {
-            const { currency, recNum } = args;
-            
-            // First, find the RECORD section for this item
-            const recordHeaders = document.querySelectorAll('td');
-            let recordSection = null;
-            
-            for (const header of recordHeaders) {
-                // Match "RECORD #0001" or similar
-                if (header.textContent.includes(`RECORD #000${recNum}`) || 
-                    header.textContent.includes('RECORD #00')) {
-                    recordSection = header.closest('table');
-                    break;
-                }
-            }
-            
-            if (!recordSection) {
-                // Fallback: look in the entire document but prioritize section 19
-                recordSection = document;
-            }
-            
-            // Now find CURRENCY within that section
-            const cells = recordSection.querySelectorAll('td');
-            for (const cell of cells) {
-                // Must match "a. CURRENCY:" or "19 a. CURRENCY:" specifically
-                if (cell.textContent.match(/\bCURRENCY:/i) && 
-                    !cell.textContent.includes('Declarant')) {
-                    const row = cell.closest('tr');
-                    if (row) {
-                        // Find the small readonly input (usually 3 chars for currency codes)
-                        const inputs = row.querySelectorAll('input[readonly]');
-                        for (const input of inputs) {
-                            // Currency inputs are usually size="3" or maxlength="3"
-                            if (input.size <= 5 || input.maxLength <= 5) {
-                                input.removeAttribute('readonly');
-                                input.value = currency;
-                                input.setAttribute('readonly', 'readonly');
-                                input.dispatchEvent(new Event('change', { bubbles: true }));
-                                return true;
-                            }
-                        }
-                    }
-                }
-            }
-            return false;
-        }, { currency: item.currency, recNum });
-        
-        if (currencyFilled) {
-            log(`Set Currency directly: ${item.currency}`);
-        } else {
-            log(`Could not set Currency field for item ${recNum}`, 'warn');
-        }
-    }
-    
-    // Charges/Deductions (Section 20) - these are in rows
-    // Freight code and amount
-    if (item.freight_code || item.freight_amount) {
-        await fillChargeRow(page, recNum, 0, item.freight_code, item.freight_amount);
-    }
-    
-    // Insurance code and amount  
-    if (item.insurance_code || item.insurance_amount) {
-        await fillChargeRow(page, recNum, 1, item.insurance_code, item.insurance_amount);
-    }
-    
-    // Tax Types (Section 22) - in rows
-    if (item.tax_type_1) {
-        await fillTaxRow(page, recNum, 0, item.tax_type_1);
-    }
-    if (item.tax_type_2) {
-        await fillTaxRow(page, recNum, 1, item.tax_type_2);
-    }
-    
+
+    const prefix = `rec${recNum}`;
+
+    await fillByName(page, `${prefix}_CPC`, item.cpc, `Item ${recNum} CPC`);
+    await fillByName(page, `${prefix}_TariffNo`, item.tariff_number, `Item ${recNum} Tariff`);
+    await fillByName(page, `${prefix}_CountryOfOrigin`, item.country_of_origin, `Item ${recNum} Country of Origin`);
+    await fillByName(page, `${prefix}_NoOfPackages`, item.packages_number, `Item ${recNum} No. Packages`);
+    await fillByName(page, `${prefix}_TypeOfPackages`, item.packages_type, `Item ${recNum} Package Type`);
+    await fillByName(page, `${prefix}_Description`, item.description, `Item ${recNum} Description`);
+    await fillByName(page, `${prefix}_Quantity1`, item.net_weight, `Item ${recNum} Net Weight`);
+    await fillByName(page, `${prefix}_Quantity2`, item.quantity, `Item ${recNum} Quantity`);
+    await fillByName(page, `${prefix}_UnitForQuantity`, item.units, `Item ${recNum} Units`);
+    await fillByName(page, `${prefix}_RecordValue`, item.fob_value, `Item ${recNum} FOB Value`);
+    await fillByName(page, `${prefix}_CurrencyCode`, item.currency, `Item ${recNum} Currency`);
+
+    // Charges / Deductions
+    await fillByName(page, `${prefix}_ChargeCode_line1`, item.freight_code, `Item ${recNum} Freight Code`);
+    await fillByName(page, `${prefix}_ChargeAmount_line1`, item.freight_amount, `Item ${recNum} Freight Amt`);
+    await fillByName(page, `${prefix}_ChargeCode_line2`, item.insurance_code, `Item ${recNum} Insurance Code`);
+    await fillByName(page, `${prefix}_ChargeAmount_line2`, item.insurance_amount, `Item ${recNum} Insurance Amt`);
+
+    // Tax Types and Values
+    await fillByName(page, `${prefix}_TaxType_line1`, item.tax_type_1, `Item ${recNum} Tax Type 1`);
+    await fillByName(page, `${prefix}_TaxValue_line1`, item.tax_value_1 || item.cif_value || '', `Item ${recNum} Tax Value 1 (CIF)`);
+    await fillByName(page, `${prefix}_TaxType_line2`, item.tax_type_2, `Item ${recNum} Tax Type 2`);
+    await fillByName(page, `${prefix}_TaxValue_line2`, item.tax_value_2 || item.fob_value || '', `Item ${recNum} Tax Value 2 (FOB)`);
+
     log(`Item record #${recNum} filled`);
-}
-
-/**
- * Fill field by finding label text within a specific record section
- * recordNum: 1 = first record (RECORD #0001), 2 = second record (RECORD #0002), etc.
- */
-async function fillFieldByLabel(page, labelText, value, fieldName, recordNum = 1, inputIndex = 0) {
-    if (value === null || value === undefined || value === '') {
-        return false;
-    }
-    
-    // Truncate value if too long (CAPS has field length limits)
-    const maxLengths = {
-        'DESCRIPTION': 200,
-        'CPC': 10,
-        'TARIFF': 15,
-        'COUNTRY': 3,
-        'CURRENCY': 3,
-        'UNITS': 5,
-        'default': 50
-    };
-    
-    let maxLen = maxLengths.default;
-    for (const [key, len] of Object.entries(maxLengths)) {
-        if (fieldName.toUpperCase().includes(key)) {
-            maxLen = len;
-            break;
-        }
-    }
-    
-    const truncatedValue = String(value).substring(0, maxLen);
-    
-    try {
-        const filled = await page.evaluate((args) => {
-            const { labelText, value, inputIndex, recordNum } = args;
-            
-            // First, find the record section for this item
-            // CAPS uses "11 RECORD #0001" format for the header
-            const recordPattern = recordNum.toString().padStart(4, '0');
-            let recordSection = null;
-            
-            // Find all potential record headers
-            const allCells = document.querySelectorAll('td');
-            for (const cell of allCells) {
-                if (cell.textContent.includes(`RECORD #${recordPattern}`)) {
-                    // Found the record header - get its containing table
-                    recordSection = cell.closest('table');
-                    // Walk up to find a larger container that includes all the record's fields
-                    if (recordSection) {
-                        // The record section typically spans a large part of the page
-                        // Look for the next RECORD header to determine bounds
-                        break;
-                    }
-                }
-            }
-            
-            // Determine search scope
-            const searchScope = recordSection || document;
-            
-            // Find all cells containing this label within the scope
-            const cells = searchScope.querySelectorAll('td');
-            let foundCount = 0;
-            
-            for (const cell of cells) {
-                if (cell.textContent.includes(labelText)) {
-                    // For multi-record forms, we need to find the Nth occurrence
-                    // where N corresponds to our record number
-                    foundCount++;
-                    
-                    // If we have a record section, use the first match within it
-                    // Otherwise, use the Nth match globally
-                    if (recordSection || foundCount === recordNum) {
-                        const row = cell.closest('tr');
-                        if (row) {
-                            const inputs = row.querySelectorAll('input:not([type="hidden"]):not([disabled]):not([readonly]), textarea');
-                            if (inputs.length > inputIndex) {
-                                const input = inputs[inputIndex];
-                                input.value = value;
-                                input.dispatchEvent(new Event('input', { bubbles: true }));
-                                input.dispatchEvent(new Event('change', { bubbles: true }));
-                                return { success: true, recordSection: !!recordSection };
-                            }
-                        }
-                    }
-                }
-            }
-            return { success: false, recordSection: !!recordSection };
-        }, { labelText, value: truncatedValue, inputIndex, recordNum });
-        
-        if (filled.success) {
-            log(`Filled ${fieldName}: ${truncatedValue}`);
-            return true;
-        }
-    } catch (e) {
-        log(`Error filling ${fieldName}: ${e.message}`, 'debug');
-    }
-    
-    log(`Could not find field ${fieldName} by label "${labelText}"`, 'warn');
-    result.warnings.push(`Field not found: ${fieldName}`);
-    return false;
-}
-
-/**
- * Fill a readonly field via Lookup popup
- * CAPS Lookup fields work by:
- * 1. Clicking "Lookup" link next to the field
- * 2. A popup window opens with a list
- * 3. Search/select the value
- * 4. Popup closes and fills the field
- */
-async function fillLookupField(page, labelText, value, fieldName) {
-    if (!value) return false;
-    
-    try {
-        log(`Opening Lookup for ${fieldName}...`);
-        
-        // Find the row with this label and click its Lookup link
-        const lookupClicked = await page.evaluate((args) => {
-            const { labelText, value } = args;
-            const cells = document.querySelectorAll('td');
-            
-            for (const cell of cells) {
-                if (cell.textContent.includes(labelText)) {
-                    const row = cell.closest('tr');
-                    if (row) {
-                        // Find the Lookup link in this row
-                        const lookupLink = row.querySelector('a[href*="javascript"]');
-                        if (lookupLink && lookupLink.textContent.includes('Lookup')) {
-                            lookupLink.click();
-                            return true;
-                        }
-                    }
-                }
-            }
-            return false;
-        }, { labelText, value });
-        
-        if (!lookupClicked) {
-            log(`Could not find Lookup link for ${fieldName}`, 'warn');
-            return false;
-        }
-        
-        // Wait for popup to appear
-        await page.waitForTimeout(1000);
-        
-        // Handle the popup - CAPS uses window.open() popups
-        // We need to listen for new pages
-        const [popup] = await Promise.race([
-            Promise.all([page.waitForEvent('popup', { timeout: 5000 })]),
-            new Promise(resolve => setTimeout(() => resolve([null]), 5000))
-        ]);
-        
-        if (popup) {
-            // New popup window opened
-            await popup.waitForLoadState('domcontentloaded');
-            
-            // Look for search field or list in popup
-            const searchField = await popup.$('input[type="text"]');
-            if (searchField) {
-                await searchField.fill(value);
-                await popup.waitForTimeout(500);
-            }
-            
-            // Try to find and click the matching option
-            const optionClicked = await popup.evaluate((searchValue) => {
-                // Look for links or rows containing the value
-                const links = document.querySelectorAll('a, td');
-                for (const el of links) {
-                    if (el.textContent.includes(searchValue)) {
-                        el.click();
-                        return true;
-                    }
-                }
-                // Try clicking submit/select button
-                const buttons = document.querySelectorAll('input[type="submit"], button');
-                for (const btn of buttons) {
-                    if (btn.value?.toLowerCase().includes('select') || 
-                        btn.textContent?.toLowerCase().includes('select')) {
-                        btn.click();
-                        return true;
-                    }
-                }
-                return false;
-            }, value);
-            
-            await page.waitForTimeout(1000);
-            log(`Selected ${value} from Lookup popup for ${fieldName}`);
-            return true;
-        } else {
-            // No popup - might be inline dropdown or different mechanism
-            // Try selecting from any dropdown that appeared
-            log(`No popup detected for ${fieldName}, trying inline selection`, 'debug');
-            return false;
-        }
-        
-    } catch (e) {
-        log(`Error handling Lookup for ${fieldName}: ${e.message}`, 'warn');
-        return false;
-    }
-}
-
-/**
- * Fill a charges/deductions row
- * Charge codes (FRT, INS) use Lookup popups, amounts are direct input
- */
-async function fillChargeRow(page, recordNum, rowIndex, code, amount) {
-    try {
-        // First fill the amount field (this is usually direct input)
-        if (amount) {
-            const amountFilled = await page.evaluate((args) => {
-                const { rowIndex, amount } = args;
-                
-                // Find the CHARGES / DEDUCTIONS section
-                const headers = document.querySelectorAll('td');
-                for (const header of headers) {
-                    if (header.textContent.includes('CHARGES / DEDUCTIONS') && 
-                        header.textContent.includes('AMOUNT')) {
-                        const table = header.closest('table');
-                        if (table) {
-                            const rows = table.querySelectorAll('tr');
-                            let chargeRowCount = 0;
-                            for (const row of rows) {
-                                const inputs = row.querySelectorAll('input:not([type="hidden"]):not([readonly])');
-                                const hasLookup = row.textContent.includes('Lookup');
-                                
-                                if (inputs.length >= 1 && hasLookup) {
-                                    if (chargeRowCount === rowIndex) {
-                                        // Amount is usually the last editable input in the row
-                                        const amountInput = inputs[inputs.length - 1];
-                                        if (amountInput) {
-                                            amountInput.value = amount;
-                                            amountInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                            amountInput.dispatchEvent(new Event('change', { bubbles: true }));
-                                            return true;
-                                        }
-                                    }
-                                    chargeRowCount++;
-                                }
-                            }
-                        }
-                    }
-                }
-                return false;
-            }, { rowIndex, amount });
-            
-            if (amountFilled) {
-                log(`Filled charge amount row ${rowIndex + 1}: ${amount}`);
-            }
-        }
-        
-        // For charge codes like FRT/INS, we may need to use Lookup
-        // For now, try direct fill first
-        if (code) {
-            const codeFilled = await page.evaluate((args) => {
-                const { rowIndex, code } = args;
-                
-                const headers = document.querySelectorAll('td');
-                for (const header of headers) {
-                    if (header.textContent.includes('CHARGES / DEDUCTIONS')) {
-                        const table = header.closest('table');
-                        if (table) {
-                            const rows = table.querySelectorAll('tr');
-                            let chargeRowCount = 0;
-                            for (const row of rows) {
-                                const hasLookup = row.textContent.includes('Lookup');
-                                const inputs = row.querySelectorAll('input:not([type="hidden"])');
-                                
-                                if (inputs.length >= 1 && hasLookup) {
-                                    if (chargeRowCount === rowIndex) {
-                                        // Code is usually the first input
-                                        const codeInput = inputs[0];
-                                        if (codeInput && !codeInput.readOnly) {
-                                            codeInput.value = code;
-                                            codeInput.dispatchEvent(new Event('input', { bubbles: true }));
-                                            codeInput.dispatchEvent(new Event('change', { bubbles: true }));
-                                            return true;
-                                        }
-                                    }
-                                    chargeRowCount++;
-                                }
-                            }
-                        }
-                    }
-                }
-                return false;
-            }, { rowIndex, code });
-            
-            if (codeFilled) {
-                log(`Filled charge code row ${rowIndex + 1}: ${code}`);
-            } else {
-                log(`Charge code field ${rowIndex + 1} may be readonly - use Lookup`, 'debug');
-            }
-        }
-        
-    } catch (e) {
-        log(`Could not fill charge row ${rowIndex + 1}: ${e.message}`, 'warn');
-    }
-}
-
-/**
- * Fill a tax type row
- */
-async function fillTaxRow(page, recordNum, rowIndex, taxType) {
-    try {
-        await page.evaluate((args) => {
-            const { rowIndex, taxType } = args;
-            
-            // Find the TAX TYPE header
-            const headers = document.querySelectorAll('td');
-            for (const header of headers) {
-                if (header.textContent.includes('TAX TYPE') && header.textContent.includes('EXEMPT')) {
-                    const table = header.closest('table');
-                    if (table) {
-                        const rows = table.querySelectorAll('tr');
-                        let taxRowCount = 0;
-                        for (const row of rows) {
-                            const inputs = row.querySelectorAll('input:not([type="hidden"])');
-                            // Tax rows have multiple inputs (type, exempt, value, rate, amount)
-                            if (inputs.length >= 4) {
-                                if (taxRowCount === rowIndex) {
-                                    inputs[0].value = taxType;
-                                    inputs[0].dispatchEvent(new Event('input', { bubbles: true }));
-                                    return true;
-                                }
-                                taxRowCount++;
-                            }
-                        }
-                    }
-                }
-            }
-            return false;
-        }, { rowIndex, taxType });
-        
-        log(`Filled tax type row ${rowIndex + 1}: ${taxType}`);
-    } catch (e) {
-        log(`Could not fill tax row ${rowIndex + 1}`, 'warn');
-    }
 }
 
 /**
@@ -1037,7 +595,6 @@ async function addNewRecord(page, currentRecordCount) {
     }
     
     if (!addButton) {
-        // Try finding by text content
         addButton = await page.evaluateHandle(() => {
             const inputs = document.querySelectorAll('input[type="button"]');
             for (const input of inputs) {
@@ -1053,42 +610,52 @@ async function addNewRecord(page, currentRecordCount) {
         }
     }
     
-    // Click the button
-    await addButton.click();
-    
-    // Wait for the page to process and new record section to appear
-    // CAPS may reload the page or dynamically add the new section
-    await page.waitForTimeout(2000);
-    
-    // Wait for the new record section to be visible
-    const nextRecordNum = (currentRecordCount + 1).toString().padStart(4, '0');
+    // Click Add Record and wait for page reload.
+    // CAPS reloads the entire page when adding a record, and it gets slower with more records.
+    const waitTimeout = Math.min(180000, 45000 + currentRecordCount * 8000);
+    const nextRecNum = currentRecordCount + 1;
+    const nextFieldName = `rec${nextRecNum}_CPC`;
+
     try {
-        await page.waitForFunction((recordNum) => {
-            const cells = document.querySelectorAll('td');
-            for (const cell of cells) {
-                if (cell.textContent.includes(`RECORD #${recordNum}`)) {
-                    return true;
-                }
-            }
-            return false;
-        }, nextRecordNum, { timeout: 10000 });
-        log(`New item record #${currentRecordCount + 1} added`);
+        await Promise.all([
+            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: waitTimeout }),
+            addButton.click(),
+        ]);
     } catch (e) {
-        log(`Warning: Could not confirm new record section appeared`, 'warn');
-        // Continue anyway - the record might have been added differently
+        log(`Navigation wait after Add Record (${waitTimeout}ms): ${e.message}`, 'warn');
+        await page.waitForTimeout(5000);
+        try {
+            await page.waitForLoadState('domcontentloaded', { timeout: 60000 });
+        } catch (e2) {
+            log('Page still loading after Add Record, waiting more...', 'warn');
+            await page.waitForTimeout(10000);
+        }
     }
-    
+    await page.waitForTimeout(2000);
+
+    // Confirm the new record's input fields actually exist in the DOM
+    try {
+        const confirmTimeout = Math.min(90000, 20000 + currentRecordCount * 5000);
+        await page.waitForFunction((fieldName) => {
+            return !!document.querySelector(`input[name="${fieldName}"], textarea[name="${fieldName}"]`);
+        }, nextFieldName, { timeout: confirmTimeout });
+        log(`New item record #${nextRecNum} fields confirmed in DOM`);
+    } catch (e) {
+        log(`Could not confirm new record fields (${nextFieldName}), continuing...`, 'warn');
+    }
+
     // Scroll to the new record section
-    await page.evaluate((recordNum) => {
+    const recPadded = nextRecNum.toString().padStart(4, '0');
+    await page.evaluate((pat) => {
         const cells = document.querySelectorAll('td');
         for (const cell of cells) {
-            if (cell.textContent.includes(`RECORD #${recordNum}`)) {
+            if (cell.textContent.includes(`RECORD #${pat}`)) {
                 cell.scrollIntoView({ behavior: 'smooth', block: 'start' });
                 break;
             }
         }
-    }, nextRecordNum);
-    
+    }, recPadded);
+
     await page.waitForTimeout(500);
 }
 
@@ -1104,9 +671,14 @@ async function fillItems(page, items) {
     log(`Filling ${items.length} item(s)...`);
     
     for (let i = 0; i < items.length; i++) {
-        // For items beyond the first, need to click "Add Record"
-        if (i > 0) {
-            await addNewRecord(page, i); // Pass current count (0-indexed, so i = number of records already added)
+        const recNum = i + 1;
+        // Check if this record already exists in the DOM (editing existing TD)
+        const recordExists = await page.$(`input[name="rec${recNum}_CPC"]`);
+        
+        if (i > 0 && !recordExists) {
+            await addNewRecord(page, i);
+        } else if (recordExists) {
+            log(`Record #${recNum} already exists, overwriting fields`);
         }
         
         await fillItemRecord(page, items[i], i);
@@ -1114,6 +686,41 @@ async function fillItems(page, items) {
     }
     
     log(`All ${items.length} item(s) filled`);
+}
+
+/**
+ * Mark extra records for deletion when editing a TD with fewer grouped items.
+ * Sets hidden rec{N}_delete fields to "true" — CAPS removes them on save.
+ */
+async function deleteExtraRecords(page, keepCount) {
+    const totalRecords = await page.evaluate(() => {
+        const el = document.querySelector('input[name="PaginationTotalRecords"]') ||
+                   document.querySelector('input[name="head_TotalNoOfRecords"]');
+        return el ? parseInt(el.value, 10) : 0;
+    });
+
+    if (totalRecords <= keepCount) {
+        log(`No extra records to delete (${totalRecords} records, keeping ${keepCount})`);
+        return;
+    }
+
+    const toDelete = totalRecords - keepCount;
+    log(`Marking ${toDelete} extra record(s) for deletion (${totalRecords} → ${keepCount})...`);
+
+    const deleted = await page.evaluate(({ keep, total }) => {
+        let count = 0;
+        for (let i = keep + 1; i <= total; i++) {
+            const field = document.querySelector(`input[name="rec${i}_delete"]`);
+            if (field) {
+                field.value = 'true';
+                count++;
+            }
+        }
+        return count;
+    }, { keep: keepCount, total: totalRecords });
+
+    log(`Marked ${deleted} record(s) for deletion — will be removed on save`);
+    await takeScreenshot(page, '05b-records-marked-delete');
 }
 
 /**
@@ -1159,19 +766,37 @@ async function saveTD(page) {
         throw new Error('Save button not found');
     }
     
-    await saveButton.click();
+    // Save triggers a full page reload — use evaluate to click without Playwright's auto-wait
+    log('Clicking Save...');
+    await page.evaluate(() => {
+        const btn = document.querySelector('input[name="save"]') || 
+                    document.querySelector('input[value*="Save"]');
+        if (btn) btn.click();
+    });
     
-    // Wait for save to complete
-    await page.waitForLoadState('networkidle', { timeout: config.timeout });
-    await page.waitForTimeout(2000);
+    // Wait for CAPS to process the save — large TDs take a very long time
+    const saveTimeout = Math.min(180000, 45000 + (config.items.length * 5000));
+    log(`Waiting for save to complete (timeout: ${saveTimeout}ms)...`);
     
-    // Check for success/error messages
-    const pageText = await page.textContent('body');
-    if (pageText.toLowerCase().includes('error') && !pageText.toLowerCase().includes('no error')) {
-        result.warnings.push('Page may contain errors after save');
+    try {
+        await page.waitForLoadState('domcontentloaded', { timeout: saveTimeout });
+    } catch (e) {
+        log(`Save page load wait: ${e.message}`, 'warn');
     }
-    
-    await takeScreenshot(page, '06-saved');
+
+    // Extra wait to ensure CAPS finishes rendering
+    await page.waitForTimeout(5000);
+
+    // Confirm the page is interactive by checking for a known field
+    try {
+        await page.waitForSelector('input[name="head_TraderReference"]', { timeout: 30000 });
+        log('Save confirmed — form is interactive again');
+    } catch (e) {
+        log('Form fields not yet available after save, waiting more...', 'warn');
+        await page.waitForTimeout(15000);
+    }
+
+    await takeScreenshot(page, '06-saved').catch(() => {});
     log('TD saved successfully');
     return true;
 }
@@ -1182,8 +807,22 @@ async function saveTD(page) {
 async function validateTD(page) {
     log('Validating TD...');
     
+    // Ensure the page is fully loaded before interacting (critical after save timeouts)
+    try {
+        await page.waitForLoadState('domcontentloaded', { timeout: 60000 });
+    } catch (e) {
+        log(`Page load wait before validate: ${e.message}`, 'warn');
+    }
+    await page.waitForTimeout(3000);
+    
     // Scroll to bottom where buttons are
-    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    try {
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    } catch (e) {
+        log(`Scroll failed, retrying after wait: ${e.message}`, 'warn');
+        await page.waitForTimeout(5000);
+        await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight)).catch(() => {});
+    }
     await page.waitForTimeout(500);
     
     // Try multiple selectors for Validate button
@@ -1219,20 +858,67 @@ async function validateTD(page) {
         return false;
     }
     
-    await validateButton.click();
+    // Validation can take a long time with many items — use generous timeout
+    const validateTimeout = Math.min(180000, 60000 + (config.items.length * 5000));
+    log(`Clicking Validate (timeout: ${validateTimeout}ms for ${config.items.length} items)...`);
     
-    // Wait for validation to complete
-    await page.waitForLoadState('networkidle', { timeout: config.timeout });
-    await page.waitForTimeout(2000);
+    try {
+        await Promise.all([
+            page.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: validateTimeout }),
+            validateButton.click(),
+        ]);
+    } catch (e) {
+        log(`Validate navigation wait (${validateTimeout}ms): ${e.message}`, 'warn');
+        // The click went through — CAPS may still be processing. Wait and check.
+        await page.waitForTimeout(10000);
+    }
     
-    // Check for validation errors
-    const pageText = await page.textContent('body');
-    const hasErrors = pageText.toLowerCase().includes('error') && 
-                      !pageText.toLowerCase().includes('no error');
+    await page.waitForTimeout(3000);
+    
+    // Check for validation errors — CAPS uses specific phrasing
+    const pageText = await page.textContent('body').catch(() => '');
+    const lowerText = pageText.toLowerCase();
+    const capsErrorPatterns = [
+        'field not complete',
+        'tariff no. not known',
+        'supplier id not found',
+        'trader not active',
+        'not known',
+        'not found',
+        'not active',
+        'validation results',
+    ];
+    const detectedErrors = capsErrorPatterns.filter(p => lowerText.includes(p));
+    const hasErrors = detectedErrors.length > 0;
     
     if (hasErrors) {
-        log('Validation found errors on the form', 'warn');
-        result.warnings.push('Validation errors detected');
+        log(`Validation detected errors on the page`, 'warn');
+        // Try to extract structured errors from the Validation Results table/section
+        const errorDetails = await page.evaluate(() => {
+            const errors = [];
+            // CAPS puts validation results in a table or div near the top
+            const cells = document.querySelectorAll('td, div, span');
+            let capture = false;
+            for (const cell of cells) {
+                const text = (cell.textContent || '').trim();
+                if (text === 'Validation Results') { capture = true; continue; }
+                if (capture && text === 'Summary Detail') break;
+                if (capture && /NOT COMPLETE|NOT KNOWN|NOT FOUND|NOT ACTIVE/i.test(text)) {
+                    errors.push(text);
+                }
+            }
+            if (errors.length === 0) {
+                // Fallback: grab lines from body text
+                const body = document.body.textContent || '';
+                body.split('\n').forEach(l => {
+                    l = l.trim();
+                    if (/NOT COMPLETE|NOT KNOWN|NOT FOUND|NOT ACTIVE/i.test(l)) errors.push(l);
+                });
+            }
+            return errors;
+        });
+        errorDetails.forEach(e => log(`  CAPS Error: ${e}`, 'warn'));
+        result.warnings.push(`Validation errors: ${errorDetails.join('; ') || detectedErrors.join(', ')}`);
     } else {
         log('Validation passed - no errors detected');
     }
@@ -1259,6 +945,135 @@ async function exitTD(page) {
 }
 
 /**
+ * Attach files (B/L, Invoice, etc.) to the TD via the "Attach File" popup.
+ *
+ * CAPS popup structure (inspected from live HTML):
+ *   - Form: <form method="post" action="uploadFile" enctype="multipart/form-data" name="attachFile">
+ *   - File input: <input type="file" name="uploadFile1">
+ *   - Upload: <button type="button" onclick="...this.form.submit();">Upload</button>
+ *   - Close:  <button type="button" onclick="window.close();">Close Window</button>
+ *
+ * After each upload the popup reloads showing the uploaded file plus a fresh
+ * file input, so multiple files can be uploaded without reopening the popup.
+ */
+async function attachFiles(page, context, attachments) {
+    if (!attachments || attachments.length === 0) {
+        log('No attachments to upload');
+        return;
+    }
+
+    // Filter to valid files only
+    const validAttachments = attachments.filter(a => {
+        if (!a.filePath || !existsSync(a.filePath)) {
+            log(`Skipping attachment "${a.label || 'unknown'}": file not found at ${a.filePath}`, 'warn');
+            result.warnings.push(`Attachment file not found: ${a.filePath}`);
+            return false;
+        }
+        return true;
+    });
+
+    if (validAttachments.length === 0) {
+        log('No valid attachment files to upload');
+        return;
+    }
+
+    log(`Uploading ${validAttachments.length} attachment(s)...`);
+
+    // Scroll to the Attach File button
+    await page.evaluate(() => window.scrollTo(0, document.body.scrollHeight));
+    await page.waitForTimeout(500);
+
+    const attachBtn = await page.$('input[value*="Attach File"]');
+    if (!attachBtn) {
+        log('Attach File button not found on TD form, skipping attachments', 'warn');
+        result.warnings.push('Attach File button not found on form');
+        return;
+    }
+
+    // Listen for the popup before clicking
+    const popupPromise = context.waitForEvent('page', { timeout: config.timeout });
+    await attachBtn.click();
+
+    let popup;
+    try {
+        popup = await popupPromise;
+        await popup.waitForLoadState('domcontentloaded', { timeout: config.timeout });
+        await popup.waitForTimeout(2000);
+        log(`Attach File popup opened: ${popup.url()}`);
+    } catch (e) {
+        log(`Attach File popup did not open: ${e.message}`, 'warn');
+        result.warnings.push('Could not open Attach File popup');
+        return;
+    }
+
+    // Upload each file in the same popup session
+    for (const attachment of validAttachments) {
+        try {
+            log(`Uploading: ${attachment.label || attachment.filePath}`);
+
+            // Wait for the file input to be present
+            const fileInput = await popup.waitForSelector('input[type="file"]', { timeout: 10000 });
+            if (!fileInput) {
+                log('File input not found in popup', 'warn');
+                result.warnings.push(`File input not found for: ${attachment.label}`);
+                continue;
+            }
+
+            await fileInput.setInputFiles(attachment.filePath);
+            log(`File selected: ${attachment.filePath}`);
+            await popup.waitForTimeout(500);
+
+            // The Upload button is <button type="button"> with onclick="...this.form.submit();"
+            // Use evaluate to submit the form directly, which is more reliable than clicking
+            const uploadBtn = await popup.waitForSelector('button:has-text("Upload")', { timeout: 5000 });
+            if (!uploadBtn) {
+                log('Upload button not found in popup', 'warn');
+                result.warnings.push(`Upload button not found for: ${attachment.label}`);
+                continue;
+            }
+
+            // Click Upload and wait for form submission to navigate the popup
+            await Promise.all([
+                popup.waitForNavigation({ waitUntil: 'domcontentloaded', timeout: 30000 }),
+                uploadBtn.click(),
+            ]);
+            await popup.waitForTimeout(2000);
+
+            // After upload, the popup reloads. Check for errors.
+            const popupText = await popup.textContent('body').catch(() => '');
+            if (popupText.toLowerCase().includes('error')) {
+                log(`Upload may have failed for: ${attachment.label}`, 'warn');
+                result.warnings.push(`Upload error for ${attachment.label}`);
+            } else {
+                log(`Successfully uploaded: ${attachment.label || attachment.filePath}`);
+            }
+
+            await takeScreenshot(popup, `08-attachment-${attachment.label || 'file'}`);
+
+        } catch (e) {
+            log(`Error uploading ${attachment.label || 'file'}: ${e.message}`, 'warn');
+            result.warnings.push(`Attachment upload error: ${e.message}`);
+        }
+    }
+
+    // Close the popup
+    try {
+        const closeBtn = await popup.$('button:has-text("Close Window")');
+        if (closeBtn) {
+            await closeBtn.click();
+            await page.waitForTimeout(500);
+        } else {
+            await popup.close();
+        }
+    } catch (_) {
+        try { await popup.close(); } catch (__) {}
+    }
+
+    await takeScreenshot(page, '08-attachments-done');
+    log('Attachment process complete');
+}
+
+/**
  * Main submission flow
  */
 async function runSubmission(browser) {
@@ -1271,18 +1086,32 @@ async function runSubmission(browser) {
         // Step 1: Login
         await login(page);
         
-        // Step 2: Create new TD
-        await createNewTD(page);
+        // Step 2: Create new TD or open existing
+        if (config.td_number) {
+            await openExistingTD(page, config.td_number);
+        } else {
+            await createNewTD(page);
+        }
         
         // Step 3: Fill header section
-        await fillHeaderSection(page, config.headerData);
+        await fillHeaderSection(page, config.headerData, context);
         
         // Step 4: Fill item records
         await fillItems(page, config.items);
         
+        // Step 4b: Delete extra records when editing with fewer grouped items
+        if (config.td_number) {
+            await deleteExtraRecords(page, config.items.length);
+        }
+        
         // Step 5: Save and optionally validate based on action
         if (config.action === 'submit' || config.action === 'save' || config.action === 'validate') {
             await saveTD(page);
+            
+            // Step 5b: Attach files (B/L, Invoice, etc.) after save
+            if (config.attachments && config.attachments.length > 0) {
+                await attachFiles(page, context, config.attachments);
+            }
             
             if (config.action === 'submit' || config.action === 'validate') {
                 // Validate after save

@@ -110,7 +110,7 @@
                         <h5 class="card-title">
                             <i class="fas fa-robot text-success me-2"></i>Step 2: AI Processing
                         </h5>
-                        <p class="card-text">Our AI extracts data and assigns appropriate customs codes.</p>
+                        <p class="card-text">BoVi AI extracts data and assigns appropriate customs codes.</p>
                     </div>
                 </div>
             </div>

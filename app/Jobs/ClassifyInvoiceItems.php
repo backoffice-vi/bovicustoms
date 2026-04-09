@@ -11,6 +11,7 @@ use Illuminate\Contracts\Queue\ShouldQueue;
 use Illuminate\Foundation\Bus\Dispatchable;
 use Illuminate\Queue\InteractsWithQueue;
 use Illuminate\Queue\SerializesModels;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Cache;
 
@@ -26,7 +27,7 @@ class ClassifyInvoiceItems implements ShouldQueue
     /**
      * The number of seconds the job can run before timing out.
      */
-    public int $timeout = 600; // 10 minutes
+    public int $timeout = 1800; // 30 minutes (concurrent batches are much faster)
 
     /**
      * The invoice to classify.
@@ -66,67 +67,176 @@ class ClassifyInvoiceItems implements ShouldQueue
     }
 
     /**
-     * Execute the job.
+     * How many items to classify concurrently via Http::pool().
+     */
+    protected int $batchSize = 10;
+
+    /**
+     * Execute the job using concurrent batch classification.
+     *
+     * Items are processed in batches: context is gathered from the DB sequentially
+     * (fast), then all Claude API calls in the batch fire concurrently via Http::pool().
+     * This reduces wall-clock time from O(n × 40s) to roughly O(n/batch × 40s).
      */
     public function handle(ItemClassifier $itemClassifier): void
     {
+        set_time_limit(0);
+        ini_set('memory_limit', '512M');
+
+        $totalItems = count($this->items);
+
         Log::info('Starting background classification of invoice items', [
             'invoice_id' => $this->invoice->id,
             'user_id' => $this->user->id,
-            'item_count' => count($this->items),
+            'item_count' => $totalItems,
+            'batch_size' => $this->batchSize,
         ]);
 
         $cacheKey = "invoice_classification_{$this->invoice->id}";
 
         try {
-            // Update status to processing
             $this->updateProgress(0, 'processing', 'Starting classification...');
 
             $itemsWithClassifications = [];
-            $totalItems = count($this->items);
+            $classifiedCount = 0;
+            $apiConfig = $itemClassifier->getClaudeApiConfig();
 
-            foreach ($this->items as $index => $item) {
-                $description = $item['description'];
-                
-                // Update progress
-                $progress = round((($index + 1) / $totalItems) * 100);
-                $this->updateProgress($progress, 'processing', "Classifying item " . ($index + 1) . " of {$totalItems}...");
+            $batches = array_chunk($this->items, $this->batchSize, true);
+            $batchCount = count($batches);
 
-                // Run classification
-                $classificationResult = $itemClassifier->classify($description, $this->countryId);
-                
-                // Find historical precedents for comparison
-                $precedents = $this->findPrecedentsForItem($description, $this->countryId);
-                
-                $itemsWithClassifications[] = [
-                    // Original item data
-                    'description' => $description,
-                    'quantity' => $item['quantity'] ?? null,
-                    'unit_price' => $item['unit_price'] ?? null,
-                    'sku' => $item['sku'] ?? null,
-                    'item_number' => $item['item_number'] ?? null,
-                    'line_number' => $index + 1,
-                    
-                    // Classification result
-                    'classification' => $classificationResult,
-                    
-                    // Historical precedents
-                    'precedents' => $precedents,
-                    
-                    // Determine if there's a conflict
-                    'has_conflict' => $this->hasConflict($classificationResult, $precedents),
-                ];
+            foreach ($batches as $batchIndex => $batch) {
+                $batchNum = $batchIndex + 1;
+                $this->updateProgress(
+                    round(($classifiedCount / $totalItems) * 100),
+                    'processing',
+                    "Classifying batch {$batchNum} of {$batchCount} ({$classifiedCount}/{$totalItems} items done)..."
+                );
 
-                Log::debug('Classified item', [
-                    'invoice_id' => $this->invoice->id,
-                    'item_index' => $index,
-                    'description' => $description,
-                    'code' => $classificationResult['code'] ?? null,
-                    'success' => $classificationResult['success'] ?? false,
-                ]);
+                // Phase 1: Prepare all items in this batch (sequential DB work — fast)
+                $preparations = [];
+                $resolvedInBatch = [];
+
+                foreach ($batch as $originalIndex => $item) {
+                    $description = $item['description'];
+                    $prep = $itemClassifier->prepareForBatchClassification($description, $this->countryId);
+
+                    if ($prep['resolved']) {
+                        $resolvedInBatch[$originalIndex] = [
+                            'item' => $item,
+                            'result' => $prep['result'],
+                        ];
+                    } elseif (!empty($prep['fallback'])) {
+                        // No context could be prepared — fall back to full sequential classify
+                        $resolvedInBatch[$originalIndex] = [
+                            'item' => $item,
+                            'result' => $itemClassifier->classify($description, $this->countryId),
+                        ];
+                    } else {
+                        $preparations[$originalIndex] = [
+                            'item' => $item,
+                            'prep' => $prep,
+                        ];
+                    }
+                }
+
+                // Phase 2: Fire concurrent Claude API calls for this batch
+                $claudeResults = [];
+                if (!empty($preparations)) {
+                    $prepKeys = array_keys($preparations);
+
+                    $responses = Http::pool(function ($pool) use ($preparations, $prepKeys, $apiConfig) {
+                        foreach ($prepKeys as $key) {
+                            $prompt = $preparations[$key]['prep']['prompt'];
+                            $pool->as("item_{$key}")
+                                ->withoutVerifying()
+                                ->withHeaders($apiConfig['headers'])
+                                ->timeout(120)
+                                ->post('https://api.anthropic.com/v1/messages', [
+                                    'model' => $apiConfig['model'],
+                                    'max_tokens' => $apiConfig['max_tokens'],
+                                    'messages' => [
+                                        ['role' => 'user', 'content' => $prompt],
+                                    ],
+                                ]);
+                        }
+                    });
+
+                    // Phase 3: Process responses
+                    foreach ($prepKeys as $key) {
+                        $response = $responses["item_{$key}"];
+                        $item = $preparations[$key]['item'];
+                        $prep = $preparations[$key]['prep'];
+
+                        if ($response instanceof \Illuminate\Http\Client\Response && $response->successful()) {
+                            $content = $response->json()['content'][0]['text'] ?? '';
+                            $result = $itemClassifier->processClaudeResponseForBatch($content, $prep);
+
+                            if (!($result['success'] ?? false)) {
+                                Log::debug('Batch item needs fallback', [
+                                    'invoice_id' => $this->invoice->id,
+                                    'description' => $item['description'],
+                                ]);
+                                $result = $itemClassifier->classify($item['description'], $this->countryId);
+                            }
+
+                            $claudeResults[$key] = [
+                                'item' => $item,
+                                'result' => $result,
+                            ];
+                        } else {
+                            // HTTP failure — fall back to sequential classify
+                            $errorMsg = $response instanceof \Illuminate\Http\Client\Response
+                                ? $response->body()
+                                : 'Connection error';
+                            Log::warning('Batch Claude call failed, falling back', [
+                                'invoice_id' => $this->invoice->id,
+                                'description' => $item['description'],
+                                'error' => substr($errorMsg, 0, 200),
+                            ]);
+                            $claudeResults[$key] = [
+                                'item' => $item,
+                                'result' => $itemClassifier->classify($item['description'], $this->countryId),
+                            ];
+                        }
+                    }
+                }
+
+                // Phase 4: Merge resolved + Claude results in original order, find precedents
+                $allBatchResults = $resolvedInBatch + $claudeResults;
+                ksort($allBatchResults);
+
+                foreach ($allBatchResults as $originalIndex => $entry) {
+                    $item = $entry['item'];
+                    $classificationResult = $entry['result'];
+                    $description = $item['description'];
+                    $globalIndex = $classifiedCount;
+
+                    $precedents = $this->findPrecedentsForItem($description, $this->countryId);
+
+                    $itemsWithClassifications[] = [
+                        'description' => $description,
+                        'quantity' => $item['quantity'] ?? null,
+                        'unit_price' => $item['unit_price'] ?? null,
+                        'sku' => $item['sku'] ?? null,
+                        'item_number' => $item['item_number'] ?? null,
+                        'line_number' => $globalIndex + 1,
+                        'classification' => $classificationResult,
+                        'precedents' => $precedents,
+                        'has_conflict' => $this->hasConflict($classificationResult, $precedents),
+                    ];
+
+                    Log::debug('Classified item', [
+                        'invoice_id' => $this->invoice->id,
+                        'item_index' => $globalIndex,
+                        'description' => $description,
+                        'code' => $classificationResult['code'] ?? null,
+                        'success' => $classificationResult['success'] ?? false,
+                    ]);
+
+                    $classifiedCount++;
+                }
             }
 
-            // Store the results in cache for the user to access
             Cache::put($cacheKey, [
                 'status' => 'completed',
                 'progress' => 100,
@@ -137,7 +247,6 @@ class ClassifyInvoiceItems implements ShouldQueue
                 'completed_at' => now()->toIso8601String(),
             ], now()->addHours(2));
 
-            // Send notification to user
             $this->user->notify(new InvoiceClassificationComplete(
                 $this->invoice,
                 count($itemsWithClassifications),
@@ -156,7 +265,6 @@ class ClassifyInvoiceItems implements ShouldQueue
                 'trace' => $e->getTraceAsString(),
             ]);
 
-            // Update status to failed
             Cache::put($cacheKey, [
                 'status' => 'failed',
                 'progress' => 0,
@@ -165,7 +273,6 @@ class ClassifyInvoiceItems implements ShouldQueue
                 'failed_at' => now()->toIso8601String(),
             ], now()->addHours(2));
 
-            // Send failure notification
             $this->user->notify(new InvoiceClassificationComplete(
                 $this->invoice,
                 0,

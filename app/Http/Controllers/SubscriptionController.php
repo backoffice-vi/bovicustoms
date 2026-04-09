@@ -15,8 +15,9 @@ class SubscriptionController extends Controller
         $user = auth()->user();
         $organization = $user->organization;
         $plans = SubscriptionPlan::active()->get();
+        $isAdmin = $user->isAdmin();
         
-        return view('subscription.index', compact('user', 'organization', 'plans'));
+        return view('subscription.index', compact('user', 'organization', 'plans', 'isAdmin'));
     }
 
     /**
@@ -62,11 +63,19 @@ class SubscriptionController extends Controller
     {
         $user = auth()->user();
         
+        if ($user->isAdmin()) {
+            return response()->json([
+                'used' => 0,
+                'limit' => null,
+                'remaining' => 'unlimited',
+                'percentage' => 0,
+            ]);
+        }
+        
         if ($user->is_individual) {
-            // Individual users on free tier
             $monthStart = now()->startOfMonth();
             $invoiceCount = $user->invoices()->where('created_at', '>=', $monthStart)->count();
-            $limit = 10; // Free tier limit
+            $limit = 10;
             
             return response()->json([
                 'used' => $invoiceCount,

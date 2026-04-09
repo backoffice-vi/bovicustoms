@@ -45,7 +45,7 @@ class ShipmentController extends Controller
         // Get invoices that are not yet assigned to a shipment
         $availableInvoices = Invoice::whereDoesntHave('shipments')
             ->with('country')
-            ->where('status', 'processed')
+            ->whereIn('status', ['processed', 'classified'])
             ->latest()
             ->get();
 
@@ -308,7 +308,7 @@ class ShipmentController extends Controller
     {
         $shipmentId = $request->input('shipment_id');
         
-        $query = Invoice::where('status', 'processed');
+        $query = Invoice::whereIn('status', ['processed', 'classified']);
         
         if ($shipmentId) {
             // Exclude invoices already in this shipment

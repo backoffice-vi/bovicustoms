@@ -18,7 +18,7 @@ class DashboardController extends Controller
             ->take(5)
             ->get();
 
-        $processedInvoices = Invoice::where('status', 'processed')
+        $processedInvoices = Invoice::whereIn('status', ['processed', 'classified'])
             ->orderBy('created_at', 'desc')
             ->take(5)
             ->get();

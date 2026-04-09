@@ -5,6 +5,8 @@ namespace App\Services;
 use App\Models\TradeContact;
 use App\Models\Country;
 use Illuminate\Support\Collection;
+use Illuminate\Support\Facades\Http;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class ContactMatchingService
@@ -37,9 +39,6 @@ class ContactMatchingService
             ];
         }
 
-        $companyName = $partyDetails['company_name'];
-        
-        // Get all contacts of this type for the current tenant
         $contacts = TradeContact::ofType($contactType)->get();
         
         if ($contacts->isEmpty()) {
@@ -51,11 +50,10 @@ class ContactMatchingService
             ];
         }
 
+        // Step 1: Fuzzy string matching (fast, free)
         $matches = [];
-        
         foreach ($contacts as $contact) {
             $score = $this->calculateMatchScore($partyDetails, $contact);
-            
             if ($score >= self::MIN_MATCH_SCORE) {
                 $matches[] = [
                     'contact' => $contact,
@@ -65,10 +63,41 @@ class ContactMatchingService
             }
         }
 
-        // Sort by score descending
         usort($matches, fn($a, $b) => $b['score'] <=> $a['score']);
-
         $bestMatch = $matches[0] ?? null;
+
+        // Step 2: AI matching — runs when fuzzy matching found no high-confidence match
+        $needsAi = !$bestMatch || !$bestMatch['is_high_confidence'];
+        if ($needsAi) {
+            $aiResult = $this->matchWithAI($partyDetails, $contacts);
+
+            if ($aiResult && $aiResult['contact_id']) {
+                $aiContact = $contacts->firstWhere('id', $aiResult['contact_id']);
+                if ($aiContact) {
+                    $aiScore = $aiResult['confidence'];
+                    $existingIdx = collect($matches)->search(fn($m) => $m['contact']->id === $aiContact->id);
+
+                    if ($existingIdx !== false) {
+                        // AI confirmed a fuzzy match — boost its score
+                        $boosted = max($matches[$existingIdx]['score'], $aiScore);
+                        $matches[$existingIdx]['score'] = $boosted;
+                        $matches[$existingIdx]['is_high_confidence'] = $boosted >= self::HIGH_CONFIDENCE_SCORE;
+                        $matches[$existingIdx]['ai_confirmed'] = true;
+                    } else {
+                        // AI found a match that fuzzy missed entirely
+                        $matches[] = [
+                            'contact' => $aiContact,
+                            'score' => $aiScore,
+                            'is_high_confidence' => $aiScore >= self::HIGH_CONFIDENCE_SCORE,
+                            'ai_matched' => true,
+                        ];
+                    }
+
+                    usort($matches, fn($a, $b) => $b['score'] <=> $a['score']);
+                    $bestMatch = $matches[0];
+                }
+            }
+        }
 
         return [
             'matches' => $matches,
@@ -77,6 +106,120 @@ class ContactMatchingService
             'exact_match' => $bestMatch && $bestMatch['score'] >= 95,
             'is_high_confidence' => $bestMatch && $bestMatch['is_high_confidence'],
         ];
+    }
+
+    /**
+     * Use AI to determine if the extracted contact matches any existing contact.
+     * Returns the best matching contact_id and confidence, or null.
+     */
+    protected function matchWithAI(array $partyDetails, Collection $contacts): ?array
+    {
+        $apiKey = config('services.claude.api_key');
+        $model = config('services.claude.model');
+        if (!$apiKey) {
+            return null;
+        }
+
+        $extractedSummary = $partyDetails['company_name'];
+        if (!empty($partyDetails['address'])) $extractedSummary .= ', ' . $partyDetails['address'];
+        if (!empty($partyDetails['city'])) $extractedSummary .= ', ' . $partyDetails['city'];
+        if (!empty($partyDetails['country'])) $extractedSummary .= ', ' . $partyDetails['country'];
+        if (!empty($partyDetails['phone'])) $extractedSummary .= ', Phone: ' . $partyDetails['phone'];
+
+        $contactList = '';
+        foreach ($contacts as $c) {
+            $addr = implode(', ', array_filter([
+                $c->address_line_1, $c->city, $c->state_province, $c->phone,
+            ]));
+            $contactList .= "  ID {$c->id}: {$c->company_name}" . ($addr ? " ({$addr})" : '') . "\n";
+        }
+
+        $prompt = <<<PROMPT
+You are a trade/shipping contact matching assistant. Determine if the extracted contact from a shipping document matches any existing contact in the database.
+
+EXTRACTED CONTACT (from Bill of Lading):
+{$extractedSummary}
+
+EXISTING DATABASE CONTACTS:
+{$contactList}
+
+MATCHING RULES:
+- Company names may differ slightly: abbreviations (Ltd/Limited), formatting (dashes, spaces), extra location info (e.g., "East End" branch suffix)
+- "KEHE DISTRIBUTORS-TREE OF LIFE" and "Kehe Distributors - Tree of Life" are the SAME company
+- "NATURE'S WAY LTD" and "Nature's Way East End" are the SAME company (East End is a location/branch)
+- Phone numbers may have different formatting but same digits
+- Addresses may be partial or formatted differently
+- If the core business name matches, it's likely the same contact even if address details differ
+
+Return ONLY a JSON object:
+{
+  "match_found": true,
+  "contact_id": 4,
+  "confidence": 92,
+  "reasoning": "Brief explanation"
+}
+
+If NO contact matches, return:
+{
+  "match_found": false,
+  "contact_id": null,
+  "confidence": 0,
+  "reasoning": "No matching contact found"
+}
+PROMPT;
+
+        try {
+            $response = Http::withoutVerifying()
+                ->withHeaders([
+                    'x-api-key' => $apiKey,
+                    'anthropic-version' => '2023-06-01',
+                    'Content-Type' => 'application/json',
+                ])
+                ->timeout(15)
+                ->post('https://api.anthropic.com/v1/messages', [
+                    'model' => $model,
+                    'max_tokens' => 256,
+                    'messages' => [['role' => 'user', 'content' => $prompt]],
+                ]);
+
+            if (!$response->successful()) {
+                Log::warning('AI contact matching API failed', ['status' => $response->status()]);
+                return null;
+            }
+
+            $text = $response->json()['content'][0]['text'] ?? '';
+            if (preg_match('/```(?:json)?\s*([\s\S]*?)\s*```/', $text, $m)) {
+                $text = $m[1];
+            }
+
+            $result = json_decode(trim($text), true);
+            if (!is_array($result) || !($result['match_found'] ?? false)) {
+                return null;
+            }
+
+            $contactId = $result['contact_id'] ?? null;
+            $confidence = (int) ($result['confidence'] ?? 0);
+
+            if (!$contactId || $confidence < 50) {
+                return null;
+            }
+
+            Log::info('AI contact match found', [
+                'extracted' => $partyDetails['company_name'],
+                'matched_id' => $contactId,
+                'confidence' => $confidence,
+                'reasoning' => $result['reasoning'] ?? '',
+            ]);
+
+            return [
+                'contact_id' => $contactId,
+                'confidence' => $confidence,
+                'reasoning' => $result['reasoning'] ?? '',
+            ];
+        } catch (\Exception $e) {
+            Log::warning('AI contact matching failed', ['error' => $e->getMessage()]);
+            return null;
+        }
     }
 
     /**
@@ -160,11 +303,9 @@ class ContactMatchingService
      */
     protected function similarityScore(string $str1, string $str2): int
     {
-        // Normalize strings
         $str1 = $this->normalizeForComparison($str1);
         $str2 = $this->normalizeForComparison($str2);
 
-        // Exact match
         if ($str1 === $str2) {
             return 100;
         }
@@ -175,20 +316,36 @@ class ContactMatchingService
             return (int) round(80 + (20 * $lengthRatio));
         }
 
+        // Token-based matching: what fraction of the shorter name's words appear in the longer?
+        $tokens1 = array_filter(explode(' ', $str1), fn($w) => strlen($w) > 1);
+        $tokens2 = array_filter(explode(' ', $str2), fn($w) => strlen($w) > 1);
+        if (!empty($tokens1) && !empty($tokens2)) {
+            $shorter = count($tokens1) <= count($tokens2) ? $tokens1 : $tokens2;
+            $longer = count($tokens1) > count($tokens2) ? $tokens1 : $tokens2;
+            $hits = 0;
+            foreach ($shorter as $token) {
+                foreach ($longer as $lToken) {
+                    if ($token === $lToken || str_contains($lToken, $token) || str_contains($token, $lToken)) {
+                        $hits++;
+                        break;
+                    }
+                }
+            }
+            $tokenScore = (int) round(($hits / count($shorter)) * 100);
+        }
+
         // Use similar_text for fuzzy matching
         similar_text($str1, $str2, $percent);
         
         // Also use levenshtein for short strings
+        $levenshteinScore = 0;
         if (strlen($str1) < 50 && strlen($str2) < 50) {
             $maxLen = max(strlen($str1), strlen($str2));
             $levenshtein = levenshtein($str1, $str2);
             $levenshteinScore = $maxLen > 0 ? (1 - ($levenshtein / $maxLen)) * 100 : 0;
-            
-            // Use the better of the two scores
-            return (int) round(max($percent, $levenshteinScore));
         }
 
-        return (int) round($percent);
+        return (int) round(max($percent, $levenshteinScore, $tokenScore ?? 0));
     }
 
     /**
@@ -196,17 +353,16 @@ class ContactMatchingService
      */
     protected function normalizeForComparison(string $str): string
     {
-        // Lowercase
         $str = mb_strtolower($str);
         
         // Remove common business suffixes
         $suffixes = ['ltd', 'llc', 'inc', 'corp', 'co', 'company', 'limited', 'corporation'];
         foreach ($suffixes as $suffix) {
-            $str = preg_replace('/\b' . $suffix . '\.?\s*$/i', '', $str);
+            $str = preg_replace('/\b' . $suffix . '\.?\b/i', '', $str);
         }
         
-        // Remove punctuation and extra spaces
-        $str = preg_replace('/[^\w\s]/', '', $str);
+        // Replace punctuation with spaces (not remove) so "DISTRIBUTORS-TREE" becomes "distributors tree"
+        $str = preg_replace('/[^\w\s]/', ' ', $str);
         $str = preg_replace('/\s+/', ' ', $str);
         
         return trim($str);

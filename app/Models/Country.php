@@ -27,6 +27,8 @@ class Country extends Model
         'ftp_file_format',
         'submission_methods',
         'ftp_notification_email',
+        'caps_group_items',
+        'caps_default_payment_method',
     ];
 
     protected $casts = [
@@ -36,6 +38,7 @@ class Country extends Model
         'ftp_passive_mode' => 'boolean',
         'ftp_port' => 'integer',
         'submission_methods' => 'array',
+        'caps_group_items' => 'boolean',
     ];
 
     /**

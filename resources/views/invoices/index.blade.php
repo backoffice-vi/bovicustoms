@@ -58,18 +58,52 @@
                                 @php
                                     $statusClass = match($invoice->status) {
                                         'processed' => 'success',
+                                        'classified' => 'success',
+                                        'partially_classified' => 'warning',
                                         'pending' => 'warning',
                                         'draft' => 'secondary',
+                                        'classifying' => 'info',
                                         default => 'primary'
                                     };
+                                    $statusLabel = match($invoice->status) {
+                                        'partially_classified' => 'Partial',
+                                        default => ucfirst($invoice->status),
+                                    };
                                 @endphp
-                                <span class="badge bg-{{ $statusClass }}">{{ ucfirst($invoice->status) }}</span>
+                                <span class="badge bg-{{ $statusClass }}">{{ $statusLabel }}</span>
                             </td>
                             <td>{{ $invoice->created_at->format('M d, Y') }}</td>
-                            <td>
+                            <td class="text-nowrap">
                                 <a href="{{ route('invoices.show', $invoice) }}" class="btn btn-sm btn-outline-primary" title="View">
                                     <i class="fas fa-eye"></i>
                                 </a>
+                                @if($invoice->status === 'classifying')
+                                    <a href="{{ route('invoices.classification_status', $invoice) }}" class="btn btn-sm btn-outline-info" title="View Status">
+                                        <i class="fas fa-spinner"></i>
+                                    </a>
+                                @elseif($invoice->status === 'partially_classified' && !empty($invoice->items))
+                                    <form action="{{ route('invoices.retry_classification', $invoice) }}" method="POST" class="d-inline">
+                                        @csrf
+                                        <button type="submit" class="btn btn-sm btn-outline-warning" title="Retry Failed Items">
+                                            <i class="fas fa-redo"></i>
+                                        </button>
+                                    </form>
+                                    <form action="{{ route('invoices.retry_classification', $invoice) }}" method="POST" class="d-inline">
+                                        @csrf
+                                        <input type="hidden" name="retry_all" value="1">
+                                        <button type="submit" class="btn btn-sm btn-outline-danger" title="Reclassify All Items">
+                                            <i class="fas fa-sync"></i>
+                                        </button>
+                                    </form>
+                                @elseif(in_array($invoice->status, ['draft', 'pending']) && !empty($invoice->items))
+                                    <form action="{{ route('invoices.retry_classification', $invoice) }}" method="POST" class="d-inline">
+                                        @csrf
+                                        <input type="hidden" name="retry_all" value="1">
+                                        <button type="submit" class="btn btn-sm btn-outline-warning" title="Classify">
+                                            <i class="fas fa-tags"></i>
+                                        </button>
+                                    </form>
+                                @endif
                             </td>
                         </tr>
                         @endforeach

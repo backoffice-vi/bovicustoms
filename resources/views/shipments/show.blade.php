@@ -158,6 +158,10 @@
                                     </button>
                                     @endif
                                     @if($doc->isCompleted())
+                                    <button type="button" class="btn btn-sm btn-outline-primary extract-btn" 
+                                            data-doc-id="{{ $doc->id }}" title="Re-extract data">
+                                        <i class="fas fa-sync-alt"></i>
+                                    </button>
                                     <button type="button" class="btn btn-sm btn-outline-secondary edit-doc-btn" 
                                             data-doc-id="{{ $doc->id }}"
                                             data-bs-toggle="modal" data-bs-target="#editDocumentModal">
@@ -967,7 +971,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 if (data.success) {
                     // Show contact matching modal if there are contacts to match
                     if (data.contact_matches && Object.keys(data.contact_matches).length > 0) {
-                        showContactMatchingModal(data.contact_matches, docId);
+                        showContactMatchingModal(data.contact_matches, docId, data.auto_linked || {});
                     } else {
                         // No contacts extracted, just reload
                         location.reload();
@@ -986,7 +990,11 @@ document.addEventListener('DOMContentLoaded', function() {
     });
     
     // Show contact matching modal
-    function showContactMatchingModal(contactMatches, docId) {
+    function showContactMatchingModal(contactMatches, docId, autoLinked) {
+        const allAutoLinked = Object.keys(contactMatches).every(
+            type => autoLinked[type]
+        );
+
         let html = `
         <div class="modal fade" id="contactMatchingModal" tabindex="-1">
             <div class="modal-dialog modal-lg">
@@ -996,22 +1004,24 @@ document.addEventListener('DOMContentLoaded', function() {
                         <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
                     </div>
                     <div class="modal-body">
-                        <p class="text-muted mb-4">Data has been extracted and shipment details have been auto-populated. Please review and confirm the trade contacts below:</p>
+                        <p class="text-muted mb-4">${allAutoLinked 
+                            ? 'All contacts were automatically matched and linked to this shipment.' 
+                            : 'Data has been extracted and shipment details have been auto-populated. Please review and confirm the trade contacts below:'}</p>
         `;
         
         // Shipper
         if (contactMatches.shipper) {
-            html += buildContactSection('shipper', 'Shipper (Exporter)', contactMatches.shipper, docId);
+            html += buildContactSection('shipper', 'Shipper (Exporter)', contactMatches.shipper, docId, !!autoLinked.shipper);
         }
         
         // Consignee
         if (contactMatches.consignee) {
-            html += buildContactSection('consignee', 'Consignee (Importer)', contactMatches.consignee, docId);
+            html += buildContactSection('consignee', 'Consignee (Importer)', contactMatches.consignee, docId, !!autoLinked.consignee);
         }
         
         // Notify Party
         if (contactMatches.notify_party) {
-            html += buildContactSection('notify_party', 'Notify Party', contactMatches.notify_party, docId);
+            html += buildContactSection('notify_party', 'Notify Party', contactMatches.notify_party, docId, !!autoLinked.notify_party);
         }
         
         html += `
@@ -1040,20 +1050,27 @@ document.addEventListener('DOMContentLoaded', function() {
         });
     }
     
-    function buildContactSection(type, label, matchData, docId) {
+    function buildContactSection(type, label, matchData, docId, isAutoLinked) {
         const extracted = matchData.extracted || {};
-        const hasMatch = matchData.matched && matchData.contact;
-        const bestMatch = matchData.contact;
+        const hasMatch = matchData.has_matches && matchData.best_match;
+        const bestMatch = matchData.best_match;
         const confidence = matchData.confidence || 0;
         
+        let statusBadge;
+        if (isAutoLinked) {
+            statusBadge = `<span class="badge bg-light text-success"><i class="fas fa-check-circle me-1"></i>Auto-Linked (${confidence}%)</span>`;
+        } else if (hasMatch) {
+            statusBadge = `<span class="badge bg-light text-success">Match Found (${confidence}%)</span>`;
+        } else {
+            statusBadge = '<span class="badge bg-dark">No Match - New Contact</span>';
+        }
+
         let html = `
-        <div class="card mb-3 ${hasMatch ? 'border-success' : 'border-warning'}">
-            <div class="card-header ${hasMatch ? 'bg-success text-white' : 'bg-warning'}">
+        <div class="card mb-3 ${hasMatch || isAutoLinked ? 'border-success' : 'border-warning'}">
+            <div class="card-header ${hasMatch || isAutoLinked ? 'bg-success text-white' : 'bg-warning'}">
                 <div class="d-flex justify-content-between align-items-center">
                     <strong>${label}</strong>
-                    ${hasMatch 
-                        ? `<span class="badge bg-light text-success">Match Found (${Math.round(confidence*100)}%)</span>` 
-                        : '<span class="badge bg-dark">No Match - New Contact</span>'}
+                    ${statusBadge}
                 </div>
             </div>
             <div class="card-body">
@@ -1069,7 +1086,18 @@ document.addEventListener('DOMContentLoaded', function() {
                     <div class="col-md-6">
         `;
         
-        if (hasMatch) {
+        if (isAutoLinked && bestMatch) {
+            html += `
+                        <h6 class="text-muted">Linked Contact:</h6>
+                        <div class="bg-light p-2 rounded">
+                            <strong>${bestMatch.company_name}</strong><br>
+                            <small class="text-muted">${bestMatch.full_address || 'No address on file'}</small>
+                        </div>
+                        <div class="btn btn-outline-success btn-sm mt-2 w-100 disabled">
+                            <i class="fas fa-check me-1"></i>Automatically Linked
+                        </div>
+            `;
+        } else if (hasMatch) {
             html += `
                         <h6 class="text-muted">Matched Contact:</h6>
                         <div class="bg-light p-2 rounded">

@@ -7,6 +7,7 @@ use App\Services\EmbeddingService;
 use App\Services\VectorClassifier;
 use App\Services\ItemClassifier;
 use App\Services\DocumentChunker;
+use Illuminate\Pagination\Paginator;
 use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
@@ -59,6 +60,6 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
-        //
+        Paginator::useBootstrapFive();
     }
 }

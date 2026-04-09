@@ -25,33 +25,92 @@ class LegacyClearancesController extends Controller
         $q = trim((string) $request->get('q', ''));
         $hs = trim((string) $request->get('hs_code', ''));
 
-        // Get recent legacy shipments (imported clearances)
         $recentLegacyShipments = Shipment::where('source_type', 'legacy')
             ->with(['country', 'invoices', 'declarationForms'])
             ->orderBy('created_at', 'desc')
-            ->take(10)
-            ->get();
+            ->paginate(25);
 
         $invoiceItemResults = collect();
         $declarationItemResults = collect();
+        $searchMatches = collect();
 
         if ($q !== '' || $hs !== '') {
-            if ($q !== '') {
+            $words = $q !== '' ? preg_split('/\s+/', $q) : [];
+            // Basic stemming: strip trailing 's' so "puffs" matches "PUFF"
+            $stems = array_filter(array_map(fn($w) => rtrim(trim($w), 's'), $words), fn($w) => strlen($w) >= 2);
+
+            if (!empty($stems)) {
                 $invoiceItemResults = InvoiceItem::query()
+                    ->with('invoice')
                     ->whereHas('invoice', fn($qry) => $qry->where('source_type', 'legacy'))
-                    ->where('description', 'like', '%' . $q . '%')
+                    ->where(function ($query) use ($stems) {
+                        foreach ($stems as $stem) {
+                            $query->where('description', 'like', '%' . $stem . '%');
+                        }
+                    })
                     ->orderBy('created_at', 'desc')
-                    ->take(25)
+                    ->take(50)
                     ->get();
             }
 
             $declarationItemResults = DeclarationFormItem::query()
+                ->with('declarationForm')
                 ->whereHas('declarationForm', fn($qry) => $qry->where('source_type', 'legacy'))
-                ->when($q !== '', fn ($qq) => $qq->where('description', 'like', '%' . $q . '%'))
+                ->when(!empty($stems), function ($query) use ($stems) {
+                    $query->where(function ($sub) use ($stems) {
+                        foreach ($stems as $stem) {
+                            $sub->where('description', 'like', '%' . $stem . '%');
+                        }
+                    });
+                })
                 ->when($hs !== '', fn ($qq) => $qq->where('hs_code', 'like', '%' . $hs . '%'))
                 ->orderBy('created_at', 'desc')
-                ->take(25)
+                ->take(50)
                 ->get();
+
+            // Compute relevance % for declaration items based on word overlap with search query
+            if ($q !== '' && $declarationItemResults->isNotEmpty()) {
+                $queryWords = array_map('strtolower', $stems);
+                $declarationItemResults->each(function ($item) use ($queryWords) {
+                    $desc = strtolower($item->description);
+                    $descWords = preg_split('/[\s,_\-\/]+/', $desc);
+                    $descWords = array_filter($descWords, fn($w) => strlen($w) >= 2);
+
+                    $matchedQueryWords = 0;
+                    foreach ($queryWords as $qw) {
+                        if (str_contains($desc, $qw)) {
+                            $matchedQueryWords++;
+                        }
+                    }
+
+                    $matchedDescWords = 0;
+                    foreach ($descWords as $dw) {
+                        foreach ($queryWords as $qw) {
+                            if (str_contains($dw, $qw) || str_contains($qw, $dw)) {
+                                $matchedDescWords++;
+                                break;
+                            }
+                        }
+                    }
+
+                    $totalDescWords = max(count($descWords), 1);
+                    $queryScore = count($queryWords) > 0 ? ($matchedQueryWords / count($queryWords)) : 0;
+                    $descScore = $matchedDescWords / $totalDescWords;
+
+                    // Weighted: 60% how many query words matched, 40% how much of the description matched
+                    $item->relevance = (int) round(($queryScore * 60) + ($descScore * 40));
+                });
+
+                $declarationItemResults = $declarationItemResults->sortByDesc('relevance')->values();
+            }
+
+            // Build matches: for each invoice item, find its matched declaration item
+            if ($invoiceItemResults->isNotEmpty()) {
+                $searchMatches = InvoiceDeclarationMatch::with('declarationFormItem')
+                    ->whereIn('invoice_item_id', $invoiceItemResults->pluck('id'))
+                    ->get()
+                    ->keyBy('invoice_item_id');
+            }
         }
 
         return view('legacy-clearances.index', compact(
@@ -60,7 +119,8 @@ class LegacyClearancesController extends Controller
             'q',
             'hs',
             'invoiceItemResults',
-            'declarationItemResults'
+            'declarationItemResults',
+            'searchMatches'
         ));
     }
 
@@ -98,7 +158,7 @@ class LegacyClearancesController extends Controller
             'country',
             'invoices.invoiceItems',
             'shippingDocuments',
-            'declarationForms.declarationFormItems',
+            'declarationForms.declarationItems',
         ]);
 
         // Get all invoice items for matching display

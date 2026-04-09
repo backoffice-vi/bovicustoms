@@ -188,6 +188,23 @@ class Organization extends Model
     }
 
     /**
+     * Get CAPS credentials for a specific country
+     */
+    public function getCapsCredentials($countryId): ?OrganizationSubmissionCredential
+    {
+        return $this->submissionCredentials()
+            ->forCaps()
+            ->forCountry($countryId)
+            ->active()
+            ->first();
+    }
+
+    public function hasCapsCredentials($countryId): bool
+    {
+        return $this->hasCredentialsFor('caps', $countryId);
+    }
+
+    /**
      * Get the effective FTP credentials (org-level or fall back to trader_id from settings)
      */
     public function getEffectiveFtpCredentials($countryId): ?array

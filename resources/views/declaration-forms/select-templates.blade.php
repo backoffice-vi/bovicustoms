@@ -120,7 +120,7 @@
             <h6><i class="fas fa-info-circle me-2 text-info"></i>How it works</h6>
             <ol class="mb-0 small">
                 <li>Select a form template above</li>
-                <li>Our AI will analyze the form and extract all fields that need to be filled</li>
+                <li>BoVi AI will analyze the form and extract all fields that need to be filled</li>
                 <li>Select your saved trade contacts (shippers, consignees, brokers) or add new ones</li>
                 <li>Review auto-filled data and provide any missing information</li>
                 <li>Preview and download or print the completed form</li>

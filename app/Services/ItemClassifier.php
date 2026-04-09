@@ -115,13 +115,24 @@ class ItemClassifier
             }
             
             $result['classification_path'] = array_merge($classificationPath, $result['classification_path'] ?? []);
-            return $result;
+            
+            if ($result['success'] && !empty($result['code'])) {
+                return $result;
+            }
+        }
+        
+        // TIER 4: Direct Claude — no candidates, no pipeline, just ask Claude
+        $classificationPath[] = "Tier 4: Direct Claude classification (no candidate filtering)";
+        $directResult = $this->classifyDirectWithClaude($itemDescription);
+        if ($directResult['success'] ?? false) {
+            $directResult['classification_path'] = $classificationPath;
+            return $directResult;
         }
         
         // No results from any tier
         return [
             'success' => false,
-            'error' => 'Could not classify item - no matches found in database or vector search',
+            'error' => 'Could not classify item - all tiers exhausted including direct Claude',
             'classification_path' => $classificationPath,
         ];
     }
@@ -1594,6 +1605,586 @@ PROMPT;
         }
 
         return $results;
+    }
+
+    /**
+     * Expand a batch of abbreviated invoice descriptions into plain English
+     * using a single Claude call. Returns a map of original => expanded.
+     */
+    public function expandDescriptions(array $descriptions): array
+    {
+        if (empty($descriptions)) {
+            return [];
+        }
+
+        $numbered = '';
+        $indexMap = [];
+        $i = 1;
+        foreach ($descriptions as $key => $desc) {
+            $numbered .= "{$i}. {$desc}\n";
+            $indexMap[$i] = $key;
+            $i++;
+        }
+
+        $prompt = <<<PROMPT
+You are a grocery/retail product expert. These are abbreviated product descriptions from a commercial invoice. Expand each into a clear, plain English description suitable for customs HS code classification.
+
+Rules:
+- Brand names (e.g. "ARROWHEAD MILLS", "SIMPLY 7", "LESSER EVIL", "FIREHOOK") are NOT product types — separate them from the actual product
+- Decode common abbreviations: ORG=organic, BKD=baked, MLTGRN=multigrain, SEASLT=sea salt, AVCDO=avocado, GRN=green, WHT=white, BLK=black, CHKN=chicken, VEG=vegetable, FRZ=frozen, etc.
+- Focus on what the product IS (food type, preparation, material) not the brand
+- Include weight/volume if present
+
+Return ONLY a JSON object mapping the number to the expanded description. Example:
+{"1": "Organic baked multigrain crackers with flax seeds, 8 ounce package", "2": "Sea salt quinoa chips, 3.5 ounce bag"}
+
+Items to expand:
+{$numbered}
+PROMPT;
+
+        try {
+            $response = Http::withoutVerifying()
+                ->withHeaders([
+                    'x-api-key' => $this->apiKey,
+                    'anthropic-version' => '2023-06-01',
+                    'Content-Type' => 'application/json',
+                ])
+                ->timeout(30)
+                ->post('https://api.anthropic.com/v1/messages', [
+                    'model' => $this->model,
+                    'max_tokens' => min(4096, max(1024, count($descriptions) * 80)),
+                    'messages' => [['role' => 'user', 'content' => $prompt]],
+                ]);
+
+            if (!$response->successful()) {
+                Log::warning('Description expansion API call failed', ['status' => $response->status()]);
+                return [];
+            }
+
+            $text = $response->json()['content'][0]['text'] ?? '';
+
+            if (preg_match('/```(?:json)?\s*([\s\S]*?)\s*```/', $text, $matches)) {
+                $text = $matches[1];
+            }
+
+            $parsed = json_decode(trim($text), true);
+            if (!is_array($parsed)) {
+                Log::warning('Description expansion returned non-JSON', ['response' => substr($text, 0, 500)]);
+                return [];
+            }
+
+            $result = [];
+            foreach ($parsed as $num => $expanded) {
+                $intNum = (int) $num;
+                if (isset($indexMap[$intNum]) && is_string($expanded)) {
+                    $result[$indexMap[$intNum]] = $expanded;
+                }
+            }
+
+            Log::info('Description expansion completed', [
+                'input_count' => count($descriptions),
+                'expanded_count' => count($result),
+            ]);
+
+            return $result;
+        } catch (\Exception $e) {
+            Log::warning('Description expansion failed', ['error' => $e->getMessage()]);
+            return [];
+        }
+    }
+
+    /**
+     * Classify an item by asking Claude directly — no keyword extraction,
+     * no candidate codes, no database pipeline. Used as a final fallback
+     * when the normal tiered pipeline fails.
+     */
+    public function classifyDirectWithClaude(string $itemDescription, string $expandedDescription = ''): array
+    {
+        $displayDesc = $expandedDescription ?: $itemDescription;
+
+        $prompt = <<<PROMPT
+You are a customs classification expert specializing in the Harmonized System (HS).
+
+Classify the following product with the correct 6-digit HS code. The first line is the raw invoice text; the second (if present) is an expanded description.
+
+RAW INVOICE TEXT: {$itemDescription}
+EXPANDED DESCRIPTION: {$displayDesc}
+
+IMPORTANT RULES:
+- Identify brand names and ignore them for classification (e.g., "ARROWHEAD MILLS" is a brand, not a product)
+- Focus on what the product actually IS — its material, composition, preparation method, and intended use
+- Use the standard WCO Harmonized System 2022 nomenclature
+- For food products: distinguish between raw/unprocessed (Chapters 1-14), processed/prepared (Chapters 15-24), and specifically prepared foods (Chapter 19-21)
+- Popcorn kernels (unpopped) = Chapter 10 (cereals/maize), prepared/popped popcorn = 19.04
+- Seeds for sowing vs seeds for consumption have different codes
+- Dried legumes = 07.13, fresh legumes = 07.08
+
+Return ONLY a JSON object:
+{
+    "status": "success",
+    "code": "1904.10",
+    "description": "Prepared foods obtained by the swelling or roasting of cereals",
+    "confidence": 90,
+    "explanation": "Brief reasoning for this classification",
+    "alternatives": ["1905.90"]
+}
+
+If you truly cannot classify, set status to "not_found" with an explanation.
+PROMPT;
+
+        try {
+            $response = Http::withoutVerifying()
+                ->withHeaders([
+                    'x-api-key' => $this->apiKey,
+                    'anthropic-version' => '2023-06-01',
+                    'Content-Type' => 'application/json',
+                ])
+                ->timeout(30)
+                ->post('https://api.anthropic.com/v1/messages', [
+                    'model' => $this->model,
+                    'max_tokens' => 512,
+                    'messages' => [['role' => 'user', 'content' => $prompt]],
+                ]);
+
+            if (!$response->successful()) {
+                Log::warning('Direct Claude classification failed', [
+                    'status' => $response->status(),
+                    'item' => $itemDescription,
+                ]);
+                return [
+                    'success' => false,
+                    'error' => 'Direct Claude API call failed',
+                    'source' => 'direct_claude',
+                ];
+            }
+
+            $content = $response->json()['content'][0]['text'] ?? '';
+            $result = $this->parseClassificationResponse($content);
+
+            if (!empty($result['code'])) {
+                $result['success'] = true;
+                $result['source'] = 'direct_claude';
+                $result['item'] = $itemDescription;
+                return $result;
+            }
+
+            return [
+                'success' => false,
+                'error' => 'Direct Claude returned no code',
+                'source' => 'direct_claude',
+            ];
+        } catch (\Exception $e) {
+            Log::warning('Direct Claude classification exception', [
+                'error' => $e->getMessage(),
+                'item' => $itemDescription,
+            ]);
+            return [
+                'success' => false,
+                'error' => $e->getMessage(),
+                'source' => 'direct_claude',
+            ];
+        }
+    }
+
+    /**
+     * Get Claude API headers for external Http::pool() calls.
+     */
+    public function getClaudeApiConfig(): array
+    {
+        return [
+            'headers' => [
+                'x-api-key' => $this->apiKey,
+                'anthropic-version' => '2023-06-01',
+                'Content-Type' => 'application/json',
+            ],
+            'model' => $this->model,
+            'max_tokens' => $this->maxTokens,
+        ];
+    }
+
+    /**
+     * Prepare an item for batch classification without making the Claude API call.
+     * Returns either a resolved result (from Tier 1/DB/rules) or a prepared prompt
+     * with metadata needed for concurrent Claude calls.
+     */
+    public function prepareForBatchClassification(string $itemDescription, ?int $countryId = null, ?int $organizationId = null): array
+    {
+        $classificationPath = ['Using batch classification'];
+
+        // TIER 1: Exact code match
+        $exactCodeResult = $this->tryExactCodeMatch($itemDescription, $countryId);
+        if ($exactCodeResult) {
+            $classificationPath[] = "Tier 1: Exact code match found";
+            $exactCodeResult['classification_path'] = $classificationPath;
+            return ['resolved' => true, 'result' => $exactCodeResult];
+        }
+
+        // TIER 2: Database keyword search - prepare context only
+        $classificationPath[] = "Tier 2: Preparing database keyword search context";
+        $tier2Prep = $this->prepareTier2Context($itemDescription, $countryId, $organizationId, $classificationPath);
+
+        if ($tier2Prep !== null) {
+            if ($tier2Prep['resolved']) {
+                return ['resolved' => true, 'result' => $tier2Prep['result']];
+            }
+            return [
+                'resolved' => false,
+                'description' => $itemDescription,
+                'prompt' => $tier2Prep['prompt'],
+                'tier' => 2,
+                'country_id' => $countryId,
+                'classification_path' => $classificationPath,
+                'metadata' => $tier2Prep['metadata'],
+            ];
+        }
+
+        // TIER 3: Qdrant + Claude hybrid
+        if ($this->vectorClassifier && ($this->useHybridMode || $this->useVectorOnly)) {
+            $classificationPath[] = "Tier 3: Preparing Qdrant + Claude hybrid context";
+            $tier3Prep = $this->prepareTier3Context($itemDescription, $countryId, $organizationId, $classificationPath);
+
+            if ($tier3Prep !== null) {
+                if ($tier3Prep['resolved']) {
+                    return ['resolved' => true, 'result' => $tier3Prep['result']];
+                }
+                return [
+                    'resolved' => false,
+                    'description' => $itemDescription,
+                    'prompt' => $tier3Prep['prompt'],
+                    'tier' => 3,
+                    'country_id' => $countryId,
+                    'classification_path' => $classificationPath,
+                    'metadata' => $tier3Prep['metadata'],
+                ];
+            }
+        }
+
+        // Nothing could prepare a context - mark as fallback
+        return [
+            'resolved' => false,
+            'fallback' => true,
+            'description' => $itemDescription,
+            'country_id' => $countryId,
+            'classification_path' => $classificationPath,
+        ];
+    }
+
+    /**
+     * Prepare Tier 2 context (DB keyword search) without calling Claude.
+     * Returns null if no candidates found, otherwise prepared prompt + metadata.
+     */
+    protected function prepareTier2Context(string $itemDescription, ?int $countryId, ?int $organizationId, array &$classificationPath): ?array
+    {
+        try {
+            $keywords = $this->extractKeywords($itemDescription);
+            $classificationPath[] = "Extracted keywords: " . implode(', ', $keywords);
+
+            Log::info('Classification started', [
+                'item' => $itemDescription,
+                'keywords' => $keywords,
+                'country_id' => $countryId,
+            ]);
+
+            $prohibitedCheck = $this->checkProhibitedRestricted($itemDescription, $countryId);
+
+            if ($prohibitedCheck['is_prohibited']) {
+                return [
+                    'resolved' => true,
+                    'result' => [
+                        'success' => false,
+                        'error' => 'Item is prohibited for import',
+                        'prohibited' => true,
+                        'prohibited_items' => $prohibitedCheck['prohibited_matches'],
+                        'classification_path' => $classificationPath,
+                    ],
+                ];
+            }
+
+            $candidates = $this->findCandidateCodes($keywords, $itemDescription, $countryId);
+            $classificationPath[] = "Found " . count($candidates) . " candidate codes";
+
+            if ($candidates->isEmpty()) {
+                return null;
+            }
+
+            $candidateChapterIds = $candidates->pluck('tariff_chapter_id')->filter()->unique()->toArray();
+            $classificationPath[] = "Candidate chapters: " . implode(', ', $candidateChapterIds);
+
+            $exclusionResult = $this->applyExclusionRules($itemDescription, $candidateChapterIds, $countryId);
+
+            if (!empty($exclusionResult['redirections'])) {
+                $classificationPath = array_merge($classificationPath, $exclusionResult['redirections']);
+                $candidateChapterIds = $exclusionResult['final_chapter_ids'];
+                $candidates = $candidates->filter(function ($code) use ($candidateChapterIds) {
+                    return in_array($code->tariff_chapter_id, $candidateChapterIds);
+                });
+            }
+
+            $context = $this->buildFocusedContext($candidateChapterIds, $candidates, $countryId);
+            $classificationPath[] = "Built context with " . count($context['notes']) . " notes and " . count($context['codes']) . " codes";
+
+            $precedents = $this->findApprovedReferencePrecedents($itemDescription, $countryId);
+            if (!empty($precedents)) {
+                $classificationPath[] = "Found " . count($precedents) . " tenant reference precedents";
+            }
+
+            $prompt = $this->buildClassificationPrompt($itemDescription, $context, $precedents);
+            $estimatedTokens = $this->chunker->estimateTokens($prompt);
+            $classificationPath[] = "AI prompt: {$estimatedTokens} estimated tokens";
+
+            if ($estimatedTokens > 90000) {
+                $context['codes'] = array_slice($context['codes'], 0, 200);
+                $prompt = $this->buildClassificationPrompt($itemDescription, $context, []);
+                $classificationPath[] = "Reduced context to 200 codes due to token limit";
+            }
+
+            return [
+                'resolved' => false,
+                'prompt' => $prompt,
+                'metadata' => [
+                    'prohibitedCheck' => $prohibitedCheck,
+                    'candidates' => $candidates,
+                    'keywords' => $keywords,
+                ],
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Tier 2 context preparation failed', [
+                'item' => $itemDescription,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Prepare Tier 3 context (Qdrant + Claude hybrid) without calling Claude.
+     */
+    protected function prepareTier3Context(string $itemDescription, ?int $countryId, ?int $organizationId, array &$classificationPath): ?array
+    {
+        try {
+            $ruleResult = $this->applyClassificationRules($itemDescription, $organizationId, $countryId);
+            if ($ruleResult && !empty($ruleResult['target_code'])) {
+                $matchedCode = CustomsCode::where('code', 'like', $ruleResult['target_code'] . '%')
+                    ->when($countryId, fn($q) => $q->where('country_id', $countryId))
+                    ->first();
+
+                if ($matchedCode) {
+                    $classificationPath[] = "Rule assigned code: {$matchedCode->code}";
+                    return [
+                        'resolved' => true,
+                        'result' => [
+                            'success' => true,
+                            'item' => $itemDescription,
+                            'code' => $matchedCode->code,
+                            'description' => $matchedCode->description,
+                            'duty_rate' => $matchedCode->duty_rate,
+                            'unit_of_measurement' => $matchedCode->formatted_unit,
+                            'special_rate' => $matchedCode->special_rate,
+                            'confidence' => 95,
+                            'explanation' => "Classified by custom rule: {$ruleResult['rule_name']}",
+                            'alternatives' => [],
+                            'classification_path' => $classificationPath,
+                            'customs_code_id' => $matchedCode->id,
+                            'source' => 'rule',
+                        ],
+                    ];
+                }
+            }
+
+            $prohibitedCheck = $this->checkProhibitedRestricted($itemDescription, $countryId);
+            if ($prohibitedCheck['is_prohibited']) {
+                return [
+                    'resolved' => true,
+                    'result' => [
+                        'success' => false,
+                        'error' => 'Item is prohibited for import',
+                        'prohibited' => true,
+                        'prohibited_items' => $prohibitedCheck['prohibited_matches'],
+                        'classification_path' => $classificationPath,
+                    ],
+                ];
+            }
+
+            $vectorResult = $this->vectorClassifier->searchSimilarCodes($itemDescription, $countryId, 15);
+            if (!$vectorResult['success'] || empty($vectorResult['results'])) {
+                $classificationPath[] = "Vector search returned no results";
+                return null;
+            }
+
+            $classificationPath[] = "Qdrant found " . count($vectorResult['results']) . " semantically similar codes";
+
+            $notesResult = $this->vectorClassifier->searchRelevantNotes($itemDescription, $countryId, 10);
+            $relevantNotes = $notesResult['results'] ?? [];
+
+            $exclusionsResult = $this->vectorClassifier->searchExclusionRules($itemDescription, $countryId, 5);
+            $relevantExclusions = $exclusionsResult['results'] ?? [];
+
+            $context = $this->buildVectorContext($vectorResult['results'], $relevantNotes, $relevantExclusions, $ruleResult);
+
+            $precedents = $this->findApprovedReferencePrecedents($itemDescription, $countryId);
+            if (!empty($precedents)) {
+                $classificationPath[] = "Found " . count($precedents) . " tenant reference precedents";
+            }
+
+            $prompt = $this->buildHybridClassificationPrompt($itemDescription, $context, $precedents);
+            $estimatedTokens = $this->chunker->estimateTokens($prompt);
+            $classificationPath[] = "Hybrid AI prompt: {$estimatedTokens} estimated tokens";
+
+            if ($estimatedTokens > 90000) {
+                $context['codes'] = array_slice($context['codes'], 0, 10);
+                $context['notes'] = array_slice($context['notes'], 0, 5);
+                $prompt = $this->buildHybridClassificationPrompt($itemDescription, $context, []);
+                $classificationPath[] = "Reduced context due to token limit";
+            }
+
+            return [
+                'resolved' => false,
+                'prompt' => $prompt,
+                'metadata' => [
+                    'prohibitedCheck' => $prohibitedCheck,
+                    'vectorResult' => $vectorResult,
+                ],
+            ];
+
+        } catch (\Exception $e) {
+            Log::error('Tier 3 context preparation failed', [
+                'item' => $itemDescription,
+                'error' => $e->getMessage(),
+            ]);
+            return null;
+        }
+    }
+
+    /**
+     * Process a Claude API response from a batch call into a final classification result.
+     */
+    public function processClaudeResponseForBatch(string $responseContent, array $preparation): array
+    {
+        $description = $preparation['description'];
+        $countryId = $preparation['country_id'];
+        $tier = $preparation['tier'];
+        $classificationPath = $preparation['classification_path'] ?? [];
+        $metadata = $preparation['metadata'] ?? [];
+
+        $aiResult = $this->parseClassificationResponse($responseContent);
+
+        if (empty($aiResult['code'])) {
+            $classificationPath[] = "Claude returned no code in batch mode";
+            return [
+                'success' => false,
+                'item' => $description,
+                'error' => 'AI could not determine classification',
+                'classification_path' => $classificationPath,
+            ];
+        }
+
+        $aiStatus = $aiResult['status'] ?? 'success';
+        $needsFallback = in_array($aiStatus, ['insufficient', 'ambiguous', 'not_found']);
+
+        if (!$needsFallback) {
+            $unablePatterns = ['UNABLE_TO_CLASSIFY', 'CANNOT_CLASSIFY', 'NOT_FOUND', 'NO_MATCH'];
+            foreach ($unablePatterns as $pattern) {
+                if (stripos($aiResult['code'], $pattern) !== false) {
+                    $needsFallback = true;
+                    break;
+                }
+            }
+        }
+
+        if ($needsFallback) {
+            $classificationPath[] = "AI status: '{$aiStatus}' - item needs individual fallback";
+            return [
+                'success' => false,
+                'item' => $description,
+                'needs_fallback' => true,
+                'error' => "AI status: {$aiStatus}",
+                'classification_path' => $classificationPath,
+            ];
+        }
+
+        $classificationPath[] = "AI classified as: {$aiResult['code']} (confidence: {$aiResult['confidence']}%)";
+
+        $matchedCode = CustomsCode::where('code', $aiResult['code'])
+            ->when($countryId, fn($q) => $q->where('country_id', $countryId))
+            ->first();
+
+        if (!$matchedCode && !empty($aiResult['code'])) {
+            $aiCode = $aiResult['code'];
+            $normalizedAiCode = str_replace('.', '', $aiCode);
+
+            $matchingCodes = CustomsCode::where(function ($q) use ($aiCode, $normalizedAiCode) {
+                    $q->where('code', 'like', $aiCode . '%')
+                      ->orWhere('code', 'like', $normalizedAiCode . '%');
+                })
+                ->when($countryId, fn($q) => $q->where('country_id', $countryId))
+                ->get();
+
+            if ($matchingCodes->isNotEmpty()) {
+                $matchedCode = $matchingCodes->sortByDesc(function ($code) {
+                    return strlen(str_replace('.', '', $code->code));
+                })->first();
+                $classificationPath[] = "AI suggested {$aiCode}, found more specific code: {$matchedCode->code}";
+            }
+        }
+
+        $exemptions = [];
+        $dutyCalculation = null;
+        if ($matchedCode) {
+            $exemptions = $matchedCode->getApplicableExemptions()->map(function ($exemption) {
+                return [
+                    'id' => $exemption->id,
+                    'name' => $exemption->name,
+                    'description' => $exemption->description,
+                ];
+            })->toArray();
+            $dutyCalculation = $matchedCode->calculateTotalDuty(100, 1);
+        }
+
+        $prohibitedCheck = $metadata['prohibitedCheck'] ?? ['is_restricted' => false, 'restricted_matches' => []];
+        $candidates = $metadata['candidates'] ?? collect();
+        $vectorResult = $metadata['vectorResult'] ?? null;
+
+        $alternatives = [];
+        if ($tier === 2) {
+            $alternatives = $this->buildAlternativesFromCandidates(
+                $candidates,
+                $aiResult['code'],
+                $aiResult['alternatives'] ?? [],
+                5
+            );
+        } elseif ($tier === 3 && $vectorResult) {
+            foreach ($vectorResult['results'] ?? [] as $result) {
+                if ($result['code'] !== $aiResult['code'] && count($alternatives) < 5) {
+                    $alternatives[] = [
+                        'code' => $result['code'],
+                        'description' => $result['description'],
+                        'score' => $result['score'],
+                    ];
+                }
+            }
+        }
+
+        return [
+            'success' => true,
+            'item' => $description,
+            'code' => $aiResult['code'],
+            'description' => $aiResult['description'] ?? $matchedCode?->description,
+            'duty_rate' => $matchedCode?->duty_rate ?? $aiResult['duty_rate'],
+            'unit_of_measurement' => $matchedCode?->formatted_unit,
+            'special_rate' => $matchedCode?->special_rate,
+            'confidence' => $aiResult['confidence'],
+            'explanation' => $aiResult['explanation'],
+            'alternatives' => $alternatives,
+            'classification_path' => $classificationPath,
+            'customs_code_id' => $matchedCode?->id,
+            'chapter' => $matchedCode?->tariffChapter?->formatted_identifier,
+            'restricted' => $prohibitedCheck['is_restricted'] ?? false,
+            'restricted_items' => $prohibitedCheck['restricted_matches'] ?? [],
+            'exemptions_available' => $exemptions,
+            'duty_calculation' => $dutyCalculation,
+            'source' => $tier === 3 ? 'hybrid_batch' : 'database_batch',
+        ];
     }
 
     /**

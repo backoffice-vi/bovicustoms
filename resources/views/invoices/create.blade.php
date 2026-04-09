@@ -162,7 +162,7 @@
                         <div class="col-md-4 text-center">
                             <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-2" style="width: 40px; height: 40px;">2</div>
                             <h6>AI Extraction</h6>
-                            <small class="text-muted">Our AI extracts line items</small>
+                            <small class="text-muted">BoVi AI extracts line items</small>
                         </div>
                         <div class="col-md-4 text-center">
                             <div class="rounded-circle bg-primary text-white d-inline-flex align-items-center justify-content-center mb-2" style="width: 40px; height: 40px;">3</div>
@@ -185,7 +185,7 @@
                     <span class="visually-hidden">Processing...</span>
                 </div>
                 <h5>Processing Invoice</h5>
-                <p class="text-muted mb-0">Our AI is extracting data from your invoice. This may take a moment...</p>
+                <p class="text-muted mb-0">BoVi AI is extracting data from your invoice. This may take a moment...</p>
             </div>
         </div>
     </div>
@@ -372,8 +372,9 @@ document.addEventListener('DOMContentLoaded', function() {
         const xhr = new XMLHttpRequest();
 
         xhr.open('POST', form.action);
+        xhr.setRequestHeader('Accept', 'application/json');
+        xhr.setRequestHeader('X-Requested-With', 'XMLHttpRequest');
 
-        // Progress tracking
         xhr.upload.addEventListener('progress', function(event) {
             if (event.lengthComputable) {
                 const percentComplete = Math.round((event.loaded / event.total) * 100);
@@ -385,27 +386,31 @@ document.addEventListener('DOMContentLoaded', function() {
 
         xhr.onload = function() {
             processingModal.hide();
-            if (xhr.status === 200 || xhr.status === 302) {
-                // Follow redirect
-                window.location.href = xhr.responseURL;
-            } else {
-                submitBtn.disabled = false;
-                progressContainer.classList.add('d-none');
-                
-                // Try to parse error message
-                let msg = 'Upload failed. Please try again.';
-                try {
-                    const response = JSON.parse(xhr.responseText);
-                    if (response.message) msg = response.message;
-                } catch (e) {
-                    // Check if it's a redirect in the response
-                    if (xhr.responseText.includes('error')) {
-                        msg = 'There was an issue processing your invoice. Please try again.';
-                    }
-                }
-                errorMessage.textContent = msg;
-                errorModal.show();
+            submitBtn.disabled = false;
+            progressContainer.classList.add('d-none');
+
+            let data;
+            try {
+                data = JSON.parse(xhr.responseText);
+            } catch (e) {
+                data = null;
             }
+
+            if (xhr.status >= 200 && xhr.status < 300 && data && data.redirect) {
+                window.location.href = data.redirect;
+                return;
+            }
+
+            let msg = 'Upload failed. Please try again.';
+            if (data && data.error) {
+                msg = data.error;
+            } else if (data && data.message) {
+                msg = data.message;
+            } else if (data && data.errors) {
+                msg = Object.values(data.errors).flat().join(' ');
+            }
+            errorMessage.textContent = msg;
+            errorModal.show();
         };
 
         xhr.onerror = function() {

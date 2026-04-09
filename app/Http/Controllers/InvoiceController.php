@@ -42,14 +42,17 @@ class InvoiceController extends Controller
         $countries = Country::active()->orderBy('name')->get();
         $user = auth()->user();
         
-        // Check usage limits
-        $monthStart = now()->startOfMonth();
-        if ($user->organization_id) {
+        if ($user->isAdmin()) {
+            $used = 0;
+            $limit = null;
+        } elseif ($user->organization_id) {
+            $monthStart = now()->startOfMonth();
             $used = $user->organization->invoices()->where('created_at', '>=', $monthStart)->count();
             $limit = $user->organization->invoice_limit;
         } else {
+            $monthStart = now()->startOfMonth();
             $used = $user->invoices()->where('created_at', '>=', $monthStart)->count();
-            $limit = 10; // Free tier
+            $limit = 10;
         }
         
         if ($limit && $used >= $limit) {
@@ -68,36 +71,44 @@ class InvoiceController extends Controller
         ]);
 
         $file = $request->file('invoice_file');
+        $isAjax = $request->ajax() || $request->wantsJson();
         
         if (!$file->isValid()) {
-            return back()->with('error', 'Failed to upload invoice file.');
+            $msg = 'Failed to upload invoice file.';
+            return $isAjax
+                ? response()->json(['error' => $msg], 422)
+                : back()->with('error', $msg);
         }
 
         try {
-            // Extract invoice data using AI-powered extractor
             $extractedData = $this->invoiceExtractor->extract($file);
             
-            // Check for extraction errors
             if (isset($extractedData['extraction_meta']['error'])) {
-                return back()->with('error', $extractedData['extraction_meta']['error']);
+                $msg = $extractedData['extraction_meta']['error'];
+                return $isAjax
+                    ? response()->json(['error' => $msg], 422)
+                    : back()->with('error', $msg);
             }
             
-            // Check if any items were extracted
             if (empty($extractedData['items'])) {
-                return back()->with('error', 'No line items could be extracted from the invoice. Please try a different file format or ensure the invoice contains readable item data.');
+                $msg = 'No line items could be extracted from the invoice. Please try a different file format or ensure the invoice contains readable item data.';
+                return $isAjax
+                    ? response()->json(['error' => $msg], 422)
+                    : back()->with('error', $msg);
             }
 
-            // Store the file
             $path = $file->store('invoices');
 
-            // Store the extracted data, path, and country in the session for review
             session([
                 'extracted_invoice_data' => $extractedData,
                 'invoice_file_path' => $path,
                 'invoice_country_id' => $request->country_id,
             ]);
 
-            return redirect()->route('invoices.review');
+            $reviewUrl = route('invoices.review');
+            return $isAjax
+                ? response()->json(['redirect' => $reviewUrl])
+                : redirect($reviewUrl);
             
         } catch (\Exception $e) {
             Log::error('Invoice extraction failed', [
@@ -105,7 +116,10 @@ class InvoiceController extends Controller
                 'trace' => $e->getTraceAsString(),
             ]);
             
-            return back()->with('error', 'Failed to extract invoice data: ' . $e->getMessage());
+            $msg = 'Failed to extract invoice data. Please try again or use a different file format.';
+            return $isAjax
+                ? response()->json(['error' => $msg], 500)
+                : back()->with('error', $msg);
         }
     }
 
@@ -282,7 +296,6 @@ class InvoiceController extends Controller
      */
     public function classificationStatus(Invoice $invoice)
     {
-        // Verify the user owns this invoice
         $user = auth()->user();
         if ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id) {
             abort(403, 'Unauthorized access to this invoice.');
@@ -291,7 +304,23 @@ class InvoiceController extends Controller
         $countryId = session('invoice_country_id') ?? $invoice->country_id;
         $country = Country::find($countryId);
 
-        return view('invoices.classification_status', compact('invoice', 'country'));
+        // Determine the actual number of items being classified (not total invoice items)
+        $pending = session('pending_classification');
+        $classifyingItemCount = $pending ? count($pending['items']) : null;
+        $totalItemCount = count($invoice->items ?? []);
+
+        // If no pending data, check if InvoiceItem records exist to infer
+        if (!$classifyingItemCount) {
+            $unclassifiedCount = InvoiceItem::withoutGlobalScopes()
+                ->where('invoice_id', $invoice->id)
+                ->whereNull('customs_code')
+                ->count();
+            $classifyingItemCount = $unclassifiedCount > 0 ? $unclassifiedCount : $totalItemCount;
+        }
+
+        return view('invoices.classification_status', compact(
+            'invoice', 'country', 'classifyingItemCount', 'totalItemCount'
+        ));
     }
 
     /**
@@ -321,32 +350,33 @@ class InvoiceController extends Controller
 
     /**
      * AJAX endpoint to start classification (allows showing loading page first).
+     * Always spawns a background artisan process so the browser can poll for progress.
      */
     public function startClassification(Invoice $invoice): JsonResponse
     {
-        // Verify the user owns this invoice
         $user = auth()->user();
         if ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id) {
             return response()->json(['error' => 'Unauthorized'], 403);
         }
 
-        // Get pending classification data from session
+        // Always check cache first to prevent re-triggering a completed/running classification
+        $cacheKey = "invoice_classification_{$invoice->id}";
+        $existingStatus = Cache::get($cacheKey);
+        if ($existingStatus && $existingStatus['status'] === 'completed') {
+            session()->forget('pending_classification');
+            return response()->json(['status' => 'already_completed']);
+        }
+        if ($existingStatus && $existingStatus['status'] === 'processing') {
+            return response()->json(['status' => 'started']);
+        }
+
         $pending = session('pending_classification');
-        
         if (!$pending || $pending['invoice_id'] !== $invoice->id) {
-            // Check if already classified
-            $cacheKey = "invoice_classification_{$invoice->id}";
-            $status = Cache::get($cacheKey);
-            if ($status && $status['status'] === 'completed') {
-                return response()->json(['status' => 'already_completed']);
-            }
             return response()->json(['error' => 'No pending classification found'], 400);
         }
 
-        // Clear from session
         session()->forget('pending_classification');
 
-        // Set initial status in cache
         $cacheKey = "invoice_classification_{$invoice->id}";
         Cache::put($cacheKey, [
             'status' => 'processing',
@@ -355,33 +385,25 @@ class InvoiceController extends Controller
             'started_at' => now()->toIso8601String(),
         ], now()->addHours(2));
 
-        // Check if using sync queue
-        $isSync = config('queue.default') === 'sync';
-        
-        if (!$isSync) {
-            // Ensure queue worker is running (only for non-sync queues)
-            EnsureQueueWorker::ensureRunning(timeout: 900, memory: 512);
+        // Store the classification payload in cache so the artisan command can read it
+        Cache::put("pending_classification_{$invoice->id}", $pending, now()->addHours(2));
+
+        // Spawn background artisan process — returns immediately so the browser can poll
+        $php = PHP_BINARY ?: 'php';
+        $artisan = base_path('artisan');
+        $cmd = "\"{$php}\" \"{$artisan}\" classify:invoice {$invoice->id} {$user->id} {$pending['country_id']}";
+
+        if (strtoupper(substr(PHP_OS, 0, 3)) === 'WIN') {
+            pclose(popen('start "" /B ' . $cmd . ' > NUL 2>&1', 'r'));
+        } else {
+            pclose(popen("{$cmd} > /dev/null 2>&1 &", 'r'));
         }
 
-        // Dispatch the job
-        ClassifyInvoiceItems::dispatch(
-            $invoice,
-            $user,
-            $pending['items'],
-            $pending['country_id'],
-            $pending['invoice_header']
-        );
-
-        Log::info('Classification started via AJAX', [
+        Log::info('Classification started via background process', [
             'invoice_id' => $invoice->id,
             'item_count' => count($pending['items']),
-            'queue_driver' => config('queue.default'),
+            'command' => $cmd,
         ]);
-
-        // With sync queue, job already completed
-        if ($isSync) {
-            return response()->json(['status' => 'completed_sync']);
-        }
 
         return response()->json(['status' => 'started']);
     }
@@ -391,7 +413,6 @@ class InvoiceController extends Controller
      */
     public function assignCodesResults(Invoice $invoice)
     {
-        // Verify the user owns this invoice
         $user = auth()->user();
         if ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id) {
             abort(403, 'Unauthorized access to this invoice.');
@@ -400,17 +421,52 @@ class InvoiceController extends Controller
         $cacheKey = "invoice_classification_{$invoice->id}";
         $classificationData = Cache::get($cacheKey);
 
-        if (!$classificationData || $classificationData['status'] !== 'completed') {
-            return redirect()->route('invoices.classification_status', ['invoice' => $invoice->id])
-                ->with('info', 'Classification is still in progress. Please wait.');
+        if ($classificationData && $classificationData['status'] === 'completed') {
+            $itemsWithCodes = $classificationData['items_with_codes'];
+            $invoiceHeader = $classificationData['invoice_header'];
+            $countryId = $classificationData['country_id'];
+        } else {
+            // Cache expired — rebuild from database records (codes already auto-saved)
+            $dbItems = InvoiceItem::withoutGlobalScopes()
+                ->where('invoice_id', $invoice->id)
+                ->orderBy('line_number')
+                ->get();
+
+            if ($dbItems->isEmpty()) {
+                return redirect()->route('invoices.show', $invoice)
+                    ->with('info', 'No classification data available. View the invoice directly.');
+            }
+
+            $countryId = $invoice->country_id;
+            $itemsWithCodes = $dbItems->map(fn($item) => [
+                'description' => $item->description,
+                'quantity' => $item->quantity,
+                'unit_price' => $item->unit_price,
+                'sku' => $item->sku,
+                'item_number' => $item->item_number,
+                'line_number' => $item->line_number,
+                'classification' => [
+                    'success' => !empty($item->customs_code),
+                    'code' => $item->customs_code,
+                    'description' => $item->customs_code_description,
+                    'duty_rate' => $item->duty_rate,
+                    'confidence' => !empty($item->customs_code) ? 75 : 0,
+                    'explanation' => 'Classification from auto-save (cache expired)',
+                    'alternatives' => [],
+                ],
+                'precedents' => $this->findPrecedentsForItem($item->description, $countryId),
+                'has_conflict' => false,
+            ])->toArray();
+
+            $invoiceHeader = [
+                'invoice_number' => $invoice->invoice_number,
+                'invoice_date' => $invoice->invoice_date,
+                'total_amount' => $invoice->total_amount,
+            ];
         }
 
-        $itemsWithCodes = $classificationData['items_with_codes'];
-        $invoiceHeader = $classificationData['invoice_header'];
-        $countryId = $classificationData['country_id'];
         $country = Country::find($countryId);
 
-        // Store in session for the finalize step
         session([
             'items_with_codes' => $itemsWithCodes,
             'invoice_header' => $invoiceHeader,
@@ -480,7 +536,6 @@ class InvoiceController extends Controller
         if ($existingInvoiceId) {
             $invoice = Invoice::find($existingInvoiceId);
             if ($invoice) {
-                // Update the existing invoice
                 $invoice->update([
                     'status' => 'processed',
                     'processed' => true,
@@ -488,12 +543,10 @@ class InvoiceController extends Controller
                     'total_amount' => $totalAmount ?: $invoice->total_amount,
                 ]);
 
-                // Clear any cached classification data
                 Cache::forget("invoice_classification_{$invoice->id}");
             }
         }
 
-        // If no existing invoice, create a new one
         if (!isset($invoice) || !$invoice) {
             $filePath = session('invoice_file_path');
             $extractedData = session('extracted_invoice_data', []);
@@ -515,28 +568,40 @@ class InvoiceController extends Controller
             ]);
         }
 
-        // Delete existing invoice items if updating
-        InvoiceItem::where('invoice_id', $invoice->id)->delete();
+        // Update existing InvoiceItem records with finalized codes from the review page
+        $existingItems = InvoiceItem::where('invoice_id', $invoice->id)
+            ->get()
+            ->keyBy('line_number');
 
-        // Create individual InvoiceItem records
         foreach ($validatedData['items'] as $index => $item) {
-            InvoiceItem::create([
-                'invoice_id' => $invoice->id,
-                'organization_id' => $user->organization_id,
-                'user_id' => $user->id,
-                'country_id' => $countryId,
-                'line_number' => $item['line_number'] ?? ($index + 1),
-                'sku' => $item['sku'] ?? null,
-                'item_number' => $item['item_number'] ?? null,
-                'description' => $item['description'],
-                'quantity' => $item['quantity'] ?? null,
-                'unit_price' => $item['unit_price'] ?? null,
-                'line_total' => ($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0),
-                'currency' => $invoiceHeader['currency'] ?? 'USD',
-                'customs_code' => $item['customs_code'],
-                'duty_rate' => $item['duty_rate'] ?? null,
-                'customs_code_description' => $item['customs_code_description'] ?? null,
-            ]);
+            $lineNumber = $item['line_number'] ?? ($index + 1);
+            $existing = $existingItems->get($lineNumber);
+
+            if ($existing) {
+                $existing->update([
+                    'customs_code' => $item['customs_code'],
+                    'duty_rate' => $item['duty_rate'] ?? null,
+                    'customs_code_description' => $item['customs_code_description'] ?? null,
+                ]);
+            } else {
+                InvoiceItem::create([
+                    'invoice_id' => $invoice->id,
+                    'organization_id' => $user->organization_id,
+                    'user_id' => $user->id,
+                    'country_id' => $countryId,
+                    'line_number' => $lineNumber,
+                    'sku' => $item['sku'] ?? null,
+                    'item_number' => $item['item_number'] ?? null,
+                    'description' => $item['description'],
+                    'quantity' => $item['quantity'] ?? null,
+                    'unit_price' => $item['unit_price'] ?? null,
+                    'line_total' => ($item['quantity'] ?? 1) * ($item['unit_price'] ?? 0),
+                    'currency' => $invoiceHeader['currency'] ?? 'USD',
+                    'customs_code' => $item['customs_code'],
+                    'duty_rate' => $item['duty_rate'] ?? null,
+                    'customs_code_description' => $item['customs_code_description'] ?? null,
+                ]);
+            }
         }
 
         // Delete any existing declaration forms for this invoice (if re-processing)
@@ -727,41 +792,57 @@ class InvoiceController extends Controller
      */
     public function retryClassification(Invoice $invoice)
     {
-        // Verify the user owns this invoice
         $user = auth()->user();
         if ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id) {
             abort(403, 'Unauthorized access to this invoice.');
         }
 
-        // Get items from the invoice
-        $items = $invoice->items;
-        if (empty($items)) {
-            // Try to get from InvoiceItems
-            $invoiceItems = InvoiceItem::where('invoice_id', $invoice->id)->get();
-            $items = $invoiceItems->map(function ($item) {
-                return [
+        $retryAll = request()->boolean('retry_all', false);
+
+        // Build item list from InvoiceItem records (preferred) or invoice JSON
+        $invoiceItems = InvoiceItem::withoutGlobalScopes()
+            ->where('invoice_id', $invoice->id)
+            ->orderBy('line_number')
+            ->get();
+
+        if ($invoiceItems->isNotEmpty()) {
+            if ($retryAll) {
+                $items = $invoiceItems->map(fn($item) => [
                     'description' => $item->description,
                     'quantity' => $item->quantity,
                     'unit_price' => $item->unit_price,
                     'sku' => $item->sku,
                     'item_number' => $item->item_number,
                     'line_number' => $item->line_number,
-                ];
-            })->toArray();
+                ])->toArray();
+            } else {
+                $items = $invoiceItems
+                    ->filter(fn($item) => empty($item->customs_code))
+                    ->map(fn($item) => [
+                        'description' => $item->description,
+                        'quantity' => $item->quantity,
+                        'unit_price' => $item->unit_price,
+                        'sku' => $item->sku,
+                        'item_number' => $item->item_number,
+                        'line_number' => $item->line_number,
+                    ])->values()->toArray();
+            }
+        } else {
+            $items = $invoice->items;
+            if (empty($items)) {
+                return redirect()->route('invoices.show', $invoice)
+                    ->with('error', 'No items found to classify. Please re-upload the invoice.');
+            }
         }
 
         if (empty($items)) {
             return redirect()->route('invoices.show', $invoice)
-                ->with('error', 'No items found to classify. Please re-upload the invoice.');
+                ->with('info', 'All items already have HS codes assigned.');
         }
 
-        // Reset invoice status
         $invoice->update(['status' => 'classifying']);
 
-        // Clear any old cached classification data
         Cache::forget("invoice_classification_{$invoice->id}");
-
-        // Initialize the classification status in cache
         Cache::put("invoice_classification_{$invoice->id}", [
             'status' => 'queued',
             'progress' => 0,
@@ -769,7 +850,6 @@ class InvoiceController extends Controller
             'started_at' => now()->toIso8601String(),
         ], now()->addHours(2));
 
-        // Store classification data in session for the AJAX trigger
         session([
             'pending_classification' => [
                 'invoice_id' => $invoice->id,
@@ -780,6 +860,7 @@ class InvoiceController extends Controller
                     'invoice_date' => $invoice->invoice_date,
                     'total_amount' => $invoice->total_amount,
                 ],
+                'retry_only_failed' => !$retryAll,
             ],
             'classifying_invoice_id' => $invoice->id,
             'invoice_country_id' => $invoice->country_id,
@@ -788,10 +869,79 @@ class InvoiceController extends Controller
         Log::info('Invoice classification retry requested', [
             'invoice_id' => $invoice->id,
             'item_count' => count($items),
+            'retry_all' => $retryAll,
         ]);
 
         return redirect()->route('invoices.classification_status', ['invoice' => $invoice->id])
-            ->with('info', 'Retrying classification...');
+            ->with('info', 'Retrying classification for ' . count($items) . ' items...');
+    }
+
+    /**
+     * Accept partial classification and mark invoice as processed
+     */
+    public function acceptClassification(Invoice $invoice)
+    {
+        $user = auth()->user();
+        if ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id) {
+            abort(403, 'Unauthorized access to this invoice.');
+        }
+
+        $invoice->update(['status' => 'processed']);
+        Cache::forget("invoice_classification_{$invoice->id}");
+
+        return redirect()->route('invoices.show', $invoice)
+            ->with('success', 'Invoice accepted. You can manually assign HS codes to remaining items.');
+    }
+
+    /**
+     * AJAX: Update a single InvoiceItem's HS code
+     */
+    public function updateItemCode(InvoiceItem $invoiceItem): JsonResponse
+    {
+        $user = auth()->user();
+        $invoice = Invoice::withoutGlobalScopes()->find($invoiceItem->invoice_id);
+
+        if (!$invoice || ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id)) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $data = request()->validate([
+            'customs_code' => 'required|string|max:20',
+            'customs_code_description' => 'nullable|string|max:500',
+        ]);
+
+        $invoiceItem->update([
+            'customs_code' => $data['customs_code'],
+            'customs_code_description' => $data['customs_code_description'] ?? null,
+        ]);
+
+        // Also update the invoice JSON items array
+        $items = is_array($invoice->items) ? $invoice->items : json_decode($invoice->items ?? '[]', true);
+        foreach ($items as &$jsonItem) {
+            if (($jsonItem['line_number'] ?? null) == $invoiceItem->line_number
+                || ($jsonItem['description'] ?? '') === $invoiceItem->description) {
+                $jsonItem['customs_code'] = $data['customs_code'];
+                $jsonItem['customs_code_description'] = $data['customs_code_description'] ?? null;
+                break;
+            }
+        }
+        $invoice->update(['items' => $items]);
+
+        // Check if all items now have codes
+        $remaining = InvoiceItem::withoutGlobalScopes()
+            ->where('invoice_id', $invoice->id)
+            ->whereNull('customs_code')
+            ->count();
+
+        if ($remaining === 0 && $invoice->status === 'partially_classified') {
+            $invoice->update(['status' => 'classified']);
+        }
+
+        return response()->json([
+            'success' => true,
+            'customs_code' => $data['customs_code'],
+            'remaining_unclassified' => $remaining,
+        ]);
     }
 
     /**

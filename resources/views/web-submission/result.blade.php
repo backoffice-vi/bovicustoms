@@ -44,9 +44,90 @@
                             </p>
                         </div>
                     @elseif($submission->status === 'failed')
-                        <div class="alert alert-danger mb-0">
+                        <div class="alert alert-danger mb-3">
                             <strong>Error:</strong> {{ $submission->error_message ?? 'Unknown error occurred' }}
                         </div>
+
+                        @php
+                            $responseData = $submission->response_data ?? [];
+                            $aiDiagnosis = $responseData['ai_diagnosis'] ?? null;
+                            $aiRecommendations = $responseData['ai_recommendations'] ?? [];
+                            $autoFixes = $responseData['auto_fixes_applied'] ?? [];
+                            $errorCategories = $responseData['error_categories'] ?? [];
+                        @endphp
+
+                        @if($aiDiagnosis)
+                            <div class="card bg-light border-0 mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title mb-2">
+                                        <i class="fas fa-robot text-primary me-2"></i>AI Diagnosis
+                                    </h6>
+                                    <p class="mb-0">{{ $aiDiagnosis }}</p>
+                                </div>
+                            </div>
+                        @endif
+
+                        @if(!empty($aiRecommendations))
+                            <div class="card bg-light border-0 mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title mb-2">
+                                        <i class="fas fa-lightbulb text-warning me-2"></i>Recommendations
+                                    </h6>
+                                    <ul class="mb-0">
+                                        @foreach($aiRecommendations as $rec)
+                                            <li>{{ $rec }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            </div>
+                        @endif
+
+                        @if(!empty($autoFixes))
+                            <div class="card bg-light border-0 mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title mb-2">
+                                        <i class="fas fa-wrench text-info me-2"></i>Auto-Fixes Applied During Retries
+                                    </h6>
+                                    <ul class="mb-0 small">
+                                        @foreach($autoFixes as $fix)
+                                            <li>{{ $fix }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            </div>
+                        @endif
+
+                        @if(!empty($errorCategories))
+                            <div class="card bg-light border-0 mb-3">
+                                <div class="card-body">
+                                    <h6 class="card-title mb-2">
+                                        <i class="fas fa-tags text-secondary me-2"></i>Error Classification
+                                    </h6>
+                                    <div class="table-responsive">
+                                        <table class="table table-sm table-borderless mb-0">
+                                            <tbody>
+                                                @foreach($errorCategories as $cat)
+                                                    <tr>
+                                                        <td>
+                                                            @if($cat['auto_fixable'] ?? false)
+                                                                <span class="badge bg-success">Auto-fixable</span>
+                                                            @else
+                                                                <span class="badge bg-secondary">Manual</span>
+                                                            @endif
+                                                        </td>
+                                                        <td>
+                                                            <span class="badge bg-outline-dark text-dark border">{{ str_replace('_', ' ', $cat['category'] ?? 'unknown') }}</span>
+                                                        </td>
+                                                        <td class="small">{{ $cat['error'] ?? '' }}</td>
+                                                    </tr>
+                                                @endforeach
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                </div>
+                            </div>
+                        @endif
+
                         @if($submission->can_retry)
                             <div class="text-center mt-4">
                                 <form action="{{ route('web-submission.retry', $submission) }}" method="POST">
@@ -54,6 +135,9 @@
                                     <button type="submit" class="btn btn-warning">
                                         <i class="fas fa-redo me-2"></i>Retry Submission
                                     </button>
+                                    <p class="text-muted small mt-2 mb-0">
+                                        AI error recovery will automatically attempt to fix known issues.
+                                    </p>
                                 </form>
                             </div>
                         @endif

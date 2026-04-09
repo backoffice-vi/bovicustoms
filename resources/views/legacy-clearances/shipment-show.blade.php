@@ -237,7 +237,7 @@
                             </a>
                         </div>
                         
-                        @if($declaration->declarationFormItems->count() > 0)
+                        @if($declaration->declarationItems->count() > 0)
                             <div class="table-responsive">
                                 <table class="table table-sm mb-0">
                                     <thead class="table-light">
@@ -249,7 +249,7 @@
                                         </tr>
                                     </thead>
                                     <tbody>
-                                        @foreach($declaration->declarationFormItems as $item)
+                                        @foreach($declaration->declarationItems as $item)
                                             <tr>
                                                 <td>{{ $item->line_number ?? '-' }}</td>
                                                 <td>{{ Str::limit($item->description, 50) }}</td>

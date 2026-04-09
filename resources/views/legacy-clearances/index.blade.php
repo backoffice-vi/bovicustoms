@@ -112,60 +112,145 @@
 
             @if($q !== '' || $hs !== '')
                 <hr>
-                <div class="row g-4">
-                    <div class="col-lg-6">
-                        <h6 class="text-muted text-uppercase">Invoice Items</h6>
-                        @if($invoiceItemResults->count() === 0)
-                            <div class="text-muted">No matches.</div>
-                        @else
-                            <ul class="list-group">
-                                @foreach($invoiceItemResults as $item)
-                                    <li class="list-group-item">
-                                        <div class="d-flex justify-content-between">
-                                            <div class="me-3">
-                                                <div class="fw-semibold">{{ $item->description }}</div>
-                                                <div class="text-muted small">SKU: {{ $item->sku ?? '-' }} | Item#: {{ $item->item_number ?? '-' }}</div>
-                                            </div>
-                                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('legacy-clearances.invoices.show', $item->invoice_id) }}">View</a>
-                                        </div>
-                                    </li>
-                                @endforeach
-                            </ul>
-                        @endif
-                    </div>
-                    <div class="col-lg-6">
-                        <h6 class="text-muted text-uppercase">Declaration Items (Approved HS)</h6>
-                        @if($declarationItemResults->count() === 0)
-                            <div class="text-muted">No matches.</div>
-                        @else
-                            <ul class="list-group">
+
+                {{-- Approved Declaration Items (the most useful results) --}}
+                <h6 class="text-muted text-uppercase mb-3">
+                    <i class="fas fa-stamp me-1"></i>Approved Declaration Items (HS Codes)
+                    <span class="badge bg-secondary ms-1">{{ $declarationItemResults->count() }}</span>
+                </h6>
+                @if($declarationItemResults->count() === 0)
+                    <div class="text-muted mb-4">No approved declaration items match your search.</div>
+                @else
+                    <div class="table-responsive mb-4">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Description</th>
+                                    <th>HS Code</th>
+                                    <th>Duty Rate</th>
+                                    <th>Total Due</th>
+                                    <th>TD Number</th>
+                                    <th>Relevance</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
                                 @foreach($declarationItemResults as $item)
-                                    <li class="list-group-item">
-                                        <div class="d-flex justify-content-between">
-                                            <div class="me-3">
-                                                <div class="fw-semibold">{{ $item->description }}</div>
-                                                <div class="text-muted small">
-                                                    HS: <code>{{ $item->hs_code ?? '-' }}</code>
-                                                    @if($item->hs_description)
-                                                        — {{ $item->hs_description }}
-                                                    @endif
-                                                </div>
-                                            </div>
-                                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('legacy-clearances.declarations.show', $item->declaration_form_id) }}">View</a>
-                                        </div>
-                                    </li>
+                                    @php
+                                        $meta = $item->meta ?? [];
+                                        $taxes = $meta['taxes'] ?? [];
+                                        $dutyTax = collect($taxes)->firstWhere('type', 'CUD');
+                                        $dutyRate = $dutyTax['rate'] ?? null;
+                                        $totalDue = $meta['total_due'] ?? null;
+                                        $rel = $item->relevance ?? 0;
+                                    @endphp
+                                    <tr>
+                                        <td>{{ $item->description }}</td>
+                                        <td><code class="fs-6">{{ $item->hs_code ?? '-' }}</code></td>
+                                        <td>
+                                            @if($dutyRate !== null)
+                                                <span class="fw-semibold">{{ $dutyRate }}%</span>
+                                            @else
+                                                <span class="text-muted">-</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if($totalDue !== null)
+                                                ${{ number_format((float) $totalDue, 2) }}
+                                            @else
+                                                <span class="text-muted">-</span>
+                                            @endif
+                                        </td>
+                                        <td class="font-monospace small">{{ $item->declarationForm?->form_number ?? '-' }}</td>
+                                        <td>
+                                            <span class="badge bg-{{ $rel >= 80 ? 'success' : ($rel >= 50 ? 'warning text-dark' : 'secondary') }}">
+                                                {{ $rel }}%
+                                            </span>
+                                        </td>
+                                        <td>
+                                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('legacy-clearances.declarations.show', $item->declaration_form_id) }}">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
                                 @endforeach
-                            </ul>
-                        @endif
+                            </tbody>
+                        </table>
                     </div>
-                </div>
+                @endif
+
+                {{-- Invoice Items with their matched HS codes --}}
+                <h6 class="text-muted text-uppercase mb-3">
+                    <i class="fas fa-file-invoice me-1"></i>Invoice Line Items
+                    <span class="badge bg-secondary ms-1">{{ $invoiceItemResults->count() }}</span>
+                </h6>
+                @if($invoiceItemResults->count() === 0)
+                    <div class="text-muted">No invoice items match your search.</div>
+                @else
+                    <div class="table-responsive">
+                        <table class="table table-sm table-hover align-middle">
+                            <thead class="table-light">
+                                <tr>
+                                    <th>Description</th>
+                                    <th>Qty</th>
+                                    <th>Unit Price</th>
+                                    <th>Matched HS Code</th>
+                                    <th>Confidence</th>
+                                    <th></th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                @foreach($invoiceItemResults as $item)
+                                    @php
+                                        $match = $searchMatches->get($item->id);
+                                        $declItem = $match?->declarationFormItem;
+                                    @endphp
+                                    <tr>
+                                        <td>{{ $item->description }}</td>
+                                        <td>{{ $item->quantity ?? '-' }}</td>
+                                        <td>
+                                            @if($item->unit_price !== null)
+                                                ${{ number_format((float) $item->unit_price, 2) }}
+                                            @else
+                                                -
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if($declItem)
+                                                <code class="fs-6">{{ $declItem->hs_code }}</code>
+                                                <div class="text-muted small">{{ Str::limit($declItem->description, 40) }}</div>
+                                            @else
+                                                <span class="text-muted">—</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            @if($match)
+                                                <span class="badge bg-{{ $match->confidence >= 80 ? 'success' : ($match->confidence >= 50 ? 'warning' : 'secondary') }}">
+                                                    {{ $match->confidence }}%
+                                                </span>
+                                            @else
+                                                <span class="text-muted">—</span>
+                                            @endif
+                                        </td>
+                                        <td>
+                                            <a class="btn btn-sm btn-outline-secondary" href="{{ route('legacy-clearances.invoices.show', $item->invoice_id) }}">
+                                                <i class="fas fa-eye"></i>
+                                            </a>
+                                        </td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                @endif
             @endif
         </div>
     </div>
 
     <div class="card">
-        <div class="card-header">
-            <strong><i class="fas fa-history me-2"></i>Recent Legacy Clearances</strong>
+        <div class="card-header d-flex justify-content-between align-items-center">
+            <strong><i class="fas fa-history me-2"></i>Legacy Clearances</strong>
+            <span class="badge bg-secondary">{{ $recentLegacyShipments->total() }} total</span>
         </div>
         <div class="card-body">
             @if($recentLegacyShipments->count() === 0)
@@ -218,6 +303,9 @@
                             @endforeach
                         </tbody>
                     </table>
+                </div>
+                <div class="mt-3">
+                    {{ $recentLegacyShipments->withQueryString()->links() }}
                 </div>
             @endif
         </div>

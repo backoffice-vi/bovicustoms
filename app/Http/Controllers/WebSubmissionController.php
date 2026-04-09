@@ -75,7 +75,10 @@ class WebSubmissionController extends Controller
             $preview = $this->buildCapsPreview($target, $capsData);
             $validation = $this->validateCapsData($capsData);
             
-            return view('web-submission.preview', compact('declaration', 'target', 'preview', 'validation', 'capsData'));
+            // Gather attachment info for preview
+            $attachments = $this->gatherAttachmentInfo($declaration);
+            
+            return view('web-submission.preview', compact('declaration', 'target', 'preview', 'validation', 'capsData', 'attachments'));
         }
 
         // Preview the mapping (non-CAPS)
@@ -327,6 +330,46 @@ class WebSubmissionController extends Controller
     }
 
     /**
+     * Gather attachment file info for preview display
+     */
+    protected function gatherAttachmentInfo(DeclarationForm $declaration): array
+    {
+        $attachments = [];
+        $declaration->load(['shipment.shippingDocuments', 'invoice']);
+
+        if ($declaration->shipment) {
+            $transportDoc = $declaration->shipment->shippingDocuments
+                ->filter(fn($doc) => $doc->isPrimaryTransportDocument() && $doc->file_path)
+                ->first();
+
+            if ($transportDoc) {
+                $absPath = storage_path('app/' . $transportDoc->file_path);
+                $attachments[] = [
+                    'label' => $transportDoc->document_type_label,
+                    'filename' => $transportDoc->original_filename ?? basename($transportDoc->file_path),
+                    'exists' => file_exists($absPath),
+                    'type' => 'transport',
+                ];
+            }
+        }
+
+        $allInvoices = $declaration->getAllInvoices();
+        foreach ($allInvoices as $invoice) {
+            if (!empty($invoice->source_file_path)) {
+                $absPath = storage_path('app/' . $invoice->source_file_path);
+                $attachments[] = [
+                    'label' => 'Invoice #' . ($invoice->invoice_number ?? $invoice->id),
+                    'filename' => basename($invoice->source_file_path),
+                    'exists' => file_exists($absPath),
+                    'type' => 'invoice',
+                ];
+            }
+        }
+
+        return $attachments;
+    }
+
+    /**
      * Show submission result
      */
     public function result(DeclarationForm $declaration, WebFormSubmission $submission)
@@ -351,7 +394,7 @@ class WebSubmissionController extends Controller
     }
 
     /**
-     * Retry a failed submission
+     * Retry a failed submission (routes CAPS targets through submitToCaps automatically)
      */
     public function retry(WebFormSubmission $submission)
     {
@@ -368,6 +411,10 @@ class WebSubmissionController extends Controller
             ])->with('info', 'Retry submission created.');
 
         } catch (\Exception $e) {
+            Log::error('Retry failed', [
+                'submission_id' => $submission->id,
+                'error' => $e->getMessage(),
+            ]);
             return redirect()->back()->with('error', 'Retry failed: ' . $e->getMessage());
         }
     }

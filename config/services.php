@@ -63,4 +63,13 @@ return [
         'batch_size' => env('OPENAI_EMBEDDING_BATCH_SIZE', 100),
     ],
 
+    'caps' => [
+        'url' => env('CAPS_URL', 'https://caps.gov.vg'),
+        'username' => env('CAPS_USERNAME'),
+        'password' => env('CAPS_PASSWORD'),
+        'download_timeout' => (int) env('CAPS_DOWNLOAD_TIMEOUT', 60),
+        'max_retries' => (int) env('CAPS_MAX_RETRIES', 3),
+        'group_items_by_hs_code' => (bool) env('CAPS_GROUP_ITEMS', true),
+    ],
+
 ];

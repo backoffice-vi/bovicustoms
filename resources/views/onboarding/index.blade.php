@@ -72,7 +72,7 @@
                     <i class="fas fa-check-double"></i>
                     <div>
                         <h5>Review & Assign Customs Codes</h5>
-                        <p class="text-muted">Our AI will suggest HS codes for each item. Review and adjust as needed before finalizing.</p>
+                        <p class="text-muted">BoVi AI will suggest HS codes for each item. Review and adjust as needed before finalizing.</p>
                     </div>
                 </div>
                 <div class="feature-item">

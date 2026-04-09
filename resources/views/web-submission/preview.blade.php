@@ -230,6 +230,41 @@
                 </div>
             </div>
 
+            {{-- File Attachments --}}
+            @if(isset($attachments))
+            <div class="card mb-4">
+                <div class="card-header bg-dark text-white">
+                    <h5 class="mb-0"><i class="fas fa-paperclip me-2"></i>File Attachments</h5>
+                </div>
+                <div class="card-body">
+                    @if(count($attachments) > 0)
+                        <p class="text-muted small mb-3">These documents will be uploaded to CAPS as supporting attachments with the TD.</p>
+                        <div class="list-group">
+                            @foreach($attachments as $att)
+                                <div class="list-group-item d-flex justify-content-between align-items-center">
+                                    <div>
+                                        <i class="fas {{ $att['type'] === 'transport' ? 'fa-ship' : 'fa-file-invoice-dollar' }} me-2 text-primary"></i>
+                                        <strong>{{ $att['label'] }}</strong>
+                                        <span class="text-muted ms-2">{{ $att['filename'] }}</span>
+                                    </div>
+                                    @if($att['exists'])
+                                        <span class="badge bg-success"><i class="fas fa-check me-1"></i>Ready</span>
+                                    @else
+                                        <span class="badge bg-danger"><i class="fas fa-times me-1"></i>File Not Found</span>
+                                    @endif
+                                </div>
+                            @endforeach
+                        </div>
+                    @else
+                        <div class="text-center py-3">
+                            <i class="fas fa-info-circle fa-2x text-muted mb-2"></i>
+                            <p class="text-muted mb-0">No B/L or Invoice files found to attach. Upload shipping documents and invoice files to include them.</p>
+                        </div>
+                    @endif
+                </div>
+            </div>
+            @endif
+
             {{-- Field Mappings Preview --}}
             <div class="card">
                 <div class="card-header">

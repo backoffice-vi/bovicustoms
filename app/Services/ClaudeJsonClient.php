@@ -64,7 +64,7 @@ class ClaudeJsonClient
      * Vision: send a PDF document and ask Claude to return JSON only. Returns an array, or [] on parse failure.
      * Claude's API supports PDF files directly via the "document" type.
      */
-    public function promptForJsonWithPdf(string $prompt, string $pdfBinary, int $timeoutSeconds = 300): array
+    public function promptForJsonWithPdf(string $prompt, string $pdfBinary, int $timeoutSeconds = 300, ?int $maxTokens = null): array
     {
         $b64 = base64_encode($pdfBinary);
 
@@ -83,7 +83,7 @@ class ClaudeJsonClient
                     ['type' => 'text', 'text' => $prompt],
                 ],
             ],
-        ], $timeoutSeconds);
+        ], $timeoutSeconds, $maxTokens);
 
         return $this->parseJsonResponse($text);
     }
@@ -179,29 +179,68 @@ class ClaudeJsonClient
 
     protected function repairTruncatedJson(string $json): string
     {
-        // Remove trailing incomplete string values (e.g., "field": "incomplete...)
-        $json = preg_replace('/,?\s*"[^"]*":\s*"[^"]*$/', '', $json);
-        
-        // Remove incomplete key without value (e.g., "field_name" at end without colon)
-        $json = preg_replace('/,?\s*"[^"]*"\s*$/', '', $json);
-        
-        // Remove incomplete key-value pairs (e.g., "field": without value)
-        $json = preg_replace('/,?\s*"[^"]*":\s*$/', '', $json);
-        
-        // Remove trailing incomplete objects
-        $json = preg_replace('/,\s*\{[^}]*$/', '', $json);
-        $json = preg_replace('/,\s*\[[^\]]*$/', '', $json);
-        
+        // Iteratively strip trailing garbage until we can close brackets cleanly.
+        // Each pass removes one layer of incomplete data from the end.
+        for ($i = 0; $i < 20; $i++) {
+            $before = $json;
+
+            // Remove trailing incomplete string value: "key": "incomplete...
+            $json = preg_replace('/,?\s*"[^"]*":\s*"[^"]*$/', '', $json);
+
+            // Remove trailing incomplete numeric/bool value: "key": 123
+            $json = preg_replace('/,?\s*"[^"]*":\s*[\d.]+\s*$/', '', $json);
+
+            // Remove trailing key without value: "key":
+            $json = preg_replace('/,?\s*"[^"]*":\s*$/', '', $json);
+
+            // Remove trailing bare key: "key"
+            $json = preg_replace('/,?\s*"[^"]*"\s*$/', '', $json);
+
+            // Remove last incomplete object in array: , { ... (no closing })
+            $json = preg_replace('/,\s*\{[^}]*$/', '', $json);
+
+            // Remove last incomplete array: , [ ... (no closing ])
+            $json = preg_replace('/,\s*\[[^\]]*$/', '', $json);
+
+            if ($json === $before) {
+                break;
+            }
+        }
+
         // Remove trailing commas before closing brackets
         $json = preg_replace('/,\s*([\}\]])/', '$1', $json);
 
-        $openBrackets = substr_count($json, '[');
-        $closeBrackets = substr_count($json, ']');
-        $openBraces = substr_count($json, '{');
-        $closeBraces = substr_count($json, '}');
+        // Close unclosed brackets/braces in proper nesting order
+        $stack = [];
+        $inString = false;
+        $escape = false;
+        for ($i = 0, $len = strlen($json); $i < $len; $i++) {
+            $ch = $json[$i];
+            if ($escape) {
+                $escape = false;
+                continue;
+            }
+            if ($ch === '\\' && $inString) {
+                $escape = true;
+                continue;
+            }
+            if ($ch === '"') {
+                $inString = !$inString;
+                continue;
+            }
+            if ($inString) {
+                continue;
+            }
+            if ($ch === '{') {
+                $stack[] = '}';
+            } elseif ($ch === '[') {
+                $stack[] = ']';
+            } elseif ($ch === '}' || $ch === ']') {
+                array_pop($stack);
+            }
+        }
 
-        $json .= str_repeat('}', max(0, $openBraces - $closeBraces));
-        $json .= str_repeat(']', max(0, $openBrackets - $closeBrackets));
+        $json .= implode('', array_reverse($stack));
 
         return $json;
     }

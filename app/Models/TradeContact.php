@@ -55,12 +55,14 @@ class TradeContact extends Model
     {
         parent::boot();
 
-        // Apply global scope to filter by tenant
+        // Apply global scope to filter by tenant (admins see all)
         static::addGlobalScope('tenant', function ($builder) {
             if (auth()->check()) {
                 $user = auth()->user();
+                if ($user->isAdmin()) {
+                    return;
+                }
                 if ($user->organization_id) {
-                    // Use table-qualified column name to avoid ambiguity in joins
                     $builder->where('trade_contacts.organization_id', $user->organization_id);
                 } elseif ($user->is_individual) {
                     $builder->where('trade_contacts.user_id', $user->id);

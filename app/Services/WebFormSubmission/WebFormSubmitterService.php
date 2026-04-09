@@ -19,15 +19,18 @@ class WebFormSubmitterService
     protected PlaywrightService $playwright;
     protected WebFormDataMapper $dataMapper;
     protected CapsAIMapper $aiMapper;
+    protected CapsErrorRecoveryService $capsErrorRecovery;
 
     public function __construct(
         PlaywrightService $playwright, 
         WebFormDataMapper $dataMapper,
-        CapsAIMapper $aiMapper
+        CapsAIMapper $aiMapper,
+        CapsErrorRecoveryService $capsErrorRecovery
     ) {
         $this->playwright = $playwright;
         $this->dataMapper = $dataMapper;
         $this->aiMapper = $aiMapper;
+        $this->capsErrorRecovery = $capsErrorRecovery;
     }
 
     /**
@@ -127,7 +130,7 @@ class WebFormSubmitterService
     }
 
     /**
-     * Retry a failed submission
+     * Retry a failed submission, routing CAPS targets through submitToCaps().
      */
     public function retry(WebFormSubmission $submission): WebFormSubmission
     {
@@ -135,13 +138,17 @@ class WebFormSubmitterService
             throw new \Exception('This submission cannot be retried (max retries reached or not in failed state)');
         }
 
-        $newSubmission = $submission->createRetry();
+        $submission->createRetry();
 
-        return $this->submit(
-            $submission->declaration,
-            $submission->target,
-            true // Always use AI for retries
-        );
+        $declaration = $submission->declaration;
+        $target = $submission->target;
+
+        if ($this->isCapsTarget($target)) {
+            $lastAction = $submission->request_data['action'] ?? 'save';
+            return $this->submitToCaps($declaration, $target, $lastAction, true);
+        }
+
+        return $this->submit($declaration, $target, true);
     }
 
     /**
@@ -202,11 +209,63 @@ class WebFormSubmitterService
             'credentials' => $capsData['credentials'],
             'headerData' => $capsData['headerData'],
             'items' => $capsData['items'],
+            'attachments' => $this->gatherAttachments($declaration),
             'headless' => true,
             'screenshotDir' => storage_path('app/playwright-screenshots'),
             'timeout' => 30000,
             'slowMo' => 50,
         ];
+    }
+
+    /**
+     * Gather B/L and Invoice file attachments for the declaration
+     */
+    protected function gatherAttachments(DeclarationForm $declaration): array
+    {
+        $attachments = [];
+
+        $declaration->load(['shipment.shippingDocuments', 'invoice']);
+
+        // B/L or AWB from shipping documents
+        if ($declaration->shipment) {
+            $transportDoc = $declaration->shipment->shippingDocuments
+                ->filter(fn($doc) => $doc->isPrimaryTransportDocument() && $doc->file_path)
+                ->first();
+
+            if ($transportDoc) {
+                $absPath = storage_path('app/' . $transportDoc->file_path);
+                if (file_exists($absPath)) {
+                    $attachments[] = [
+                        'label' => $transportDoc->document_type_label . ' - ' . ($transportDoc->original_filename ?? 'B/L'),
+                        'filePath' => $absPath,
+                        'type' => $transportDoc->document_type,
+                    ];
+                    Log::info('CAPS attachment: B/L found', ['path' => $absPath]);
+                }
+            }
+        }
+
+        // Invoice PDF
+        $allInvoices = $declaration->getAllInvoices();
+        foreach ($allInvoices as $invoice) {
+            if (!empty($invoice->source_file_path)) {
+                $absPath = storage_path('app/' . $invoice->source_file_path);
+                if (file_exists($absPath)) {
+                    $attachments[] = [
+                        'label' => 'Invoice #' . ($invoice->invoice_number ?? $invoice->id),
+                        'filePath' => $absPath,
+                        'type' => 'invoice',
+                    ];
+                    Log::info('CAPS attachment: Invoice found', ['path' => $absPath]);
+                }
+            }
+        }
+
+        if (empty($attachments)) {
+            Log::info('CAPS submission: No attachment files found for declaration ' . $declaration->id);
+        }
+
+        return $attachments;
     }
 
     /**
@@ -304,15 +363,19 @@ class WebFormSubmitterService
     }
 
     /**
-     * Submit to CAPS specifically with AI-assisted mapping
+     * Submit to CAPS with AI-assisted mapping and automatic error recovery.
+     *
+     * The method runs a retry loop (up to $maxRetries additional attempts).
+     * After each failure, CapsErrorRecoveryService analyses the errors,
+     * applies auto-fixes to the input data, and retries.
      */
     public function submitToCaps(
         DeclarationForm $declaration,
         WebFormTarget $target,
         string $action = 'save',
-        bool $useAI = true
+        bool $useAI = true,
+        int $maxRetries = 2
     ): WebFormSubmission {
-        // Create submission record
         $submission = WebFormSubmission::create([
             'web_form_target_id' => $target->id,
             'declaration_form_id' => $declaration->id,
@@ -325,98 +388,93 @@ class WebFormSubmitterService
             $submission->start();
             $submission->addLog('Starting CAPS submission' . ($useAI ? ' with AI assistance' : ''));
 
-            // Build CAPS-specific input (raw data)
             $playwrightInput = $this->buildCapsPlaywrightInput($declaration, $target, $action);
+            $playwrightInput['country_id'] = $target->country_id;
             $submission->addLog('Prepared ' . count($playwrightInput['items']) . ' items for submission');
 
-            // Apply AI-assisted mapping if enabled
             if ($useAI && $target->country_id) {
-                $submission->addLog('Applying Claude AI mapping...');
-                
-                $this->aiMapper->setCountryId($target->country_id);
-                $this->aiMapper->clearDecisions();
-                
-                // Map header data with AI
-                $playwrightInput['headerData'] = $this->aiMapper->mapHeaderData($playwrightInput['headerData']);
-                
-                // Map items data with AI
-                $playwrightInput['items'] = $this->aiMapper->mapItemsData($playwrightInput['items']);
-                
-                // Log AI decisions
-                $aiDecisions = $this->aiMapper->getAiDecisions();
-                if (!empty($aiDecisions)) {
-                    $submission->addLog('AI made ' . count($aiDecisions) . ' mapping decisions');
-                    foreach ($aiDecisions as $decision) {
-                        $submission->addAiDecision(
-                            "Field: {$decision['field']} - Input: {$decision['input_value']}",
-                            "Mapped to: {$decision['matched_code']}",
-                            $decision['reasoning'] ?? ''
-                        );
-                    }
-                }
+                $playwrightInput = $this->applyCapsAIMapping($playwrightInput, $target, $submission);
             }
 
-            // Execute Playwright
-            $submission->addLog('Executing CAPS Playwright automation');
-            $result = $this->executeCapsPlaywright($playwrightInput, $submission);
+            // --- retry loop ---
+            $result = null;
+            for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
+                if ($attempt > 0) {
+                    $submission->addLog("--- Retry attempt #{$attempt} ---", 'info');
+                }
 
-            // Process result
-            if ($result['success']) {
-                $submission->markSubmitted(
-                    $result['td_number'] ?? $result['reference_number'] ?? null,
-                    $result['message'] ?? null
-                );
-                $submission->addLog('CAPS submission successful: TD ' . ($result['td_number'] ?? 'N/A'), 'success');
+                $submission->addLog('Executing CAPS Playwright automation (attempt ' . ($attempt + 1) . ')');
+                $result = $this->executeCapsPlaywright($playwrightInput, $submission);
 
-                // Update declaration
+                $this->storeScreenshots($result, $submission);
+
+                $succeeded = !empty($result['success']) && ($result['validation_passed'] ?? true) !== false;
+
+                if ($succeeded) {
+                    break;
+                }
+
+                // Treat validation_passed === false as failure even if success === true
+                if (!empty($result['success']) && ($result['validation_passed'] ?? true) === false) {
+                    $submission->addLog('CAPS validation failed despite successful save', 'warn');
+                }
+
+                if ($attempt < $maxRetries) {
+                    $submission->addLog('Analyzing errors for auto-recovery...');
+                    $recovery = $this->capsErrorRecovery->analyze($result, $playwrightInput);
+
+                    if ($recovery['can_retry'] && !empty($recovery['fixes_applied'])) {
+                        $playwrightInput = $recovery['fixed_input'];
+                        foreach ($recovery['fixes_applied'] as $fix) {
+                            $submission->addLog("Auto-fix: {$fix}", 'info');
+                        }
+                        $submission->addAiDecision(
+                            'Error Recovery (attempt ' . ($attempt + 1) . ')',
+                            implode('; ', $recovery['fixes_applied']),
+                            $recovery['diagnosis'] ?? ''
+                        );
+                        continue;
+                    }
+
+                    // Cannot auto-fix — store diagnosis and stop retrying
+                    $this->storeDiagnosis($submission, $recovery);
+                    $submission->addLog('No auto-fix available — stopping retries', 'warn');
+                    break;
+                }
+
+                // Final attempt exhausted
+                $recovery = $this->capsErrorRecovery->analyze($result, $playwrightInput);
+                $this->storeDiagnosis($submission, $recovery);
+            }
+
+            // --- process final result ---
+            $succeeded = !empty($result['success']) && ($result['validation_passed'] ?? true) !== false;
+
+            if ($succeeded) {
+                $tdNumber = $result['td_number'] ?? $result['reference_number'] ?? null;
+                $submission->markSubmitted($tdNumber, $result['message'] ?? null);
+                $submission->addLog('CAPS submission successful: TD ' . ($tdNumber ?? 'N/A'), 'success');
+
                 if ($action === 'submit') {
                     $declaration->update([
                         'submission_status' => DeclarationForm::SUBMISSION_STATUS_SUBMITTED,
-                        'submission_reference' => $result['td_number'],
+                        'submission_reference' => $tdNumber,
                         'submitted_at' => now(),
                         'submitted_by_user_id' => auth()->id(),
                     ]);
                 }
             } else {
-                $submission->markFailed(
-                    $result['error'] ?? 'Unknown CAPS error',
-                    $result['errors'] ?? null
-                );
-                $submission->addLog('CAPS submission failed: ' . ($result['error'] ?? 'Unknown error'), 'error');
+                $errorMsg = $result['error'] ?? 'Unknown CAPS error';
+                if (($result['validation_passed'] ?? true) === false) {
+                    $errorMsg = 'CAPS validation failed: ' . $errorMsg;
+                }
+                $submission->markFailed($errorMsg, $result['errors'] ?? null);
+                $submission->addLog('CAPS submission failed: ' . $errorMsg, 'error');
             }
 
-            // Store screenshots
-            if (!empty($result['screenshots'])) {
-                foreach ($result['screenshots'] as $screenshot) {
-                    $submission->addScreenshot($screenshot);
-                }
-            }
-
-            // Handle validation warnings with AI interpretation
-            if (!empty($result['warnings']) && $useAI) {
-                $submission->addLog('Analyzing validation warnings with AI...');
-                
-                $interpretedErrors = $this->aiMapper->interpretValidationErrors($result['warnings']);
-                
-                foreach ($result['warnings'] as $warning) {
-                    $submission->addLog('Warning: ' . $warning, 'warn');
-                }
-                
-                // Store AI interpretations
-                if (!empty($interpretedErrors)) {
-                    foreach ($interpretedErrors as $interpreted) {
-                        $submission->addAiDecision(
-                            'Validation: ' . ($interpreted['error'] ?? 'Unknown'),
-                            'Suggestion: ' . ($interpreted['suggestion'] ?? 'No suggestion'),
-                            'Category: ' . ($interpreted['category'] ?? 'unknown') . 
-                            ', Severity: ' . ($interpreted['severity'] ?? 'unknown')
-                        );
-                    }
-                }
-            } elseif (!empty($result['warnings'])) {
-                foreach ($result['warnings'] as $warning) {
-                    $submission->addLog('Warning: ' . $warning, 'warn');
-                }
+            // Log warnings via AI if present
+            if (!empty($result['warnings'])) {
+                $this->logCapsWarnings($result['warnings'], $useAI, $submission);
             }
 
         } catch (\Exception $e) {
@@ -425,11 +483,86 @@ class WebFormSubmitterService
                 'error' => $e->getMessage(),
                 'trace' => $e->getTraceAsString(),
             ]);
-
             $submission->markFailed($e->getMessage());
             $submission->addLog('Exception: ' . $e->getMessage(), 'error');
         }
 
         return $submission->fresh();
+    }
+
+    /**
+     * Apply AI-assisted field mapping for CAPS.
+     */
+    protected function applyCapsAIMapping(array $playwrightInput, WebFormTarget $target, WebFormSubmission $submission): array
+    {
+        $submission->addLog('Applying Claude AI mapping...');
+
+        $this->aiMapper->setCountryId($target->country_id);
+        $this->aiMapper->clearDecisions();
+
+        $playwrightInput['headerData'] = $this->aiMapper->mapHeaderData($playwrightInput['headerData']);
+        $playwrightInput['items'] = $this->aiMapper->mapItemsData($playwrightInput['items']);
+
+        $aiDecisions = $this->aiMapper->getAiDecisions();
+        if (!empty($aiDecisions)) {
+            $submission->addLog('AI made ' . count($aiDecisions) . ' mapping decisions');
+            foreach ($aiDecisions as $decision) {
+                $submission->addAiDecision(
+                    "Field: {$decision['field']} - Input: {$decision['input_value']}",
+                    "Mapped to: {$decision['matched_code']}",
+                    $decision['reasoning'] ?? ''
+                );
+            }
+        }
+
+        return $playwrightInput;
+    }
+
+    /**
+     * Store AI diagnosis and recommendations on the submission.
+     */
+    protected function storeDiagnosis(WebFormSubmission $submission, array $recovery): void
+    {
+        $submission->addAiDecision(
+            'Error Diagnosis',
+            $recovery['diagnosis'] ?? 'Unknown',
+            !empty($recovery['recommendations']) ? implode(' | ', $recovery['recommendations']) : ''
+        );
+
+        $submission->update([
+            'response_data' => array_merge($submission->response_data ?? [], [
+                'ai_diagnosis' => $recovery['diagnosis'] ?? null,
+                'ai_recommendations' => $recovery['recommendations'] ?? [],
+                'error_categories' => $recovery['error_categories'] ?? [],
+                'auto_fixes_applied' => $recovery['fixes_applied'] ?? [],
+            ]),
+        ]);
+    }
+
+    protected function storeScreenshots(array $result, WebFormSubmission $submission): void
+    {
+        foreach ($result['screenshots'] ?? [] as $screenshot) {
+            $submission->addScreenshot($screenshot);
+        }
+    }
+
+    protected function logCapsWarnings(array $warnings, bool $useAI, WebFormSubmission $submission): void
+    {
+        foreach ($warnings as $warning) {
+            $submission->addLog('Warning: ' . $warning, 'warn');
+        }
+
+        if ($useAI) {
+            $submission->addLog('Analyzing validation warnings with AI...');
+            $interpretedErrors = $this->aiMapper->interpretValidationErrors($warnings);
+            foreach ($interpretedErrors as $interpreted) {
+                $submission->addAiDecision(
+                    'Validation: ' . ($interpreted['error'] ?? 'Unknown'),
+                    'Suggestion: ' . ($interpreted['suggestion'] ?? 'No suggestion'),
+                    'Category: ' . ($interpreted['category'] ?? 'unknown') .
+                    ', Severity: ' . ($interpreted['severity'] ?? 'unknown')
+                );
+            }
+        }
     }
 }

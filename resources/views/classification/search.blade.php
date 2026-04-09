@@ -80,7 +80,7 @@
                 <div class="spinner-border text-primary mb-3" style="width: 3rem; height: 3rem;" role="status">
                     <span class="visually-hidden">Loading...</span>
                 </div>
-                <h5 class="text-muted">AI is analyzing your item...</h5>
+                <h5 class="text-muted"><span class="text-danger fw-bold">BoVi AI</span> is analyzing your item...</h5>
                 <p class="text-muted small">This usually takes a few seconds</p>
             </div>
 

@@ -46,8 +46,12 @@ class InvoiceItem extends Model
             }
 
             $user = auth()->user();
+
+            if ($user->isAdmin()) {
+                return;
+            }
+
             if ($user->organization_id) {
-                // Use table-qualified column name to avoid ambiguity in joins
                 $builder->where('invoice_items.organization_id', $user->organization_id);
             } elseif ($user->is_individual) {
                 $builder->where('invoice_items.user_id', $user->id);

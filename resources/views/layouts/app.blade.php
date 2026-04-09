@@ -125,6 +125,9 @@
                             <li><a class="dropdown-item" href="{{ route('legacy-clearances.index') }}">
                                 <i class="fas fa-archive me-2"></i>Legacy Clearances
                             </a></li>
+                            <li><a class="dropdown-item" href="{{ route('caps-import.index') }}">
+                                <i class="fas fa-cloud-download-alt me-2"></i>CAPS Import
+                            </a></li>
                         </ul>
                     </li>
                     

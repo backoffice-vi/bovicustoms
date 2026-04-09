@@ -35,6 +35,18 @@
                     <p class="text-muted mb-4" id="statusMessage">
                         Starting classification process...
                     </p>
+
+                    {{-- Time Estimate --}}
+                    @php
+                        $batchSize = 10;
+                        $estMinutes = max(1, (int) ceil(($classifyingItemCount / $batchSize) * 1.5));
+                    @endphp
+                    <p class="text-muted small mb-4" id="timeEstimate">
+                        <i class="fas fa-clock me-1"></i>Estimated time: ~{{ $estMinutes }} {{ Str::plural('minute', $estMinutes) }} for {{ $classifyingItemCount }} {{ Str::plural('item', $classifyingItemCount) }}
+                        @if($classifyingItemCount < $totalItemCount)
+                            <span class="text-info">({{ $totalItemCount - $classifyingItemCount }} already classified)</span>
+                        @endif
+                    </p>
                     
                     {{-- Invoice Info --}}
                     <div class="bg-light rounded-3 p-3 mb-4">
@@ -50,8 +62,8 @@
                         </div>
                         <div class="row text-start mt-2">
                             <div class="col-6">
-                                <small class="text-muted">Items</small>
-                                <div class="fw-semibold">{{ count($invoice->items ?? []) }}</div>
+                                <small class="text-muted">Classifying</small>
+                                <div class="fw-semibold">{{ $classifyingItemCount }} of {{ $totalItemCount }} items</div>
                             </div>
                             <div class="col-6">
                                 <small class="text-muted">Total Amount</small>
@@ -64,18 +76,18 @@
                     <div class="alert alert-info border-0" id="infoAlert">
                         <i class="fas fa-info-circle me-2"></i>
                         <span id="infoText">
-                            AI is analyzing your invoice items and determining the appropriate customs codes. 
+                            BoVi AI is analyzing your invoice items and determining the appropriate customs codes. 
                             This page will automatically update when complete.
                         </span>
                     </div>
                     
                     {{-- Action Buttons (hidden initially) --}}
                     <div id="actionButtons" style="display: none;">
-                        <a href="#" id="continueBtn" class="btn btn-success btn-lg me-2">
-                            <i class="fas fa-check-circle me-2"></i>Review & Assign Codes
+                        <a href="/invoices/{{ $invoice->id }}/assign-codes-results" id="continueBtn" class="btn btn-success btn-lg me-2">
+                            <i class="fas fa-check-circle me-2"></i>Review &amp; Confirm Codes
                         </a>
-                        <a href="{{ route('invoices.create') }}" class="btn btn-outline-secondary btn-lg">
-                            <i class="fas fa-plus me-2"></i>New Invoice
+                        <a href="{{ route('invoices.index') }}" class="btn btn-outline-secondary btn-lg">
+                            <i class="fas fa-list me-2"></i>All Invoices
                         </a>
                     </div>
                     
@@ -214,17 +226,15 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     function showCompleted() {
-        // Stop polling
         if (pollInterval) {
             clearInterval(pollInterval);
             pollInterval = null;
         }
         
-        // Update UI for completion
         statusIcon.innerHTML = '<i class="fas fa-check-circle text-success" style="font-size: 4rem;"></i>';
         statusTitle.textContent = 'Classification Complete!';
         statusTitle.classList.add('text-success');
-        statusMessage.textContent = 'All items have been classified. Click below to review and assign codes.';
+        statusMessage.textContent = 'Classification finished. HS codes have been assigned to your invoice items.';
         
         progressBar.classList.remove('progress-bar-animated', 'progress-bar-striped');
         progressBar.classList.add('bg-success');
@@ -233,25 +243,23 @@ document.addEventListener('DOMContentLoaded', function() {
         
         infoAlert.classList.remove('alert-info');
         infoAlert.classList.add('alert-success');
-        infoText.textContent = 'Classification complete! Review the assigned codes and make any necessary adjustments before finalizing.';
+        infoText.textContent = 'Classification complete! HS codes have been saved to the invoice. You can review and edit them on the invoice detail page.';
+
+        const timeEstimate = document.getElementById('timeEstimate');
+        if (timeEstimate) timeEstimate.style.display = 'none';
         
-        // Show action buttons
         actionButtons.style.display = 'block';
-        continueBtn.href = '/invoices/' + invoiceId + '/assign-codes-results';
         cancelSection.style.display = 'none';
         
-        // Update all step badges
         updateStepBadges(100);
     }
     
     function showFailed(errorMessage) {
-        // Stop polling
         if (pollInterval) {
             clearInterval(pollInterval);
             pollInterval = null;
         }
         
-        // Update UI for failure
         statusIcon.innerHTML = '<i class="fas fa-exclamation-circle text-danger" style="font-size: 4rem;"></i>';
         statusTitle.textContent = 'Classification Failed';
         statusTitle.classList.add('text-danger');
@@ -262,12 +270,20 @@ document.addEventListener('DOMContentLoaded', function() {
         
         infoAlert.classList.remove('alert-info');
         infoAlert.classList.add('alert-danger');
-        infoText.textContent = 'The classification process encountered an error. You can try uploading the invoice again.';
+        infoText.textContent = 'The classification process encountered an error. You can retry without re-uploading the invoice.';
+
+        const timeEstimate = document.getElementById('timeEstimate');
+        if (timeEstimate) timeEstimate.style.display = 'none';
         
-        // Show retry button
         actionButtons.innerHTML = `
-            <a href="{{ route('invoices.create') }}" class="btn btn-primary btn-lg">
-                <i class="fas fa-redo me-2"></i>Try Again
+            <form action="/invoices/${invoiceId}/retry-classification" method="POST" class="d-inline">
+                <input type="hidden" name="_token" value="${csrfToken}">
+                <button type="submit" class="btn btn-warning btn-lg me-2">
+                    <i class="fas fa-redo me-2"></i>Retry Classification
+                </button>
+            </form>
+            <a href="/invoices/${invoiceId}" class="btn btn-outline-secondary btn-lg">
+                <i class="fas fa-eye me-2"></i>View Invoice
             </a>
         `;
         actionButtons.style.display = 'block';
@@ -310,7 +326,6 @@ document.addEventListener('DOMContentLoaded', function() {
             });
     }
     
-    // Function to start classification via AJAX
     function startClassification() {
         if (classificationStarted) return;
         classificationStarted = true;
@@ -329,27 +344,18 @@ document.addEventListener('DOMContentLoaded', function() {
         .then(data => {
             console.log('Classification start response:', data);
             
-            if (data.status === 'completed_sync') {
-                // Sync queue - job already completed, redirect to results
-                showCompleted();
-                setTimeout(() => {
-                    window.location.href = '/invoices/' + invoiceId + '/assign-codes-results';
-                }, 1000);
-            } else if (data.status === 'already_completed') {
-                // Already classified before
+            if (data.status === 'already_completed') {
                 showCompleted();
             } else if (data.status === 'started') {
-                // Background queue - start polling
                 statusMessage.textContent = 'Classification in progress...';
-                pollInterval = setInterval(checkProgress, 2000);
+                pollInterval = setInterval(checkProgress, 3000);
             } else if (data.error) {
                 showFailed(data.error);
             }
         })
         .catch(error => {
             console.error('Error starting classification:', error);
-            // May already be in progress, try polling
-            pollInterval = setInterval(checkProgress, 2000);
+            pollInterval = setInterval(checkProgress, 3000);
         });
     }
     

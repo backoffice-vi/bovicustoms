@@ -8,6 +8,7 @@ use App\Http\Controllers\OnboardingController;
 use App\Http\Controllers\SubscriptionController;
 use App\Http\Controllers\ClassificationController;
 use App\Http\Controllers\LegacyClearancesController;
+use App\Http\Controllers\CapsImportController;
 use App\Http\Controllers\DeclarationFormController;
 use App\Http\Controllers\Admin\CountryController;
 use App\Http\Controllers\Admin\CustomsCodeController;
@@ -98,6 +99,8 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         Route::get('invoices/{invoice}/classification-progress', [InvoiceController::class, 'classificationProgress'])->name('invoices.classification_progress');
         Route::get('invoices/{invoice}/assign-codes-results', [InvoiceController::class, 'assignCodesResults'])->name('invoices.assign_codes_results');
         Route::post('invoices/{invoice}/retry-classification', [InvoiceController::class, 'retryClassification'])->name('invoices.retry_classification');
+        Route::post('invoices/{invoice}/accept-classification', [InvoiceController::class, 'acceptClassification'])->name('invoices.accept_classification');
+        Route::post('invoices/items/{invoiceItem}/update-code', [InvoiceController::class, 'updateItemCode'])->name('invoices.update_item_code');
         
         // Resource route for index and show (must be last to avoid catching /create, /review, etc)
         Route::resource('invoices', InvoiceController::class)->only(['index', 'show']);
@@ -168,6 +171,18 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         Route::get('/legacy-clearances/shipments/{shipment}', [LegacyClearancesController::class, 'showShipment'])->name('legacy-clearances.shipments.show');
         Route::get('/legacy-clearances/invoices/{invoice}', [LegacyClearancesController::class, 'showInvoice'])->name('legacy-clearances.invoices.show');
         Route::get('/legacy-clearances/declarations/{declarationForm}', [LegacyClearancesController::class, 'showDeclaration'])->name('legacy-clearances.declarations.show');
+
+        // CAPS Import
+        Route::get('/caps-import', [CapsImportController::class, 'index'])->name('caps-import.index');
+        Route::post('/caps-import/credentials', [CapsImportController::class, 'saveCredentials'])->name('caps-import.save-credentials');
+        Route::post('/caps-import/fetch', [CapsImportController::class, 'fetchTDs'])->name('caps-import.fetch');
+        Route::post('/caps-import/download-all', [CapsImportController::class, 'downloadAll'])->name('caps-import.download-all');
+        Route::post('/caps-import/{capsImport}/download', [CapsImportController::class, 'downloadSingle'])->name('caps-import.download-single');
+        Route::post('/caps-import/import-all', [CapsImportController::class, 'importAll'])->name('caps-import.import-all');
+        Route::post('/caps-import/process-invoices', [CapsImportController::class, 'processInvoices'])->name('caps-import.process-invoices');
+        Route::post('/caps-import/{capsImport}/process-invoices', [CapsImportController::class, 'processInvoicesSingle'])->name('caps-import.process-invoices-single');
+        Route::post('/caps-import/retry-failed', [CapsImportController::class, 'retryFailed'])->name('caps-import.retry-failed');
+        Route::get('/caps-import/status', [CapsImportController::class, 'status'])->name('caps-import.status');
     });
     
     // Subscription management

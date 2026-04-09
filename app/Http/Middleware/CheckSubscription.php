@@ -18,12 +18,14 @@ class CheckSubscription
         if (auth()->check()) {
             $user = auth()->user();
             
-            // Individual users don't have organizations, so skip org subscription check
+            if ($user->isAdmin()) {
+                return $next($request);
+            }
+            
             if ($user->is_individual) {
                 return $next($request);
             }
             
-            // Check organization subscription
             if ($user->organization_id) {
                 $organization = $user->organization;
                 

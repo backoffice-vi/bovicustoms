@@ -150,11 +150,15 @@ class CountryController extends Controller
             'ftp_base_path' => 'nullable|string|max:255',
             'ftp_file_format' => 'nullable|string|max:50',
             'ftp_notification_email' => 'nullable|email|max:255',
+            // CAPS settings
+            'caps_group_items' => 'boolean',
+            'caps_default_payment_method' => 'nullable|string|max:10',
         ]);
 
         $validated['is_active'] = $request->has('is_active');
         $validated['ftp_enabled'] = $request->has('ftp_enabled');
         $validated['ftp_passive_mode'] = $request->has('ftp_passive_mode');
+        $validated['caps_group_items'] = $request->has('caps_group_items');
 
         $country->update($validated);
 

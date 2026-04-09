@@ -43,8 +43,22 @@ class Invoice extends Model
         static::addGlobalScope('tenant', function ($builder) {
             if (auth()->check()) {
                 $user = auth()->user();
+
+                if ($user->isAdmin()) {
+                    return;
+                }
+
+                if ($user->isAgent()) {
+                    $clientOrgIds = $user->getAgentClientIds();
+                    if (!empty($clientOrgIds)) {
+                        $builder->whereIn('invoices.organization_id', $clientOrgIds);
+                    } else {
+                        $builder->whereRaw('1 = 0');
+                    }
+                    return;
+                }
+
                 if ($user->organization_id) {
-                    // Use table-qualified column name to avoid ambiguity in joins
                     $builder->where('invoices.organization_id', $user->organization_id);
                 } else if ($user->is_individual) {
                     $builder->where('invoices.user_id', $user->id);
