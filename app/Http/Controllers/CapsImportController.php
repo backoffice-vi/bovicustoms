@@ -288,6 +288,10 @@ class CapsImportController extends Controller
                 'attachments_count' => count($i->attachments ?? []),
                 'retry_count' => $i->retry_count,
                 'error_message' => $i->error_message,
+                'ai_diagnosis' => $i->getAiDiagnosisText(),
+                'ai_recommendations' => $i->getAiRecommendations(),
+                'error_categories' => $i->getErrorCategories(),
+                'can_retry' => $i->ai_diagnosis['can_retry'] ?? false,
             ]),
         ]);
     }

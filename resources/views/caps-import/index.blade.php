@@ -265,8 +265,18 @@
                             </div>
 
                             @if($import->error_message)
-                                <div class="small text-danger mt-1" style="max-width: 200px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;" title="{{ $import->error_message }}">
-                                    {{ $import->error_message }}
+                                <div class="small text-danger mt-1" style="max-width: 250px;">
+                                    <span style="white-space: nowrap; overflow: hidden; text-overflow: ellipsis; display: block;" title="{{ $import->error_message }}">
+                                        {{ $import->error_message }}
+                                    </span>
+                                </div>
+                            @endif
+
+                            @if($import->getAiDiagnosisText())
+                                <div class="small mt-1">
+                                    <a href="#" class="text-decoration-none" data-bs-toggle="modal" data-bs-target="#aiDiagModal{{ $import->id }}">
+                                        <i class="fas fa-robot text-primary me-1"></i>AI Diagnosis
+                                    </a>
                                 </div>
                             @endif
                         </td>
@@ -285,6 +295,131 @@
         </div>
     </div>
     @endif
+
+    {{-- AI Diagnosis Modals --}}
+    @foreach($imports->filter(fn($i) => $i->getAiDiagnosisText()) as $import)
+    <div class="modal fade" id="aiDiagModal{{ $import->id }}" tabindex="-1">
+        <div class="modal-dialog modal-lg">
+            <div class="modal-content">
+                <div class="modal-header bg-light">
+                    <h5 class="modal-title">
+                        <i class="fas fa-robot text-primary me-2"></i>AI Diagnosis — TD {{ $import->td_number }}
+                    </h5>
+                    <button type="button" class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+                <div class="modal-body">
+                    {{-- Error Message --}}
+                    @if($import->error_message)
+                    <div class="alert alert-danger mb-3">
+                        <strong><i class="fas fa-exclamation-circle me-1"></i>Error:</strong>
+                        <span class="small">{{ $import->error_message }}</span>
+                    </div>
+                    @endif
+
+                    {{-- AI Diagnosis --}}
+                    <div class="card bg-light border-0 mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title mb-2">
+                                <i class="fas fa-stethoscope text-primary me-2"></i>Diagnosis
+                            </h6>
+                            <p class="mb-0">{{ $import->getAiDiagnosisText() }}</p>
+                        </div>
+                    </div>
+
+                    {{-- Recommendations --}}
+                    @if(!empty($import->getAiRecommendations()))
+                    <div class="card bg-light border-0 mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title mb-2">
+                                <i class="fas fa-lightbulb text-warning me-2"></i>Recommendations
+                            </h6>
+                            <ul class="mb-0 ps-3">
+                                @foreach($import->getAiRecommendations() as $rec)
+                                    <li>{{ $rec }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    </div>
+                    @endif
+
+                    {{-- Auto-Fixes Applied --}}
+                    @if(!empty($import->getAutoFixesApplied()))
+                    <div class="card bg-light border-0 mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title mb-2">
+                                <i class="fas fa-wrench text-success me-2"></i>Auto-Fixes Applied
+                            </h6>
+                            <ul class="mb-0 ps-3">
+                                @foreach($import->getAutoFixesApplied() as $fix)
+                                    <li class="small">{{ $fix }}</li>
+                                @endforeach
+                            </ul>
+                        </div>
+                    </div>
+                    @endif
+
+                    {{-- Error Categories --}}
+                    @if(!empty($import->getErrorCategories()))
+                    <div class="card bg-light border-0 mb-3">
+                        <div class="card-body">
+                            <h6 class="card-title mb-2">
+                                <i class="fas fa-tags text-secondary me-2"></i>Error Classification
+                            </h6>
+                            <table class="table table-sm table-bordered mb-0">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th>Category</th>
+                                        <th>Severity</th>
+                                        <th>Retriable</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($import->getErrorCategories() as $cat)
+                                    <tr>
+                                        <td><code>{{ $cat['category'] ?? 'unknown' }}</code></td>
+                                        <td>
+                                            @php $sev = $cat['severity'] ?? 'unknown'; @endphp
+                                            <span class="badge bg-{{ $sev === 'critical' ? 'danger' : ($sev === 'recoverable' ? 'warning' : 'secondary') }}">
+                                                {{ ucfirst($sev) }}
+                                            </span>
+                                        </td>
+                                        <td>
+                                            @if($cat['retriable'] ?? false)
+                                                <i class="fas fa-check text-success"></i> Yes
+                                            @else
+                                                <i class="fas fa-times text-danger"></i> No
+                                            @endif
+                                        </td>
+                                    </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    @endif
+
+                    {{-- Analyzed At --}}
+                    @if($import->ai_diagnosis['analyzed_at'] ?? null)
+                    <div class="text-muted small text-end">
+                        Analyzed: {{ \Carbon\Carbon::parse($import->ai_diagnosis['analyzed_at'])->format('M j, Y H:i:s') }}
+                    </div>
+                    @endif
+                </div>
+                <div class="modal-footer">
+                    @if(($import->ai_diagnosis['can_retry'] ?? false) && $import->status === \App\Models\CapsImport::STATUS_FAILED)
+                    <form method="POST" action="{{ route('caps-import.download-single', $import) }}" class="d-inline">
+                        @csrf
+                        <button type="submit" class="btn btn-warning">
+                            <i class="fas fa-redo me-1"></i>Retry Download
+                        </button>
+                    </form>
+                    @endif
+                    <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Close</button>
+                </div>
+            </div>
+        </div>
+    </div>
+    @endforeach
 
     @endif {{-- end bviCountry check --}}
 </div>

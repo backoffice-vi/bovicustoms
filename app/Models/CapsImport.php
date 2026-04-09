@@ -26,6 +26,7 @@ class CapsImport extends Model
         'attachments',
         'items_count',
         'error_message',
+        'ai_diagnosis',
         'retry_count',
         'shipment_id',
         'declaration_form_id',
@@ -38,6 +39,7 @@ class CapsImport extends Model
     protected $casts = [
         'caps_data' => 'array',
         'attachments' => 'array',
+        'ai_diagnosis' => 'array',
         'items_count' => 'integer',
         'retry_count' => 'integer',
         'downloaded_at' => 'datetime',
@@ -80,6 +82,49 @@ class CapsImport extends Model
         }
         $this->save();
         return $this;
+    }
+
+    public function storeAiDiagnosis(array $recovery): self
+    {
+        $existing = $this->ai_diagnosis ?? [];
+
+        $existing['diagnosis'] = $recovery['diagnosis'] ?? null;
+        $existing['recommendations'] = $recovery['recommendations'] ?? [];
+        $existing['error_categories'] = $recovery['error_categories'] ?? [];
+        $existing['can_retry'] = $recovery['can_retry'] ?? false;
+        $existing['analyzed_at'] = now()->toIso8601String();
+
+        $fixes = $recovery['fixes_applied'] ?? [];
+        if (!empty($fixes)) {
+            $existing['auto_fixes_applied'] = array_merge(
+                $existing['auto_fixes_applied'] ?? [],
+                $fixes
+            );
+        }
+
+        $this->ai_diagnosis = $existing;
+        $this->save();
+        return $this;
+    }
+
+    public function getAiDiagnosisText(): ?string
+    {
+        return $this->ai_diagnosis['diagnosis'] ?? null;
+    }
+
+    public function getAiRecommendations(): array
+    {
+        return $this->ai_diagnosis['recommendations'] ?? [];
+    }
+
+    public function getErrorCategories(): array
+    {
+        return $this->ai_diagnosis['error_categories'] ?? [];
+    }
+
+    public function getAutoFixesApplied(): array
+    {
+        return $this->ai_diagnosis['auto_fixes_applied'] ?? [];
     }
 
     public function getAttachmentInvoices(): array

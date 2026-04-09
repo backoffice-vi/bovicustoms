@@ -27,8 +27,18 @@ class ProcessCapsDownload implements ShouldQueue
         $maxRetries = config('services.caps.max_retries', 3);
 
         if ($this->capsImport->retry_count >= $maxRetries) {
-            $this->capsImport->markAs(CapsImport::STATUS_FAILED, 'Max retries exceeded');
-            return;
+            $aiDiag = $this->capsImport->ai_diagnosis ?? [];
+            $canRetry = $aiDiag['can_retry'] ?? false;
+
+            if (!$canRetry) {
+                $this->capsImport->markAs(CapsImport::STATUS_FAILED, 'Max retries exceeded — AI analysis indicates this error is not retriable');
+                return;
+            }
+
+            if ($this->capsImport->retry_count >= $maxRetries + 1) {
+                $this->capsImport->markAs(CapsImport::STATUS_FAILED, 'Max retries exceeded (including AI-extended retry)');
+                return;
+            }
         }
 
         $downloaded = $service->downloadTD($this->capsImport);

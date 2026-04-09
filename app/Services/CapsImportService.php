@@ -24,6 +24,7 @@ class CapsImportService
     public function __construct(
         protected InvoiceDocumentExtractor $invoiceExtractor,
         protected InvoiceDeclarationMatcher $matcher,
+        protected CapsImportErrorRecoveryService $errorRecovery,
     ) {
     }
 
@@ -172,21 +173,34 @@ class CapsImportService
 
             if (!$process->isSuccessful()) {
                 $error = $process->getErrorOutput() ?: $process->getOutput();
+                $errorMsg = mb_substr($error, 0, 2000);
+
                 $import->update([
                     'status' => CapsImport::STATUS_FAILED,
-                    'error_message' => mb_substr($error, 0, 2000),
+                    'error_message' => $errorMsg,
                     'retry_count' => $import->retry_count + 1,
                 ]);
+
+                $this->analyzeAndStoreDiagnosis($import, $errorMsg, 'download', [
+                    'process_output' => mb_substr($process->getOutput(), -1500),
+                ]);
+
                 return false;
             }
 
             $tdDir = storage_path('app/caps-downloads/' . $import->td_number);
             if (!File::exists($tdDir . '/data.json')) {
+                $errorMsg = 'Download completed but no data.json found';
                 $import->update([
                     'status' => CapsImport::STATUS_FAILED,
-                    'error_message' => 'Download completed but no data.json found',
+                    'error_message' => $errorMsg,
                     'retry_count' => $import->retry_count + 1,
                 ]);
+
+                $this->analyzeAndStoreDiagnosis($import, $errorMsg, 'download', [
+                    'process_output' => mb_substr($process->getOutput(), -1500),
+                ]);
+
                 return false;
             }
 
@@ -194,11 +208,15 @@ class CapsImportService
             return true;
 
         } catch (\Throwable $e) {
+            $errorMsg = $e->getMessage();
             $import->update([
                 'status' => CapsImport::STATUS_FAILED,
-                'error_message' => $e->getMessage(),
+                'error_message' => $errorMsg,
                 'retry_count' => $import->retry_count + 1,
             ]);
+
+            $this->analyzeAndStoreDiagnosis($import, $errorMsg, 'download');
+
             return false;
         }
     }
@@ -395,6 +413,9 @@ class CapsImportService
         } catch (\Throwable $e) {
             Log::error("CAPS import failed for TD {$import->td_number}: {$e->getMessage()}");
             $import->markAs(CapsImport::STATUS_FAILED, $e->getMessage());
+
+            $this->analyzeAndStoreDiagnosis($import, $e->getMessage(), 'import');
+
             return false;
         }
     }
@@ -545,6 +566,14 @@ class CapsImportService
                 'invoices_processed_at' => now(),
             ]);
 
+            if (!empty($errors)) {
+                $recovery = $this->errorRecovery->analyzeMultiple($errors, 'invoice_processing', [
+                    'td_number' => $import->td_number,
+                    'retry_count' => $import->retry_count,
+                ]);
+                $import->storeAiDiagnosis($recovery);
+            }
+
             return [
                 'success' => true,
                 'extracted' => $totalExtracted,
@@ -554,6 +583,10 @@ class CapsImportService
 
         } catch (\Throwable $e) {
             $import->markAs(CapsImport::STATUS_FAILED, 'Invoice processing error: ' . $e->getMessage());
+
+            $allErrors = array_merge($errors, [$e->getMessage()]);
+            $this->analyzeAndStoreDiagnosis($import, implode("\n", $allErrors), 'invoice_processing');
+
             return ['success' => false, 'error' => $e->getMessage()];
         }
     }
@@ -651,6 +684,28 @@ class CapsImportService
         }
 
         return array_merge($args, $extra);
+    }
+
+    protected function analyzeAndStoreDiagnosis(CapsImport $import, string $errorMessage, string $phase, array $extraContext = []): void
+    {
+        try {
+            $context = array_merge([
+                'td_number' => $import->td_number,
+                'retry_count' => $import->retry_count,
+            ], $extraContext);
+
+            $recovery = $this->errorRecovery->analyze($errorMessage, $phase, $context);
+            $import->storeAiDiagnosis($recovery);
+
+            Log::info("CAPS import AI diagnosis for TD {$import->td_number}", [
+                'phase' => $phase,
+                'category' => $recovery['error_category'] ?? 'unknown',
+                'can_retry' => $recovery['can_retry'],
+                'diagnosis' => $recovery['diagnosis'],
+            ]);
+        } catch (\Throwable $e) {
+            Log::warning("CAPS import error recovery failed for TD {$import->td_number}: {$e->getMessage()}");
+        }
     }
 
     protected function makeUniqueInvoiceNumber(string $base): string
