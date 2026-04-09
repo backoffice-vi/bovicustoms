@@ -6,6 +6,7 @@ use App\Models\CountryReferenceData;
 use App\Models\DeclarationForm;
 use App\Models\OrganizationSubmissionCredential;
 use App\Models\WebFormSubmission;
+use App\Services\WebFormSubmission\WebFormDataMapper;
 use Carbon\Carbon;
 use Illuminate\Support\Str;
 
@@ -40,6 +41,16 @@ class CapsT12Generator
     protected array $refCache = [];
 
     /**
+     * Shared WebFormDataMapper for tariff resolution
+     */
+    protected ?WebFormDataMapper $tariffResolver = null;
+
+    /**
+     * Cache of resolved tariff codes
+     */
+    protected array $tariffCache = [];
+
+    /**
      * Generate a T12 file content from a declaration
      */
     public function generate(DeclarationForm $declaration, OrganizationSubmissionCredential $credentials): array
@@ -56,9 +67,11 @@ class CapsT12Generator
             'organization',
         ]);
 
-        // Set country ID for reference data lookups and reset cache
+        // Set country ID for reference data lookups and reset caches
         $this->countryId = $declaration->country_id;
         $this->refCache = [];
+        $this->tariffCache = [];
+        $this->tariffResolver = null;
 
         $ftpCreds = $credentials->getFtpCredentials();
         $traderId = $ftpCreds['trader_id'] ?? '';
@@ -211,15 +224,18 @@ class CapsT12Generator
         $shipment = $declaration->shipment;
 
         // Resolve fields with fallbacks from shipment data
-        $arrivalDate = $declaration->arrival_date ?? $shipment?->arrival_date;
-        $manifestNo = $declaration->manifest_number ?? $shipment?->manifest_number;
+        $arrivalDate = $declaration->arrival_date
+            ?? $shipment?->actual_arrival_date
+            ?? $shipment?->estimated_arrival_date;
         $billOfLading = $declaration->bill_of_lading_number ?? $declaration->awb_number ?? $shipment?->bill_of_lading_number;
+        $manifestNo = $declaration->manifest_number ?? $shipment?->manifest_number ?? $billOfLading;
         $totalPackages = $declaration->total_packages ?? $shipment?->total_packages ?? 1;
         $countryOfOrigin = $declaration->country_of_origin
             ?? $shipment?->countryOfOrigin?->code
             ?? $this->inferCountryFromPort($shipment?->port_of_loading);
         $cityOfShipment = $shipper?->city ?? $shipment?->port_of_loading ?? '';
         $supplierCountry = $shipper?->country_code ?? $countryOfOrigin;
+        $voyageNumber = $shipment?->voyage_number ?? '';
 
         $fields = [
             'R10',                                                          // Record Type (mandatory)
@@ -234,8 +250,8 @@ class CapsT12Generator
             $this->formatField($importer?->address_line_1, 30),            // Importer Address 1
             $this->formatField($importer?->address_line_2 ?? $importer?->city, 40), // Importer Address 2
             $this->formatField($importer?->postal_code, 9),                // Importer Post Code
-            $this->mapCarrierCode($declaration->carrier_name ?? $shipment?->carrier_name), // Carrier ID
-            $this->mapCarrierCode($declaration->vessel_name ?? $shipment?->vessel_name),   // Carrier No. (vessel code)
+            $this->mapCarrierCode($declaration->vessel_name ?? $shipment?->vessel_name), // Carrier ID (vessel code, e.g. ADP)
+            $this->formatField($voyageNumber, 20),                               // Carrier No. (voyage/trip number)
             $this->mapPortCode($declaration->port_of_arrival ?? $shipment?->port_of_discharge), // Port of Arrival
             $this->formatDate($arrivalDate),                               // Arrival Date (DD/MM/YYYY)
             $this->formatField($manifestNo, 20),                           // Manifest No.
@@ -313,19 +329,30 @@ class CapsT12Generator
      */
     protected function generateItemRecord(array $item, DeclarationForm $declaration): string
     {
+        $fob = (float) ($item['fob_value'] ?? 0);
+        $freight = (float) ($item['freight_amount'] ?? 0);
+        $insurance = (float) ($item['insurance_amount'] ?? 0);
+        $cif = $fob + $freight + $insurance;
+
+        $netWeight = (float) ($item['net_weight'] ?? 0);
+        $quantity = (float) ($item['quantity'] ?? 1);
+        if ($netWeight <= 0) {
+            $netWeight = $quantity;
+        }
+
         $fields = [
             'R30',                                                  // Record Type
-            $this->mapCpcCode($declaration->cpc_code),                 // CPC Code (4 chars, from reference data)
+            $this->mapCpcCode($declaration->cpc_code),              // CPC Code (4 chars, from reference data)
             $this->formatTariffNumber($item['tariff_number'] ?? ''), // Tariff Number (7 digits, no periods)
-            $this->formatCountryCode($item['country_of_origin'] ?? $declaration->country_of_origin), // Country of Origin
+            $this->resolveCountryOfOrigin($item, $declaration),     // Country of Origin
             $this->formatNumber($item['packages'] ?? 1, 6),        // No. of Packages
-            $this->mapPackageType($item['package_type'] ?? ''),    // Type of Packages (CAPS code)
+            $this->resolvePackageType($item, $declaration),         // Type of Packages (CAPS code)
             $this->formatField($item['description'] ?? '', 200),   // Description
-            $this->formatDecimal($item['net_weight'] ?? 0, 11, 2), // Net Weight
-            $this->formatDecimal($item['quantity'] ?? 1, 11, 2),   // Quantity
+            $this->formatDecimal($netWeight, 11, 2),                // Net Weight (falls back to quantity)
+            $this->formatDecimal($quantity, 11, 2),                 // Quantity
             $this->mapUnitCode($item['units'] ?? ''),              // Units (CAPS unit code)
-            $this->formatDecimal($item['fob_value'] ?? 0, 11, 2),  // FOB Value
-            $this->formatDecimal($item['cif_value'] ?? $item['fob_value'] ?? 0, 11, 2), // CIF Value
+            $this->formatDecimal($fob, 11, 2),                     // FOB Value
+            $this->formatDecimal($cif, 11, 2),                     // CIF Value (= FOB + Freight + Insurance)
             $this->formatDecimal($item['total_due'] ?? 0, 11, 2),  // Total Due
         ];
 
@@ -776,30 +803,29 @@ class CapsT12Generator
      */
     protected function mapUnitCode(?string $unit): string
     {
-        $nonCapsAliases = [
-            'EA' => 'NO',
-            'EACH' => 'NO',
-            'UNIT' => 'UNT',
+        $normalized = strtoupper(trim($unit ?? ''));
+
+        if (empty($normalized) || $normalized === 'EA' || $normalized === 'EACH') {
+            return 'UNIT';
+        }
+
+        $aliases = [
             'PC' => 'PCS',
             'PIECE' => 'PCS',
             'PIECES' => 'PCS',
             'LB' => 'LBS',
             'POUND' => 'LBS',
             'POUNDS' => 'LBS',
-            '100LB' => 'LBS',
+            'NO' => 'UNIT',
         ];
 
-        $normalized = strtoupper(trim($unit ?? ''));
-        if (isset($nonCapsAliases[$normalized])) {
-            return $nonCapsAliases[$normalized];
+        if (isset($aliases[$normalized])) {
+            return $aliases[$normalized];
         }
 
         $code = $this->lookupReferenceCode(CountryReferenceData::TYPE_UNIT, $unit, '');
-        if (!empty($code) && isset($nonCapsAliases[strtoupper($code)])) {
-            return $nonCapsAliases[strtoupper($code)];
-        }
 
-        return !empty($code) ? $code : 'NO';
+        return !empty($code) ? $code : 'UNIT';
     }
 
     /**
@@ -893,11 +919,53 @@ class CapsT12Generator
         if (empty($type)) {
             return '';
         }
-        // If it's already a short code, return as-is
         if (strlen(trim($type)) <= 3) {
             return strtoupper(trim($type));
         }
         return strtoupper(substr(trim($type), 0, 3));
+    }
+
+    /**
+     * Resolve country of origin for an item.
+     * Cascading fallback: item → declaration → shipment origin → shipper country → port inference
+     */
+    protected function resolveCountryOfOrigin(array $item, DeclarationForm $declaration): string
+    {
+        $candidates = [
+            $item['country_of_origin'] ?? null,
+            $declaration->country_of_origin,
+            $declaration->shipment?->countryOfOrigin?->code,
+            $declaration->shipperContact?->country_code,
+            $declaration->shipment?->shipperContact?->country_code,
+            $this->inferCountryFromPort($declaration->shipment?->port_of_loading),
+        ];
+
+        foreach ($candidates as $raw) {
+            if (!empty($raw)) {
+                return $this->formatCountryCode($raw);
+            }
+        }
+
+        return '';
+    }
+
+    /**
+     * Resolve package type for an item.
+     * Falls back to shipment-level package_type, then CTN (carton) as default.
+     */
+    protected function resolvePackageType(array $item, DeclarationForm $declaration): string
+    {
+        $type = $item['package_type'] ?? '';
+
+        if (empty($type)) {
+            $type = $declaration->package_type ?? $declaration->shipment?->package_type ?? '';
+        }
+
+        if (!empty($type)) {
+            return $this->mapPackageType($type);
+        }
+
+        return 'CTN';
     }
 
     /**
@@ -1011,7 +1079,9 @@ class CapsT12Generator
     }
 
     /**
-     * Format tariff number (7 digits, no periods)
+     * Format tariff number (7 digits, no periods).
+     * Delegates to WebFormDataMapper's resolveCapsTariffCode for proper BVI tariff resolution
+     * (HS version mappings, "Other" catch-alls, 7-digit descendant search).
      */
     protected function formatTariffNumber(?string $tariff): string
     {
@@ -1019,11 +1089,23 @@ class CapsT12Generator
             return '';
         }
 
-        // Remove all non-numeric characters
-        $numeric = preg_replace('/[^0-9]/', '', $tariff);
-        
-        // Pad or trim to 7 digits
-        return str_pad(substr($numeric, 0, 7), 7, '0', STR_PAD_RIGHT);
+        $key = trim($tariff);
+        if (isset($this->tariffCache[$key])) {
+            return $this->tariffCache[$key];
+        }
+
+        try {
+            if (!$this->tariffResolver) {
+                $this->tariffResolver = new WebFormDataMapper();
+            }
+            $resolved = $this->tariffResolver->resolveCapsTariffCodePublic($key);
+        } catch (\Throwable $e) {
+            $numeric = preg_replace('/[^0-9]/', '', $key);
+            $resolved = str_pad(substr($numeric, 0, 7), 7, '0', STR_PAD_RIGHT);
+        }
+
+        $this->tariffCache[$key] = $resolved;
+        return $resolved;
     }
 
     /**
@@ -1079,7 +1161,7 @@ class CapsT12Generator
             'content' => $result['content'],
             'raw_content' => $result['content'],
             'record_counts' => $recordCounts,
-            'validation_errors' => [],
+            'validation_errors' => $this->validateT12($declaration, $result['content']),
         ];
     }
 
@@ -1099,5 +1181,55 @@ class CapsT12Generator
             'R70' => 'Trailer',
             default => 'Unknown',
         };
+    }
+
+    /**
+     * Validate the generated T12 content and return warnings for missing/invalid fields.
+     */
+    protected function validateT12(DeclarationForm $declaration, string $content): array
+    {
+        $errors = [];
+        $lines = explode(self::LINE_ENDING, $content);
+
+        foreach ($lines as $lineNum => $line) {
+            if (empty(trim($line))) {
+                continue;
+            }
+            $fields = str_getcsv($line);
+            $type = $fields[0] ?? '';
+
+            if ($type === 'R10') {
+                if (empty($fields[12] ?? '')) {
+                    $errors[] = ['severity' => 'error', 'record' => 'R10', 'field' => 'Carrier ID (13)', 'message' => 'Carrier ID is empty — CAPS will reject'];
+                }
+                if (empty($fields[14] ?? '')) {
+                    $errors[] = ['severity' => 'warning', 'record' => 'R10', 'field' => 'Port of Arrival (15)', 'message' => 'Port of Arrival is empty'];
+                }
+                if (empty($fields[15] ?? '')) {
+                    $errors[] = ['severity' => 'error', 'record' => 'R10', 'field' => 'Arrival Date (16)', 'message' => 'Arrival Date is empty — this is mandatory (Box 3b)'];
+                }
+                if (empty($fields[16] ?? '')) {
+                    $errors[] = ['severity' => 'error', 'record' => 'R10', 'field' => 'Manifest No. (17)', 'message' => 'Manifest Number is empty — this is mandatory (Box 4)'];
+                }
+                if (empty($fields[13] ?? '')) {
+                    $errors[] = ['severity' => 'warning', 'record' => 'R10', 'field' => 'Carrier No. (14)', 'message' => 'Voyage/Carrier Number is empty (Box 3a)'];
+                }
+            }
+
+            if ($type === 'R30') {
+                $recNum = $lineNum + 1;
+                if (empty($fields[2] ?? '')) {
+                    $errors[] = ['severity' => 'error', 'record' => "R30 (line {$recNum})", 'field' => 'Tariff No. (3)', 'message' => 'Tariff number is empty'];
+                }
+                if (empty($fields[3] ?? '')) {
+                    $errors[] = ['severity' => 'warning', 'record' => "R30 (line {$recNum})", 'field' => 'Country of Origin (4)', 'message' => 'Country of origin is empty'];
+                }
+                if (empty($fields[5] ?? '')) {
+                    $errors[] = ['severity' => 'warning', 'record' => "R30 (line {$recNum})", 'field' => 'Package Type (6)', 'message' => 'Package type is empty'];
+                }
+            }
+        }
+
+        return $errors;
     }
 }
