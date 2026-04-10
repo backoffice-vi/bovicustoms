@@ -174,7 +174,7 @@ class ShipmentController extends Controller
         $shipment->update($validated);
         $shipment->recalculateTotals();
 
-        if ($request->ajax()) {
+        if ($request->ajax() || $request->wantsJson()) {
             return response()->json(['success' => true, 'message' => 'Shipment updated.']);
         }
 

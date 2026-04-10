@@ -830,13 +830,14 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             const response = await fetch(`/shipments/${shipmentId}`, {
-                method: 'PATCH',
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({ freight_total: newValue })
+                body: JSON.stringify({ _method: 'PATCH', freight_total: newValue })
             });
             
             const data = await response.json();
@@ -914,13 +915,14 @@ document.addEventListener('DOMContentLoaded', function() {
         
         try {
             const response = await fetch(`/shipments/${shipmentId}`, {
-                method: 'PATCH',
+                method: 'POST',
                 headers: {
                     'Content-Type': 'application/json',
                     'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
                     'Accept': 'application/json',
+                    'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({ insurance_total: newValue })
+                body: JSON.stringify({ _method: 'PATCH', insurance_total: newValue })
             });
             
             const data = await response.json();
