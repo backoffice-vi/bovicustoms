@@ -46,6 +46,8 @@ class WebFormDataMapper
 
         // Get all field mappings for this target
         foreach ($target->pages as $page) {
+            $isLoginPage = $page->page_type === 'login';
+
             foreach ($page->activeFieldMappings as $mapping) {
                 $value = $mapping->getValueFromDeclaration($declaration);
 
@@ -75,8 +77,8 @@ class WebFormDataMapper
                     'source' => $mapping->source_description,
                 ];
 
-                // Track unmapped required fields
-                if ($mapping->is_required && $value === null) {
+                // Track unmapped required fields (skip login page fields — those are filled from stored credentials)
+                if ($mapping->is_required && $value === null && !$isLoginPage) {
                     $unmappedRequired[] = [
                         'field' => $mapping->web_field_label,
                         'local_field' => $mapping->local_field,
@@ -181,15 +183,18 @@ class WebFormDataMapper
         $mapped = $this->mapDeclarationToTarget($declaration, $target);
         
         $errors = [];
+        $warnings = [];
         
         foreach ($mapped['unmapped_required'] as $field) {
-            $errors[] = "Required field '{$field['field']}' has no value (source: {$field['local_field']})";
+            $source = $field['local_field'] ?? '';
+            $label = $field['field'];
+            $errors[] = "Required field '{$label}' has no value (source: {$source})";
         }
 
         return [
             'valid' => empty($errors),
             'errors' => $errors,
-            'warnings' => [], // Could add warnings for optional fields
+            'warnings' => $warnings,
         ];
     }
 
