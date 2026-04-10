@@ -468,6 +468,8 @@ class Shipment extends Model
         }
         if ($document->estimated_arrival) {
             $updates['estimated_arrival_date'] = $document->estimated_arrival;
+        } elseif ($document->shipping_date && !$this->estimated_arrival_date) {
+            $updates['estimated_arrival_date'] = $document->shipping_date;
         }
 
         if (!$this->country_of_origin_id) {

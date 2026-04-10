@@ -215,7 +215,14 @@ class WebFormFieldMapping extends Model
                 return $declaration->{$field};
 
             case 'shipment':
-                return $declaration->shipment?->{$field};
+                $shipment = $declaration->shipment;
+                if (!$shipment) return null;
+                // For actual_arrival_date, fall back to the arrival_date accessor
+                // which returns actual_arrival_date ?? estimated_arrival_date
+                if ($field === 'actual_arrival_date' && !$shipment->actual_arrival_date) {
+                    return $shipment->arrival_date;
+                }
+                return $shipment->{$field};
 
             case 'invoice':
                 return $declaration->invoice?->{$field};
