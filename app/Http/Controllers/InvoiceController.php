@@ -659,10 +659,25 @@ class InvoiceController extends Controller
 
     public function show(Invoice $invoice)
     {
-        // Load invoice items from the database
         $items = InvoiceItem::where('invoice_id', $invoice->id)
             ->orderBy('line_number')
             ->get();
+
+        // Enrich items with official HS code descriptions where missing
+        if ($invoice->country_id && $items->isNotEmpty()) {
+            $codes = $items->pluck('customs_code')->filter()->unique()->values()->toArray();
+            if ($codes) {
+                $codeDescriptions = CustomsCode::where('country_id', $invoice->country_id)
+                    ->whereIn('code', $codes)
+                    ->pluck('description', 'code');
+
+                foreach ($items as $item) {
+                    if ($item->customs_code && empty($item->customs_code_description) && isset($codeDescriptions[$item->customs_code])) {
+                        $item->customs_code_description = $codeDescriptions[$item->customs_code];
+                    }
+                }
+            }
+        }
 
         return view('invoices.show', compact('invoice', 'items'));
     }
@@ -1081,6 +1096,98 @@ class InvoiceController extends Controller
         return response()->json([
             'success' => true,
             'results' => $results,
+        ]);
+    }
+
+    /**
+     * AJAX: Get classification review data for a single invoice item.
+     * Returns AI suggestions, historical precedents, customs code details, etc.
+     */
+    public function getItemClassificationReview(InvoiceItem $invoiceItem): JsonResponse
+    {
+        $user = auth()->user();
+        $invoice = Invoice::withoutGlobalScopes()->find($invoiceItem->invoice_id);
+
+        if (!$invoice || ($invoice->user_id !== $user->id && $invoice->organization_id !== $user->organization_id && !$user->isAdmin())) {
+            return response()->json(['error' => 'Unauthorized'], 403);
+        }
+
+        $countryId = $invoice->country_id;
+
+        // 1. Look up the official customs code record
+        $customsCodeRecord = null;
+        if ($invoiceItem->customs_code && $countryId) {
+            $customsCodeRecord = CustomsCode::where('code', $invoiceItem->customs_code)
+                ->where('country_id', $countryId)
+                ->first();
+        }
+
+        // 2. Get AI classification from cache (if available)
+        $aiClassification = null;
+        $cacheKey = "invoice_classification_{$invoice->id}";
+        $classificationData = Cache::get($cacheKey);
+
+        if ($classificationData && ($classificationData['status'] ?? '') === 'completed') {
+            $cachedItems = $classificationData['items_with_codes'] ?? [];
+            foreach ($cachedItems as $cached) {
+                if (($cached['line_number'] ?? null) == $invoiceItem->line_number
+                    || ($cached['description'] ?? '') === $invoiceItem->description) {
+                    $aiClassification = $cached['classification'] ?? null;
+                    break;
+                }
+            }
+        }
+
+        // 3. Historical precedents
+        $precedents = $this->findPrecedentsForItem(
+            $invoiceItem->description,
+            $countryId
+        );
+
+        // 4. Classification memory — similar items previously classified
+        $memoryMatches = InvoiceItem::where('country_id', $countryId)
+            ->whereNotNull('customs_code')
+            ->where('id', '!=', $invoiceItem->id)
+            ->where(function ($q) use ($invoiceItem) {
+                $q->where('description', $invoiceItem->description);
+                if ($invoiceItem->sku) {
+                    $q->orWhere('sku', $invoiceItem->sku);
+                }
+            })
+            ->orderBy('updated_at', 'desc')
+            ->limit(5)
+            ->get(['description', 'customs_code', 'customs_code_description', 'duty_rate', 'updated_at']);
+
+        return response()->json([
+            'success' => true,
+            'item' => [
+                'id' => $invoiceItem->id,
+                'description' => $invoiceItem->description,
+                'sku' => $invoiceItem->sku,
+                'customs_code' => $invoiceItem->customs_code,
+                'customs_code_description' => $invoiceItem->customs_code_description,
+                'duty_rate' => $invoiceItem->duty_rate,
+            ],
+            'customs_code_record' => $customsCodeRecord ? [
+                'code' => $customsCodeRecord->code,
+                'description' => $customsCodeRecord->description,
+                'duty_rate' => $customsCodeRecord->duty_rate,
+                'duty_type' => $customsCodeRecord->duty_type,
+                'unit_of_measurement' => $customsCodeRecord->unit_of_measurement,
+                'formatted_duty' => $customsCodeRecord->formatted_duty,
+                'chapter_number' => $customsCodeRecord->chapter_number,
+                'code_level' => $customsCodeRecord->code_level,
+                'notes' => $customsCodeRecord->notes,
+            ] : null,
+            'ai_classification' => $aiClassification,
+            'precedents' => $precedents,
+            'memory_matches' => $memoryMatches->map(fn($m) => [
+                'description' => $m->description,
+                'customs_code' => $m->customs_code,
+                'customs_code_description' => $m->customs_code_description,
+                'duty_rate' => $m->duty_rate,
+                'date' => $m->updated_at->format('M d, Y'),
+            ])->toArray(),
         ]);
     }
 }

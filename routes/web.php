@@ -101,6 +101,7 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         Route::post('invoices/{invoice}/retry-classification', [InvoiceController::class, 'retryClassification'])->name('invoices.retry_classification');
         Route::post('invoices/{invoice}/accept-classification', [InvoiceController::class, 'acceptClassification'])->name('invoices.accept_classification');
         Route::post('invoices/items/{invoiceItem}/update-code', [InvoiceController::class, 'updateItemCode'])->name('invoices.update_item_code');
+        Route::get('invoices/items/{invoiceItem}/classification-review', [InvoiceController::class, 'getItemClassificationReview'])->name('invoices.item_classification_review');
         
         // Resource route for index and show (must be last to avoid catching /create, /review, etc)
         Route::resource('invoices', InvoiceController::class)->only(['index', 'show']);
