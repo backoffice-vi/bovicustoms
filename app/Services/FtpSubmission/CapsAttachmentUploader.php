@@ -289,6 +289,11 @@ class CapsAttachmentUploader
 
         $usedLetters = $submission->ftpAttachments()->pluck('letter')->all();
 
+        // Force-refresh attachment-relevant relationships so we never miss
+        // a B/L or invoice that was added after the declaration was first
+        // hydrated by the controller.
+        $declaration->load(['shipment.shippingDocuments', 'shipment.invoices', 'invoice']);
+
         $gathered = $this->gatherer->gather($declaration, includeMissing: true);
         $rows = [];
 

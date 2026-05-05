@@ -708,19 +708,30 @@ class InvoiceController extends Controller
             return [];
         }
 
-        // Search in declaration form items for similar descriptions
+        // Search in declaration form items for similar descriptions.
+        // Join `declaration_forms` so we can flag precedents that came from CAPS-imported
+        // (legacy) TDs vs ones we only generated/submitted locally.
         $query = DeclarationFormItem::query()
-            ->where('country_id', $countryId)
-            ->whereNotNull('hs_code');
+            ->join('declaration_forms', 'declaration_form_items.declaration_form_id', '=', 'declaration_forms.id')
+            ->where('declaration_form_items.country_id', $countryId)
+            ->whereNotNull('declaration_form_items.hs_code')
+            ->select([
+                'declaration_form_items.description',
+                'declaration_form_items.hs_code',
+                'declaration_form_items.hs_description',
+                'declaration_form_items.created_at',
+                'declaration_forms.source_type as df_source_type',
+                'declaration_forms.submission_status as df_submission_status',
+            ]);
 
         // Apply tenant scope
         if ($user->organization_id) {
-            $query->where('organization_id', $user->organization_id);
+            $query->where('declaration_form_items.organization_id', $user->organization_id);
         } elseif ($user->is_individual) {
-            $query->where('user_id', $user->id);
+            $query->where('declaration_form_items.user_id', $user->id);
         }
 
-        $candidates = $query->orderBy('created_at', 'desc')
+        $candidates = $query->orderBy('declaration_form_items.created_at', 'desc')
             ->limit(100)
             ->get();
 
@@ -737,12 +748,18 @@ class InvoiceController extends Controller
             }
 
             if ($hits > 0) {
+                $sourceType = (string) $candidate->df_source_type;
+                $submissionStatus = (string) $candidate->df_submission_status;
                 $scored[] = [
                     'score' => $hits,
                     'hs_code' => (string) $candidate->hs_code,
                     'description' => (string) $candidate->description,
                     'hs_description' => $candidate->hs_description,
                     'created_at' => $candidate->created_at->format('Y-m-d'),
+                    // Imported back from an approved CAPS TD — strongest "CAPS approved" signal.
+                    'is_caps_imported' => $sourceType === 'legacy',
+                    // Locally submitted via this app and accepted by CAPS.
+                    'is_caps_accepted' => $submissionStatus === 'accepted',
                 ];
             }
         }

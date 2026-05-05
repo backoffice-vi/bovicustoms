@@ -75,6 +75,17 @@ Route::middleware(['auth'])->group(function () {
     Route::get('/onboarding', [OnboardingController::class, 'index'])->name('onboarding.index');
     Route::post('/onboarding/complete', [OnboardingController::class, 'complete'])->name('onboarding.complete');
     Route::get('/onboarding/skip', [OnboardingController::class, 'skip'])->name('onboarding.skip');
+
+    // Lightweight session keep-alive ping. Used by long-form review pages
+    // (e.g. invoice classification review) to prevent session/CSRF expiry
+    // while the user is actively working but not submitting.
+    Route::get('/keep-alive', function () {
+        return response()->json([
+            'ok' => true,
+            'csrf_token' => csrf_token(),
+            'expires_in' => (int) config('session.lifetime') * 60,
+        ]);
+    })->name('keep-alive');
 });
 
 // Protected routes (auth + onboarded + tenant context)

@@ -349,9 +349,7 @@ class CapsPreValidationService
         }
 
         if (!$this->tariffExactLooksKnown($digits)) {
-            if (str_ends_with($digits, '0')) {
-                $errors[] = "{$label} tariff '{$digits}' appears to be a padded or shorter heading. Use an exact CAPS tariff code; padded headings are not allowed.";
-            } elseif ($this->tariffHeadingLooksKnown($digits)) {
+            if ($this->tariffHeadingLooksKnown($digits)) {
                 $warnings[] = "{$label} tariff '{$digits}' matches a local heading but is not in the local exact-code table. Verify it in CAPS before submission.";
             } else {
                 $warnings[] = "{$label} tariff '{$digits}' was not found as an exact local CAPS tariff code. Verify it in CAPS before submission.";

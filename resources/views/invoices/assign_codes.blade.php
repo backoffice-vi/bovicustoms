@@ -59,6 +59,10 @@
                 $isRestricted = $classification['restricted'] ?? false;
                 $precedents = $item['precedents'] ?? [];
                 $hasConflict = $item['has_conflict'] ?? false;
+                // Prefer the most recent historical classification over the AI suggestion when one exists.
+                // The reviewer can still switch to the AI option or enter a code manually.
+                $useFirstPrecedent = !empty($precedents);
+                $firstPrecedentCode = $useFirstPrecedent ? ($precedents[0]['hs_code'] ?? '') : '';
             @endphp
             <div class="col-12 mb-4">
                 <div class="card {{ $isProhibited ? 'border-danger' : ($isRestricted ? 'border-warning' : ($hasConflict ? 'border-info' : '')) }}">
@@ -142,15 +146,35 @@
 
                                 {{-- Classification Success --}}
                                 @if($isSuccess && !$isProhibited)
+                                @php
+                                    $needsSubitem = ($classification['needs_subitem'] ?? false) || !($classification['caps_ready'] ?? false);
+                                    $subitemReason = $classification['caps_subitem_required_reason'] ?? null;
+                                @endphp
                                 <div class="mb-3">
                                     <label class="form-label fw-semibold">AI Recommended Code</label>
                                     <div class="d-flex align-items-center">
-                                        <code class="fs-4 me-3 text-primary">{{ $classification['code'] }}</code>
+                                        <code class="fs-4 me-3 {{ $needsSubitem ? 'text-warning' : 'text-primary' }}">{{ $classification['code'] }}</code>
                                         <div class="flex-grow-1">
                                             <small class="text-muted">{{ $classification['description'] ?? '' }}</small>
                                         </div>
+                                        @if($needsSubitem)
+                                            <span class="badge bg-warning text-dark ms-2" title="{{ $subitemReason }}">
+                                                <i class="fas fa-triangle-exclamation me-1"></i>Needs sub-item
+                                            </span>
+                                        @endif
                                     </div>
                                 </div>
+
+                                @if($needsSubitem)
+                                <div class="alert alert-warning d-flex align-items-start mb-3">
+                                    <i class="fas fa-triangle-exclamation me-2 mt-1"></i>
+                                    <div class="small">
+                                        <strong>Not ready for CAPS.</strong>
+                                        {{ $subitemReason ?? "This code is a heading or subheading. CAPS requires the exact 7-digit BVI sub-item before submission." }}
+                                        Pick the correct sub-item before assigning.
+                                    </div>
+                                </div>
+                                @endif
 
                                 {{-- Confidence Bar --}}
                                 <div class="mb-3">
@@ -261,9 +285,23 @@
                                                    name="items[{{ $index }}][code_source]" 
                                                    value="precedent_{{ $pIndex }}"
                                                    data-code="{{ $precedent['hs_code'] }}"
-                                                   data-target="code_{{ $index }}">
+                                                   data-target="code_{{ $index }}"
+                                                   {{ $pIndex === 0 && $useFirstPrecedent ? 'checked' : '' }}>
                                             <div class="flex-grow-1">
                                                 <code class="fw-bold">{{ $precedent['hs_code'] }}</code>
+                                                @if($precedent['is_caps_imported'] ?? false)
+                                                    <span class="badge bg-success ms-1" title="This HS code came from a Trade Declaration imported back from the CAPS portal — CAPS has this on file.">
+                                                        <i class="fas fa-check-circle me-1"></i>CAPS Approved
+                                                    </span>
+                                                @elseif($precedent['is_caps_accepted'] ?? false)
+                                                    <span class="badge bg-success ms-1" title="This declaration was submitted from this app and CAPS marked it Accepted.">
+                                                        <i class="fas fa-check-circle me-1"></i>CAPS Accepted
+                                                    </span>
+                                                @else
+                                                    <span class="badge bg-secondary ms-1" title="Locally classified / submitted but not yet confirmed approved by CAPS.">
+                                                        <i class="fas fa-paper-plane me-1"></i>Submitted
+                                                    </span>
+                                                @endif
                                                 <small class="d-block text-muted">{{ Str::limit($precedent['description'], 60) }}</small>
                                                 <small class="text-muted">Used: {{ $precedent['created_at'] }}</small>
                                             </div>
@@ -292,7 +330,7 @@
                                                data-code="{{ $classification['code'] }}"
                                                data-target="code_{{ $index }}"
                                                id="ai_{{ $index }}"
-                                               checked>
+                                               {{ $useFirstPrecedent ? '' : 'checked' }}>
                                         <label class="form-check-label" for="ai_{{ $index }}">
                                             Use AI Recommendation: <code class="fw-bold">{{ $classification['code'] }}</code>
                                         </label>
@@ -334,7 +372,7 @@
                                                data-code=""
                                                data-target="code_{{ $index }}"
                                                id="manual_{{ $index }}"
-                                               {{ !$isSuccess || $isProhibited ? 'checked' : '' }}>
+                                               {{ (!$isSuccess || $isProhibited) && !$useFirstPrecedent ? 'checked' : '' }}>
                                         <label class="form-check-label" for="manual_{{ $index }}">
                                             Enter code manually or search
                                         </label>
@@ -359,7 +397,7 @@
                                                class="form-control code-input" 
                                                id="code_{{ $index }}"
                                                name="items[{{ $index }}][customs_code]" 
-                                               value="{{ $isSuccess && !$isProhibited ? $classification['code'] : '' }}"
+                                               value="{{ $useFirstPrecedent ? $firstPrecedentCode : ($isSuccess && !$isProhibited ? $classification['code'] : '') }}"
                                                placeholder="Enter or search HS code..."
                                                required
                                                autocomplete="off"
@@ -389,7 +427,7 @@
                                 </div>
 
                                 {{-- Override Indicator --}}
-                                <div class="override-indicator text-warning small" id="override_{{ $index }}" style="display: none;">
+                                <div class="override-indicator text-warning small" id="override_{{ $index }}" style="{{ $useFirstPrecedent ? '' : 'display: none;' }}">
                                     <i class="fas fa-edit me-1"></i>You are overriding the AI recommendation.
                                 </div>
                             </div>

@@ -312,22 +312,32 @@ class ClassifyInvoice extends Command
     protected function findPrecedentsForItem(string $description, int $countryId): array
     {
         return \App\Models\DeclarationFormItem::query()
-            ->where('country_id', $countryId)
-            ->whereNotNull('hs_code')
+            ->join('declaration_forms', 'declaration_form_items.declaration_form_id', '=', 'declaration_forms.id')
+            ->where('declaration_form_items.country_id', $countryId)
+            ->whereNotNull('declaration_form_items.hs_code')
             ->where(function ($query) use ($description) {
                 $words = explode(' ', strtolower($description));
                 $significantWords = array_filter($words, fn($w) => strlen($w) > 3);
                 foreach (array_slice($significantWords, 0, 5) as $word) {
-                    $query->orWhereRaw('LOWER(description) LIKE ?', ["%{$word}%"]);
+                    $query->orWhereRaw('LOWER(declaration_form_items.description) LIKE ?', ["%{$word}%"]);
                 }
             })
-            ->orderBy('created_at', 'desc')
+            ->select([
+                'declaration_form_items.description',
+                'declaration_form_items.hs_code',
+                'declaration_form_items.created_at',
+                'declaration_forms.source_type as df_source_type',
+                'declaration_forms.submission_status as df_submission_status',
+            ])
+            ->orderBy('declaration_form_items.created_at', 'desc')
             ->limit(5)
             ->get()
             ->map(fn($item) => [
                 'hs_code' => $item->hs_code,
                 'description' => $item->description,
                 'created_at' => $item->created_at?->format('M d, Y'),
+                'is_caps_imported' => ((string) $item->df_source_type) === 'legacy',
+                'is_caps_accepted' => ((string) $item->df_submission_status) === 'accepted',
             ])
             ->toArray();
     }

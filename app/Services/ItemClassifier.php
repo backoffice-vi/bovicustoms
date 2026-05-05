@@ -77,6 +77,12 @@ class ItemClassifier
      */
     public function classify(string $itemDescription, ?int $countryId = null, ?int $organizationId = null): array
     {
+        $result = $this->classifyRaw($itemDescription, $countryId, $organizationId);
+        return $this->annotateCapsReadiness($result);
+    }
+
+    protected function classifyRaw(string $itemDescription, ?int $countryId = null, ?int $organizationId = null): array
+    {
         $classificationPath = ['Using tiered classification approach'];
         
         // TIER 1: Check if input is an exact code (e.g., "02.07" or "0207")
@@ -136,7 +142,47 @@ class ItemClassifier
             'classification_path' => $classificationPath,
         ];
     }
-    
+
+    /**
+     * Annotate a classifier result with CAPS-readiness flags.
+     *
+     * CAPS only accepts exact 7-digit BVI sub-item codes. Headings (4-digit),
+     * subheadings (6-digit), and padded headings (7 digits ending in trailing
+     * filler zeros) are rejected as TARIFF NO. NOT KNOWN.
+     */
+    protected function annotateCapsReadiness(array $result): array
+    {
+        $code = (string) ($result['code'] ?? '');
+        $digits = preg_replace('/\D/', '', $code);
+
+        $isExact7 = strlen($digits) === 7;
+        $endsWithFillerZero = $isExact7 && substr($digits, -1) === '0';
+        $hasParentLevels = strlen($digits) >= 1 && strlen($digits) < 7;
+
+        $capsReady = $isExact7 && !$endsWithFillerZero;
+
+        $result['caps_ready'] = $capsReady;
+        $result['needs_subitem'] = !$capsReady;
+
+        if (!$capsReady) {
+            $reason = match (true) {
+                $code === '' || $digits === '' => 'No tariff code resolved.',
+                $hasParentLevels => "Code '{$code}' is a heading or subheading; CAPS requires a 7-digit sub-item.",
+                $endsWithFillerZero => "Code '{$digits}' looks like a padded heading; CAPS requires an exact BVI 7-digit sub-item.",
+                strlen($digits) > 7 => "Code '{$digits}' has more than 7 digits; trim to the BVI 7-digit sub-item.",
+                default => "Code '{$code}' is not an exact 7-digit CAPS sub-item.",
+            };
+            $result['caps_subitem_required_reason'] = $reason;
+
+            $result['warnings'] = array_values(array_unique(array_merge(
+                $result['warnings'] ?? [],
+                [$reason]
+            )));
+        }
+
+        return $result;
+    }
+
     /**
      * Tier 1: Try exact code match (user typed a code directly)
      */

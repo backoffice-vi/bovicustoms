@@ -266,6 +266,41 @@
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0-alpha1/dist/js/bootstrap.bundle.min.js"></script>
     <!-- Custom JS -->
     <script src="{{ asset('js/custom.js') }}"></script>
+    @auth
+    <script>
+    (function () {
+        var KEEP_ALIVE_URL = "{{ route('keep-alive') }}";
+        var INTERVAL_MS = 5 * 60 * 1000;
+
+        function rotateCsrfToken(newToken) {
+            if (!newToken) return;
+            var meta = document.querySelector('meta[name="csrf-token"]');
+            if (meta) meta.setAttribute('content', newToken);
+            document.querySelectorAll('input[name="_token"]').forEach(function (input) {
+                input.value = newToken;
+            });
+        }
+
+        function ping() {
+            fetch(KEEP_ALIVE_URL, {
+                method: 'GET',
+                credentials: 'same-origin',
+                headers: { 'Accept': 'application/json', 'X-Requested-With': 'XMLHttpRequest' },
+                cache: 'no-store'
+            })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) { if (data && data.csrf_token) rotateCsrfToken(data.csrf_token); })
+            .catch(function () {});
+        }
+
+        setInterval(ping, INTERVAL_MS);
+
+        document.addEventListener('visibilitychange', function () {
+            if (document.visibilityState === 'visible') ping();
+        });
+    })();
+    </script>
+    @endauth
     @stack('scripts')
 </body>
 </html>
