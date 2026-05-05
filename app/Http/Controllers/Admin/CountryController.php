@@ -148,6 +148,7 @@ class CountryController extends Controller
             'ftp_port' => 'nullable|integer|min:1|max:65535',
             'ftp_passive_mode' => 'boolean',
             'ftp_base_path' => 'nullable|string|max:255',
+            'ftp_response_path' => 'nullable|string|max:255',
             'ftp_file_format' => 'nullable|string|max:50',
             'ftp_notification_email' => 'nullable|email|max:255',
             // CAPS settings

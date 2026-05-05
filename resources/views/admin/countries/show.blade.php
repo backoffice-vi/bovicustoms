@@ -648,6 +648,15 @@
                                         <th>Base Path</th>
                                         <td><code>{{ $country->ftp_base_path ?? '/' }}</code></td>
                                     </tr>
+                                    <tr>
+                                        <th>Response Path</th>
+                                        <td>
+                                            <code>{{ $country->ftp_response_path ?? ($country->ftp_base_path ?? '/') }}</code>
+                                            @unless($country->ftp_response_path)
+                                                <small class="text-muted ms-1">(falls back to base path)</small>
+                                            @endunless
+                                        </td>
+                                    </tr>
                                 </table>
                             </div>
                             <div class="col-md-6">

@@ -56,7 +56,22 @@ class DeclarationFormController extends Controller
             ->where('country_id', $declarationForm->country_id)
             ->count();
 
-        return view('declaration-forms.show', compact('declarationForm', 'items', 'filledForms', 'availableTemplatesCount'));
+        // Latest successful FTP submission with attachment status (Spec 4.0 §1.9)
+        $latestFtpSubmission = \App\Models\WebFormSubmission::query()
+            ->where('declaration_form_id', $declarationForm->id)
+            ->where('submission_type', \App\Models\WebFormSubmission::TYPE_FTP)
+            ->where('is_successful', true)
+            ->with(['ftpAttachments' => fn ($q) => $q->orderBy('letter')])
+            ->latest()
+            ->first();
+
+        return view('declaration-forms.show', compact(
+            'declarationForm',
+            'items',
+            'filledForms',
+            'availableTemplatesCount',
+            'latestFtpSubmission'
+        ));
     }
 
     /**

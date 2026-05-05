@@ -7,6 +7,7 @@ use App\Models\WebFormTarget;
 use App\Models\WebFormSubmission;
 use App\Services\WebFormSubmission\WebFormSubmitterService;
 use App\Services\WebFormSubmission\WebFormDataMapper;
+use App\Services\WebFormSubmission\CapsPreValidationService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
 
@@ -14,11 +15,17 @@ class WebSubmissionController extends Controller
 {
     protected WebFormSubmitterService $submitter;
     protected WebFormDataMapper $mapper;
+    protected CapsPreValidationService $capsPreValidation;
 
-    public function __construct(WebFormSubmitterService $submitter, WebFormDataMapper $mapper)
+    public function __construct(
+        WebFormSubmitterService $submitter,
+        WebFormDataMapper $mapper,
+        CapsPreValidationService $capsPreValidation
+    )
     {
         $this->submitter = $submitter;
         $this->mapper = $mapper;
+        $this->capsPreValidation = $capsPreValidation;
     }
 
     /**
@@ -70,10 +77,11 @@ class WebSubmissionController extends Controller
         // For CAPS targets, use AI-assisted CAPS mapping
         if ($this->isCapsTarget($target)) {
             $capsData = $this->mapper->buildCapsSubmissionData($declaration, $target, true);
+            $capsData['country_id'] = $target->country_id;
             
             // Convert CAPS data to preview format
             $preview = $this->buildCapsPreview($target, $capsData);
-            $validation = $this->validateCapsData($capsData);
+            $validation = $this->capsPreValidation->validateWebPayload($capsData, $target->country_id);
             
             // Gather attachment info for preview
             $attachments = $this->gatherAttachmentInfo($declaration);
@@ -274,10 +282,15 @@ class WebSubmissionController extends Controller
             return redirect()->back()->with('error', 'Invalid target for this declaration.');
         }
 
-        // Validate mapping first
-        $validation = $this->mapper->validateMapping($declaration, $target);
-        if (!$validation['valid'] && !$request->has('force')) {
-            return redirect()->back()->with('error', 'Mapping validation failed: ' . implode(', ', $validation['errors']));
+        $isCaps = $this->isCapsTarget($target);
+
+        // Validate non-CAPS mapping here. CAPS validation runs against the final
+        // Playwright payload inside WebFormSubmitterService after AI mapping.
+        if (!$isCaps) {
+            $validation = $this->mapper->validateMapping($declaration, $target);
+            if (!$validation['valid'] && !$request->has('force')) {
+                return redirect()->back()->with('error', 'Mapping validation failed: ' . implode(', ', $validation['errors']));
+            }
         }
 
         try {
@@ -285,7 +298,7 @@ class WebSubmissionController extends Controller
             $action = $request->input('action', 'save');
             
             // Check if this is a CAPS target
-            if ($this->isCapsTarget($target)) {
+            if ($isCaps) {
                 $useAI = $request->boolean('use_ai', true); // AI enabled by default for CAPS
                 $submission = $this->submitter->submitToCaps($declaration, $target, $action, $useAI);
             } else {
@@ -318,6 +331,32 @@ class WebSubmissionController extends Controller
 
             return redirect()->back()->with('error', 'Submission failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Return the final CAPS Playwright payload and pre-validation report.
+     */
+    public function payload(Request $request, DeclarationForm $declaration, WebFormTarget $target)
+    {
+        if ($target->country_id !== $declaration->country_id) {
+            return response()->json(['error' => 'Invalid target for this declaration.'], 422);
+        }
+
+        if (!$this->isCapsTarget($target)) {
+            return response()->json(['error' => 'Payload preview is only available for CAPS targets.'], 422);
+        }
+
+        $useAI = !$request->boolean('no_ai');
+        $capsData = $this->mapper->buildCapsSubmissionData($declaration, $target, $useAI);
+        $capsData['country_id'] = $target->country_id;
+
+        return response()->json([
+            'declaration_id' => $declaration->id,
+            'target_id' => $target->id,
+            'ai_enabled' => $useAI,
+            'validation' => $this->capsPreValidation->validateWebPayload($capsData, $target->country_id),
+            'payload' => $this->capsPreValidation->redactPayload($capsData),
+        ]);
     }
 
     /**

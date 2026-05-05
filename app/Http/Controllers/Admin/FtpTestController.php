@@ -6,6 +6,8 @@ use App\Http\Controllers\Controller;
 use App\Models\Country;
 use App\Models\DeclarationForm;
 use App\Models\OrganizationSubmissionCredential;
+use App\Models\WebFormSubmission;
+use App\Services\FtpSubmission\CapsAttachmentUploader;
 use App\Services\FtpSubmission\CapsT12Generator;
 use App\Services\FtpSubmission\FtpSubmissionService;
 use Illuminate\Http\Request;
@@ -270,5 +272,66 @@ class FtpTestController extends Controller
             });
 
         return response()->json(['credentials' => $credentials]);
+    }
+
+    /**
+     * Upload attachments for an existing submission (admin test).
+     */
+    public function uploadAttachments(WebFormSubmission $submission)
+    {
+        $declaration = $submission->declaration;
+        if (!$declaration) {
+            return response()->json(['success' => false, 'message' => 'Declaration not found'], 404);
+        }
+
+        $declaration->load(['country', 'organization']);
+        $organization = $declaration->organization;
+
+        if (!$organization) {
+            return response()->json(['success' => false, 'message' => 'Organization not found'], 404);
+        }
+
+        $credentials = $organization->getFtpCredentials($declaration->country_id);
+
+        if (!$credentials || !$credentials->hasCompleteFtpCredentials()) {
+            return response()->json(['success' => false, 'message' => 'FTP credentials are missing or incomplete']);
+        }
+
+        try {
+            $result = $this->ftpService->uploadAttachmentsOnly($submission, $declaration, $credentials);
+            return response()->json([
+                'success' => true,
+                'uploaded' => $result['uploaded'],
+                'skipped' => $result['skipped'],
+                'failed' => $result['failed'],
+                'message' => sprintf(
+                    'Attachment upload complete: %d uploaded, %d skipped, %d failed.',
+                    $result['uploaded'],
+                    $result['skipped'],
+                    $result['failed']
+                ),
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
+    }
+
+    /**
+     * Manually poll attachment response (admin test).
+     */
+    public function checkAttachmentStatus(WebFormSubmission $submission, CapsAttachmentUploader $uploader)
+    {
+        try {
+            $changed = $uploader->checkSubmissionStatus($submission);
+            return response()->json([
+                'success' => true,
+                'updated' => $changed,
+                'message' => $changed
+                    ? 'CAPS response received — statuses updated.'
+                    : 'No CAPS response file found yet.',
+            ]);
+        } catch (\Throwable $e) {
+            return response()->json(['success' => false, 'message' => $e->getMessage()]);
+        }
     }
 }

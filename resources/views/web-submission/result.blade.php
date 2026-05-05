@@ -54,7 +54,28 @@
                             $aiRecommendations = $responseData['ai_recommendations'] ?? [];
                             $autoFixes = $responseData['auto_fixes_applied'] ?? [];
                             $errorCategories = $responseData['error_categories'] ?? [];
+                            $capsValidationErrors = $responseData['caps_validation_errors'] ?? ($submission->errors_encountered ?? []);
+                            if (isset($capsValidationErrors['errors'])) {
+                                $capsValidationErrors = $capsValidationErrors['errors'];
+                            }
                         @endphp
+
+                        @if(!empty($capsValidationErrors))
+                            <div class="card border-danger mb-3">
+                                <div class="card-header bg-danger text-white">
+                                    <h6 class="card-title mb-0">
+                                        <i class="fas fa-clipboard-list me-2"></i>CAPS Validation Error Report
+                                    </h6>
+                                </div>
+                                <div class="card-body">
+                                    <ul class="mb-0">
+                                        @foreach($capsValidationErrors as $error)
+                                            <li>{{ is_array($error) ? ($error['message'] ?? json_encode($error)) : $error }}</li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            </div>
+                        @endif
 
                         @if($aiDiagnosis)
                             <div class="card bg-light border-0 mb-3">

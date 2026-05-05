@@ -100,12 +100,10 @@ class FtpSubmissionController extends Controller
                 ->with('error', 'Please configure your FTP credentials for ' . $country->name . ' before submitting.');
         }
 
-        // Validate declaration data
-        $validation = $this->ftpService->validate($declaration);
-
         // Generate preview
         try {
             $preview = $this->ftpService->preview($declaration, $credentials);
+            $validation = $this->ftpService->validatePreview($preview, $declaration);
         } catch (\Exception $e) {
             Log::error('T12 preview generation failed', [
                 'declaration_id' => $declaration->id,
@@ -116,12 +114,16 @@ class FtpSubmissionController extends Controller
                 ->with('error', 'Failed to generate T12 preview: ' . $e->getMessage());
         }
 
+        $availableAttachments = app(\App\Services\Documents\DeclarationAttachmentGatherer::class)
+            ->gather($declaration, includeMissing: true);
+
         return view('ftp-submission.preview', compact(
             'declaration',
             'country',
             'credentials',
             'preview',
-            'validation'
+            'validation',
+            'availableAttachments'
         ));
     }
 
@@ -154,7 +156,8 @@ class FtpSubmissionController extends Controller
                 ->with('error', 'Please configure your FTP credentials before submitting.');
         }
 
-        // Validate first
+        // Validate basic declaration data first. The FTP service also validates
+        // the generated T12 payload before uploading it to CAPS.
         $validation = $this->ftpService->validate($declaration);
         
         if (!$validation['valid'] && !$request->has('force')) {
@@ -162,14 +165,25 @@ class FtpSubmissionController extends Controller
                 ->with('error', 'Validation failed: ' . implode(', ', $validation['errors']));
         }
 
+        $autoAttach = $request->boolean('auto_attach', true);
+
         try {
-            $submission = $this->ftpService->submit($declaration, $credentials);
+            $submission = $this->ftpService->submit($declaration, $credentials, true, $autoAttach);
 
             if ($submission->is_successful) {
+                $message = 'Declaration submitted via FTP! Reference: ' . $submission->external_reference;
+                if ($autoAttach) {
+                    $submission->loadMissing('ftpAttachments');
+                    $message .= '. Attachments uploaded: ' . $submission->ftpAttachments->whereIn('status', [
+                        \App\Models\FtpSubmissionAttachment::STATUS_UPLOADED,
+                        \App\Models\FtpSubmissionAttachment::STATUS_CONFIRMED,
+                    ])->count() . '.';
+                }
+
                 return redirect()->route('ftp-submission.result', [
                     'declaration' => $declaration,
                     'submission' => $submission,
-                ])->with('success', 'Declaration submitted via FTP! Reference: ' . $submission->external_reference);
+                ])->with('success', $message);
             } else {
                 return redirect()->route('ftp-submission.result', [
                     'declaration' => $declaration,
@@ -305,6 +319,86 @@ class FtpSubmissionController extends Controller
         } catch (\Exception $e) {
             return redirect()->back()
                 ->with('error', 'Retry failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Manually upload attachments for an existing FTP submission.
+     * Used by the "Upload Attachments via FTP" button.
+     */
+    public function uploadAttachments(WebFormSubmission $submission)
+    {
+        if (!$submission->is_ftp) {
+            return redirect()->back()->with('error', 'This is not an FTP submission.');
+        }
+
+        $declaration = $submission->declaration;
+        if (!$declaration) {
+            return redirect()->back()->with('error', 'Declaration not found.');
+        }
+
+        $declaration->load(['country', 'organization']);
+        $organization = $declaration->organization ?? auth()->user()->organization;
+
+        if (!$organization) {
+            return redirect()->back()->with('error', 'Organization not found.');
+        }
+
+        $credentials = $organization->getFtpCredentials($declaration->country_id);
+
+        if (!$credentials || !$credentials->hasCompleteFtpCredentials()) {
+            return redirect()->route('settings.submission-credentials')
+                ->with('error', 'Please configure FTP credentials before uploading attachments.');
+        }
+
+        try {
+            $result = $this->ftpService->uploadAttachmentsOnly($submission, $declaration, $credentials);
+
+            $msg = sprintf(
+                'Attachment upload complete: %d uploaded, %d skipped (already on server), %d failed.',
+                $result['uploaded'],
+                $result['skipped'],
+                $result['failed']
+            );
+
+            return redirect()->back()->with(
+                $result['failed'] > 0 ? 'warning' : 'success',
+                $msg
+            );
+        } catch (\Throwable $e) {
+            Log::error('FTP attachment upload failed', [
+                'submission_id' => $submission->id,
+                'error' => $e->getMessage(),
+            ]);
+            return redirect()->back()->with('error', 'Attachment upload failed: ' . $e->getMessage());
+        }
+    }
+
+    /**
+     * Manually poll for the CAPS attachment response file.
+     * Used by the "Check Status Now" button.
+     */
+    public function checkAttachmentStatus(WebFormSubmission $submission)
+    {
+        if (!$submission->is_ftp) {
+            return redirect()->back()->with('error', 'This is not an FTP submission.');
+        }
+
+        try {
+            $uploader = app(\App\Services\FtpSubmission\CapsAttachmentUploader::class);
+            $changed = $uploader->checkSubmissionStatus($submission);
+
+            if ($changed) {
+                return redirect()->back()->with('success', 'CAPS response received — attachment statuses updated.');
+            }
+
+            return redirect()->back()->with('info', 'No CAPS response file found yet. The system polls automatically every 15 minutes.');
+        } catch (\Throwable $e) {
+            Log::error('FTP attachment status check failed', [
+                'submission_id' => $submission->id,
+                'error' => $e->getMessage(),
+            ]);
+            return redirect()->back()->with('error', 'Status check failed: ' . $e->getMessage());
         }
     }
 }

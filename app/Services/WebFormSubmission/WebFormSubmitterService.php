@@ -20,17 +20,20 @@ class WebFormSubmitterService
     protected WebFormDataMapper $dataMapper;
     protected CapsAIMapper $aiMapper;
     protected CapsErrorRecoveryService $capsErrorRecovery;
+    protected CapsPreValidationService $capsPreValidation;
 
     public function __construct(
         PlaywrightService $playwright, 
         WebFormDataMapper $dataMapper,
         CapsAIMapper $aiMapper,
-        CapsErrorRecoveryService $capsErrorRecovery
+        CapsErrorRecoveryService $capsErrorRecovery,
+        CapsPreValidationService $capsPreValidation
     ) {
         $this->playwright = $playwright;
         $this->dataMapper = $dataMapper;
         $this->aiMapper = $aiMapper;
         $this->capsErrorRecovery = $capsErrorRecovery;
+        $this->capsPreValidation = $capsPreValidation;
     }
 
     /**
@@ -218,48 +221,13 @@ class WebFormSubmitterService
     }
 
     /**
-     * Gather B/L and Invoice file attachments for the declaration
+     * Gather B/L and Invoice file attachments for the declaration.
+     * Delegates to the shared DeclarationAttachmentGatherer.
      */
     protected function gatherAttachments(DeclarationForm $declaration): array
     {
-        $attachments = [];
-
-        $declaration->load(['shipment.shippingDocuments', 'invoice']);
-
-        // B/L or AWB from shipping documents
-        if ($declaration->shipment) {
-            $transportDoc = $declaration->shipment->shippingDocuments
-                ->filter(fn($doc) => $doc->isPrimaryTransportDocument() && $doc->file_path)
-                ->first();
-
-            if ($transportDoc) {
-                $absPath = storage_path('app/' . $transportDoc->file_path);
-                if (file_exists($absPath)) {
-                    $attachments[] = [
-                        'label' => $transportDoc->document_type_label . ' - ' . ($transportDoc->original_filename ?? 'B/L'),
-                        'filePath' => $absPath,
-                        'type' => $transportDoc->document_type,
-                    ];
-                    Log::info('CAPS attachment: B/L found', ['path' => $absPath]);
-                }
-            }
-        }
-
-        // Invoice PDF
-        $allInvoices = $declaration->getAllInvoices();
-        foreach ($allInvoices as $invoice) {
-            if (!empty($invoice->source_file_path)) {
-                $absPath = storage_path('app/' . $invoice->source_file_path);
-                if (file_exists($absPath)) {
-                    $attachments[] = [
-                        'label' => 'Invoice #' . ($invoice->invoice_number ?? $invoice->id),
-                        'filePath' => $absPath,
-                        'type' => 'invoice',
-                    ];
-                    Log::info('CAPS attachment: Invoice found', ['path' => $absPath]);
-                }
-            }
-        }
+        $attachments = app(\App\Services\Documents\DeclarationAttachmentGatherer::class)
+            ->gatherForWebSubmission($declaration);
 
         if (empty($attachments)) {
             Log::info('CAPS submission: No attachment files found for declaration ' . $declaration->id);
@@ -280,29 +248,80 @@ class WebFormSubmitterService
     /**
      * Execute Playwright and handle the result
      */
+    protected function resolveNodePath(): string
+    {
+        $configured = config('services.node.path');
+        if ($configured && file_exists($configured)) {
+            return $configured;
+        }
+
+        $possiblePaths = PHP_OS_FAMILY === 'Windows'
+            ? [
+                'C:\\Program Files\\nodejs\\node.exe',
+                'C:\\Program Files (x86)\\nodejs\\node.exe',
+                getenv('LOCALAPPDATA') . '\\Programs\\nodejs\\node.exe',
+            ]
+            : ['/usr/bin/node', '/usr/local/bin/node'];
+
+        foreach ($possiblePaths as $path) {
+            if ($path && file_exists($path)) {
+                return $path;
+            }
+        }
+
+        return 'node';
+    }
+
+    /**
+     * Build environment variables needed for Playwright/Chromium to run.
+     */
+    protected function getPlaywrightEnv(): array
+    {
+        $env = [];
+
+        if (PHP_OS_FAMILY === 'Windows') {
+            $tempDir = sys_get_temp_dir();
+            $env['TEMP'] = $tempDir;
+            $env['TMP'] = $tempDir;
+            $env['USERPROFILE'] = getenv('USERPROFILE') ?: 'C:\\Users\\Default';
+            $env['LOCALAPPDATA'] = getenv('LOCALAPPDATA') ?: $env['USERPROFILE'] . '\\AppData\\Local';
+            $env['APPDATA'] = getenv('APPDATA') ?: $env['USERPROFILE'] . '\\AppData\\Roaming';
+            $env['HOME'] = $env['USERPROFILE'];
+            $systemRoot = getenv('SystemRoot') ?: 'C:\\Windows';
+            $env['SystemRoot'] = $systemRoot;
+            $env['PATH'] = implode(';', array_filter([
+                dirname($this->resolveNodePath()),
+                $systemRoot . '\\system32',
+                $systemRoot,
+                getenv('PATH'),
+            ]));
+        }
+
+        return $env;
+    }
+
     protected function executePlaywright(array $input, WebFormSubmission $submission): array
     {
-        // Write input to temp file
         $tempFile = storage_path('app/playwright-input-' . $submission->id . '.json');
         file_put_contents($tempFile, json_encode($input, JSON_PRETTY_PRINT));
 
         try {
-            // Choose script based on AI mode
             $scriptPath = $this->playwright->isAIEnabled()
                 ? base_path('playwright/ai-web-form-submitter.mjs')
                 : base_path('playwright/web-form-submitter.mjs');
 
-            // For now, use the generic dynamic submitter
-            // In production, you'd have target-specific scripts
             $scriptPath = base_path('playwright/dynamic-web-submitter.mjs');
 
-            // Check if dynamic script exists, fall back to AI script
             if (!file_exists($scriptPath)) {
                 $scriptPath = base_path('playwright/ai-web-form-submitter.mjs');
             }
 
+            $nodePath = $this->resolveNodePath();
+            $env = $this->getPlaywrightEnv();
+
             $result = \Illuminate\Support\Facades\Process::timeout(180)
-                ->run("node \"{$scriptPath}\" --input-file=\"{$tempFile}\"");
+                ->env($env)
+                ->run("\"{$nodePath}\" \"{$scriptPath}\" --input-file=\"{$tempFile}\"");
 
             $output = $result->output();
             $parsed = json_decode($output, true);
@@ -312,13 +331,13 @@ class WebFormSubmitterService
                     'success' => false,
                     'error' => 'Failed to parse Playwright output',
                     'raw_output' => $output,
+                    'stderr' => $result->errorOutput(),
                 ];
             }
 
             return $parsed;
 
         } finally {
-            // Clean up temp file
             @unlink($tempFile);
         }
     }
@@ -328,8 +347,9 @@ class WebFormSubmitterService
      */
     protected function executeCapsPlaywright(array $input, WebFormSubmission $submission): array
     {
-        // Write input to temp file
         $tempFile = storage_path('app/playwright-caps-input-' . $submission->id . '.json');
+        $progressFile = storage_path('app/playwright-caps-progress-' . $submission->id . '.json');
+        $input['progressFile'] = $progressFile;
         file_put_contents($tempFile, json_encode($input, JSON_PRETTY_PRINT));
 
         try {
@@ -339,27 +359,124 @@ class WebFormSubmitterService
                 throw new \Exception('CAPS Playwright script not found');
             }
 
-            $result = \Illuminate\Support\Facades\Process::timeout(300) // 5 minutes for complex forms
-                ->run("node \"{$scriptPath}\" --input-file=\"{$tempFile}\"");
+            $nodePath = $this->resolveNodePath();
+            $env = $this->getPlaywrightEnv();
+
+            $itemCount = count($input['items'] ?? []);
+            $timeoutSeconds = max(300, 180 + ($itemCount * 30));
+            $input['slowMo'] = 0;
+            file_put_contents($tempFile, json_encode($input, JSON_PRETTY_PRINT));
+            $submission->addLog("Running: {$nodePath} caps-web-submitter.mjs ({$itemCount} items, timeout: {$timeoutSeconds}s)");
+
+            try {
+                $result = \Illuminate\Support\Facades\Process::timeout($timeoutSeconds)
+                    ->env($env)
+                    ->run("\"{$nodePath}\" \"{$scriptPath}\" --input-file=\"{$tempFile}\"");
+            } catch (\Illuminate\Process\Exceptions\ProcessTimedOutException|\Symfony\Component\Process\Exception\ProcessTimedOutException $e) {
+                $submission->addLog("Playwright timed out after {$timeoutSeconds}s", 'error');
+                $progress = $this->readCapsProgress($progressFile);
+                $this->captureDraftTdNumber($submission, $progress);
+
+                return [
+                    'success' => false,
+                    'error' => "Playwright timed out after {$timeoutSeconds} seconds ({$itemCount} items)",
+                    'raw_output' => '',
+                    'stderr' => 'Process timed out',
+                    'exit_code' => -1,
+                    'td_number' => $progress['td_number'] ?? null,
+                    'reference_number' => $progress['reference_number'] ?? ($progress['td_number'] ?? null),
+                    'progress' => $progress,
+                ];
+            }
 
             $output = $result->output();
+            $stderr = $result->errorOutput();
+            $exitCode = $result->exitCode();
+
+            $submission->addLog("Playwright exit code: {$exitCode}");
+
+            if ($stderr) {
+                $stderrSnippet = substr($stderr, -1000);
+                $submission->addLog("Playwright stderr (last 1000 chars): {$stderrSnippet}", 'debug');
+            }
+
             $parsed = json_decode($output, true);
+            $progress = $this->readCapsProgress($progressFile);
 
             if (!$parsed) {
+                $outputSnippet = $output ? substr($output, 0, 500) : '(empty)';
+                $submission->addLog("Failed to parse output. Raw stdout: {$outputSnippet}", 'error');
+                $this->captureDraftTdNumber($submission, $progress);
+
+                Log::warning('CAPS Playwright parse failure', [
+                    'exit_code' => $exitCode,
+                    'stdout_length' => strlen($output),
+                    'stdout_preview' => substr($output, 0, 500),
+                    'stderr_preview' => substr($stderr, -500),
+                ]);
+
                 return [
                     'success' => false,
                     'error' => 'Failed to parse CAPS Playwright output',
                     'raw_output' => $output,
-                    'stderr' => $result->errorOutput(),
+                    'stderr' => $stderr,
+                    'exit_code' => $exitCode,
+                    'td_number' => $progress['td_number'] ?? null,
+                    'reference_number' => $progress['reference_number'] ?? ($progress['td_number'] ?? null),
+                    'progress' => $progress,
                 ];
+            }
+
+            if (!empty($progress)) {
+                $parsed['progress'] = $progress;
+                $parsed['td_number'] = $parsed['td_number'] ?? ($progress['td_number'] ?? null);
+                $parsed['reference_number'] = $parsed['reference_number'] ?? ($progress['reference_number'] ?? ($progress['td_number'] ?? null));
+                $this->captureDraftTdNumber($submission, $parsed);
             }
 
             return $parsed;
 
         } finally {
-            // Clean up temp file
             @unlink($tempFile);
         }
+    }
+
+    protected function readCapsProgress(string $progressFile): array
+    {
+        if (!file_exists($progressFile)) {
+            return [];
+        }
+
+        $progress = json_decode((string) file_get_contents($progressFile), true);
+
+        return is_array($progress) ? $progress : [];
+    }
+
+    protected function captureDraftTdNumber(WebFormSubmission $submission, array $resultOrProgress): void
+    {
+        $tdNumber = $resultOrProgress['td_number'] ?? $resultOrProgress['reference_number'] ?? null;
+
+        if (empty($tdNumber)) {
+            return;
+        }
+
+        $requestData = $submission->request_data ?? [];
+        if (($requestData['draft_td_number'] ?? null) === $tdNumber && $submission->external_reference === $tdNumber) {
+            return;
+        }
+
+        $requestData['draft_td_number'] = $tdNumber;
+        $requestData['draft_td_captured_at'] = now()->toIso8601String();
+
+        if (!empty($resultOrProgress['event'])) {
+            $requestData['draft_td_event'] = $resultOrProgress['event'];
+        }
+
+        $submission->update([
+            'request_data' => $requestData,
+            'external_reference' => $submission->external_reference ?: $tdNumber,
+        ]);
+        $submission->addLog("Captured CAPS draft TD number: {$tdNumber}", 'success');
     }
 
     /**
@@ -376,6 +493,11 @@ class WebFormSubmitterService
         bool $useAI = true,
         int $maxRetries = 2
     ): WebFormSubmission {
+        $itemCount = $declaration->declarationItems()->count();
+        $maxTime = max(900, 300 + ($itemCount * 20));
+        set_time_limit($maxTime);
+        ini_set('max_execution_time', (string) $maxTime);
+
         $submission = WebFormSubmission::create([
             'web_form_target_id' => $target->id,
             'declaration_form_id' => $declaration->id,
@@ -396,6 +518,32 @@ class WebFormSubmitterService
                 $playwrightInput = $this->applyCapsAIMapping($playwrightInput, $target, $submission);
             }
 
+            $playwrightInput['country_id'] = $target->country_id;
+            $validation = $this->capsPreValidation->validateWebPayload($playwrightInput, $target->country_id);
+            $submission->update([
+                'request_data' => [
+                    'action' => $action,
+                    'item_count' => count($playwrightInput['items'] ?? []),
+                    'caps_pre_validation' => $validation,
+                ],
+                'mapped_data' => $this->capsPreValidation->redactPayload($playwrightInput),
+            ]);
+
+            if (!$validation['valid']) {
+                $submission->addLog('CAPS pre-validation failed; Playwright automation was not started.', 'error');
+                foreach (array_slice($validation['errors'], 0, 10) as $error) {
+                    $submission->addLog('Pre-validation error: ' . $error, 'error');
+                }
+                $submission->markFailed('CAPS pre-validation failed. Fix the payload errors before submitting.', $validation);
+                return $submission;
+            }
+
+            if (!empty($validation['warnings'])) {
+                foreach (array_slice($validation['warnings'], 0, 10) as $warning) {
+                    $submission->addLog('Pre-validation warning: ' . $warning, 'warn');
+                }
+            }
+
             // --- retry loop ---
             $result = null;
             for ($attempt = 0; $attempt <= $maxRetries; $attempt++) {
@@ -405,8 +553,14 @@ class WebFormSubmitterService
 
                 $submission->addLog('Executing CAPS Playwright automation (attempt ' . ($attempt + 1) . ')');
                 $result = $this->executeCapsPlaywright($playwrightInput, $submission);
+                $draftTdNumber = $result['td_number'] ?? $result['reference_number'] ?? null;
+                if (!empty($draftTdNumber)) {
+                    $playwrightInput['td_number'] = $draftTdNumber;
+                    $this->captureDraftTdNumber($submission, $result);
+                }
 
                 $this->storeScreenshots($result, $submission);
+                $this->storeCapsResultReport($submission, $result);
 
                 $succeeded = !empty($result['success']) && ($result['validation_passed'] ?? true) !== false;
 
@@ -420,25 +574,37 @@ class WebFormSubmitterService
                 }
 
                 if ($attempt < $maxRetries) {
-                    $submission->addLog('Analyzing errors for auto-recovery...');
+                    $submission->addLog('Analyzing errors for auto-recovery (pattern + AI)...');
                     $recovery = $this->capsErrorRecovery->analyze($result, $playwrightInput);
 
-                    if ($recovery['can_retry'] && !empty($recovery['fixes_applied'])) {
-                        $playwrightInput = $recovery['fixed_input'];
-                        foreach ($recovery['fixes_applied'] as $fix) {
-                            $submission->addLog("Auto-fix: {$fix}", 'info');
+                    if ($recovery['can_retry']) {
+                        if (!empty($recovery['fixes_applied'])) {
+                            $playwrightInput = $recovery['fixed_input'];
+                            if (!empty($draftTdNumber)) {
+                                $playwrightInput['td_number'] = $draftTdNumber;
+                            }
+                            foreach ($recovery['fixes_applied'] as $fix) {
+                                $submission->addLog("Auto-fix: {$fix}", 'info');
+                            }
+                            $submission->addAiDecision(
+                                'Error Recovery (attempt ' . ($attempt + 1) . ')',
+                                implode('; ', $recovery['fixes_applied']),
+                                $recovery['diagnosis'] ?? ''
+                            );
+                        } else {
+                            $submission->addLog('Transient error detected — retrying without changes', 'info');
+                            $submission->addAiDecision(
+                                'Transient Retry (attempt ' . ($attempt + 1) . ')',
+                                'Retrying due to transient error (parse failure, timeout, etc.)',
+                                $recovery['diagnosis'] ?? ''
+                            );
                         }
-                        $submission->addAiDecision(
-                            'Error Recovery (attempt ' . ($attempt + 1) . ')',
-                            implode('; ', $recovery['fixes_applied']),
-                            $recovery['diagnosis'] ?? ''
-                        );
                         continue;
                     }
 
-                    // Cannot auto-fix — store diagnosis and stop retrying
+                    // Cannot auto-fix and not transient — store diagnosis and stop
                     $this->storeDiagnosis($submission, $recovery);
-                    $submission->addLog('No auto-fix available — stopping retries', 'warn');
+                    $submission->addLog('No auto-fix available and error is not transient — stopping retries', 'warn');
                     break;
                 }
 
@@ -465,10 +631,13 @@ class WebFormSubmitterService
                 }
             } else {
                 $errorMsg = $result['error'] ?? 'Unknown CAPS error';
-                if (($result['validation_passed'] ?? true) === false) {
-                    $errorMsg = 'CAPS validation failed: ' . $errorMsg;
+                if (($result['validation_passed'] ?? true) === false && empty($result['error'])) {
+                    $errorMsg = 'CAPS validation failed';
                 }
-                $submission->markFailed($errorMsg, $result['errors'] ?? null);
+                $errors = !empty($result['validation_errors'])
+                    ? $result['validation_errors']
+                    : ($result['errors'] ?? null);
+                $submission->markFailed($errorMsg, $errors);
                 $submission->addLog('CAPS submission failed: ' . $errorMsg, 'error');
             }
 
@@ -544,6 +713,55 @@ class WebFormSubmitterService
         foreach ($result['screenshots'] ?? [] as $screenshot) {
             $submission->addScreenshot($screenshot);
         }
+    }
+
+    /**
+     * Store the latest CAPS response in a compact report for the result page.
+     */
+    protected function storeCapsResultReport(WebFormSubmission $submission, array $result): void
+    {
+        $validationErrors = $this->normalizeCapsMessages($result['validation_errors'] ?? []);
+        $errors = $this->normalizeCapsMessages($result['errors'] ?? []);
+        $warnings = $this->normalizeCapsMessages($result['warnings'] ?? []);
+
+        foreach (array_slice($validationErrors, 0, 25) as $error) {
+            $submission->addLog('CAPS validation error: ' . $error, 'error');
+        }
+
+        $submission->update([
+            'response_data' => array_merge($submission->response_data ?? [], [
+                'caps_result' => [
+                    'success' => (bool) ($result['success'] ?? false),
+                    'validation_passed' => $result['validation_passed'] ?? null,
+                    'message' => $result['message'] ?? null,
+                    'error' => $result['error'] ?? null,
+                    'td_number' => $result['td_number'] ?? null,
+                    'reference_number' => $result['reference_number'] ?? null,
+                    'exit_code' => $result['exit_code'] ?? null,
+                ],
+                'caps_validation_errors' => $validationErrors,
+                'caps_errors' => $errors,
+                'caps_warnings' => $warnings,
+            ]),
+        ]);
+    }
+
+    protected function normalizeCapsMessages(array $messages): array
+    {
+        $normalized = [];
+
+        foreach ($messages as $message) {
+            if (is_array($message)) {
+                $message = $message['message'] ?? json_encode($message);
+            }
+
+            $message = trim((string) $message);
+            if ($message !== '') {
+                $normalized[] = $message;
+            }
+        }
+
+        return array_values(array_unique($normalized));
     }
 
     protected function logCapsWarnings(array $warnings, bool $useAI, WebFormSubmission $submission): void

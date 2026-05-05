@@ -12,7 +12,13 @@ class Kernel extends ConsoleKernel
      */
     protected function schedule(Schedule $schedule): void
     {
-        // $schedule->command('inspire')->hourly();
+        // Poll the CAPS FTP server for attachment response files
+        // (ETD<filename>_ATT_REP.TXT) every 15 minutes.
+        $schedule->job(new \App\Jobs\PollFtpAttachmentResponses())
+            ->everyFifteenMinutes()
+            ->withoutOverlapping(10)
+            ->onOneServer()
+            ->name('poll-ftp-attachment-responses');
     }
 
     /**

@@ -368,6 +368,82 @@
                 </div>
             </div>
 
+            @if(!empty($latestFtpSubmission))
+                @php
+                    $ftpAttachments = $latestFtpSubmission->ftpAttachments;
+                    $hasPendingOrFailed = $ftpAttachments->whereIn('status', [
+                        \App\Models\FtpSubmissionAttachment::STATUS_PENDING,
+                        \App\Models\FtpSubmissionAttachment::STATUS_FAILED,
+                    ])->count() > 0;
+                    $hasAwaitingResponse = $ftpAttachments->where('status', \App\Models\FtpSubmissionAttachment::STATUS_UPLOADED)->count() > 0;
+                @endphp
+                <div class="card mb-4">
+                    <div class="card-header d-flex justify-content-between align-items-center">
+                        <strong><i class="fas fa-paperclip me-2"></i>FTP Attachments</strong>
+                        <small class="text-muted">{{ $latestFtpSubmission->external_reference }}</small>
+                    </div>
+                    <div class="card-body">
+                        @if($ftpAttachments->isEmpty())
+                            <p class="text-muted small mb-3">
+                                No attachments uploaded yet for this T12 submission. Click the
+                                button below to upload the B/L and invoice files.
+                            </p>
+                        @else
+                            <ul class="list-group list-group-flush mb-3">
+                                @foreach($ftpAttachments as $att)
+                                    <li class="list-group-item px-0 py-2">
+                                        <div class="d-flex justify-content-between align-items-start">
+                                            <div class="me-2">
+                                                <code class="small">{{ $att->letter }}</code>
+                                                <span class="ms-1">{{ $att->original_filename }}</span>
+                                                <div class="small text-muted">
+                                                    <code>{{ $att->remote_filename }}</code>
+                                                </div>
+                                                @if($att->error_message)
+                                                    <div class="small text-danger">{{ $att->error_message }}</div>
+                                                @endif
+                                            </div>
+                                            @php
+                                                $badgeClass = match ($att->status) {
+                                                    \App\Models\FtpSubmissionAttachment::STATUS_CONFIRMED => 'bg-success',
+                                                    \App\Models\FtpSubmissionAttachment::STATUS_UPLOADED => 'bg-info',
+                                                    \App\Models\FtpSubmissionAttachment::STATUS_REJECTED => 'bg-danger',
+                                                    \App\Models\FtpSubmissionAttachment::STATUS_FAILED => 'bg-danger',
+                                                    default => 'bg-secondary',
+                                                };
+                                            @endphp
+                                            <span class="badge {{ $badgeClass }}">{{ $att->statusLabel() }}</span>
+                                        </div>
+                                    </li>
+                                @endforeach
+                            </ul>
+                        @endif
+
+                        <div class="d-grid gap-2">
+                            <form action="{{ route('ftp-submission.attachments', $latestFtpSubmission) }}" method="POST">
+                                @csrf
+                                <button type="submit" class="btn btn-outline-primary btn-sm w-100">
+                                    <i class="fas fa-upload me-1"></i>
+                                    {{ $ftpAttachments->isEmpty() ? 'Upload Attachments via FTP' : 'Re-upload Missing/Failed Attachments' }}
+                                </button>
+                            </form>
+
+                            @if($hasAwaitingResponse)
+                                <form action="{{ route('ftp-submission.check-status', $latestFtpSubmission) }}" method="POST">
+                                    @csrf
+                                    <button type="submit" class="btn btn-outline-secondary btn-sm w-100">
+                                        <i class="fas fa-sync-alt me-1"></i>Check Status Now
+                                    </button>
+                                </form>
+                                <small class="text-muted text-center">
+                                    The system also polls automatically every 15 minutes.
+                                </small>
+                            @endif
+                        </div>
+                    </div>
+                </div>
+            @endif
+
             <!-- Quick Info -->
             <div class="card mb-4">
                 <div class="card-header">

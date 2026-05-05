@@ -107,6 +107,48 @@
                     @if($validation['valid'])
                         <form action="{{ route('ftp-submission.submit', $declaration) }}" method="POST">
                             @csrf
+
+                            @if(!empty($availableAttachments ?? []))
+                                <div class="mb-3 p-3 border rounded bg-light">
+                                    <div class="form-check mb-2">
+                                        <input class="form-check-input" type="checkbox" id="autoAttachToggle"
+                                               name="auto_attach" value="1" checked>
+                                        <label class="form-check-label fw-semibold" for="autoAttachToggle">
+                                            Also upload attachments now
+                                        </label>
+                                    </div>
+                                    <p class="small text-muted mb-2">
+                                        Attachments are sent to CAPS via FTP using the
+                                        <code>&lt;T12 filename&gt;.A.pdf</code> naming convention
+                                        (Spec 4.0 §1.9). You can also upload them later from the
+                                        declaration page.
+                                    </p>
+                                    <ul class="list-unstyled mb-0 small">
+                                        @foreach($availableAttachments as $att)
+                                            <li class="d-flex align-items-center mb-1">
+                                                @if($att['exists'])
+                                                    <i class="fas fa-paperclip text-success me-2"></i>
+                                                    <span>{{ $att['label'] }}</span>
+                                                @else
+                                                    <i class="fas fa-exclamation-triangle text-warning me-2"
+                                                       title="{{ $att['missingReason'] }}"></i>
+                                                    <span class="text-muted">
+                                                        {{ $att['label'] }}
+                                                        <span class="badge bg-warning text-dark ms-1">missing on disk</span>
+                                                    </span>
+                                                @endif
+                                            </li>
+                                        @endforeach
+                                    </ul>
+                                </div>
+                            @else
+                                <div class="alert alert-light border small mb-3">
+                                    <i class="fas fa-info-circle me-1"></i>
+                                    No B/L or invoice files are attached to this declaration.
+                                    Only the T12 file will be uploaded.
+                                </div>
+                            @endif
+
                             <button type="submit" class="btn btn-success btn-lg w-100 mb-2">
                                 <i class="fas fa-upload me-2"></i>Submit via FTP
                             </button>
@@ -115,13 +157,6 @@
                         <button class="btn btn-secondary btn-lg w-100 mb-2" disabled>
                             <i class="fas fa-upload me-2"></i>Fix Errors First
                         </button>
-                        <form action="{{ route('ftp-submission.submit', $declaration) }}" method="POST" class="d-inline">
-                            @csrf
-                            <input type="hidden" name="force" value="1">
-                            <button type="submit" class="btn btn-outline-warning w-100 mb-2">
-                                <i class="fas fa-exclamation-triangle me-2"></i>Submit Anyway (with warnings)
-                            </button>
-                        </form>
                     @endif
 
                     <a href="{{ route('ftp-submission.download', $declaration) }}" class="btn btn-outline-primary w-100">

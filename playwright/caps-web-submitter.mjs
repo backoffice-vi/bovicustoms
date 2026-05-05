@@ -19,7 +19,7 @@
  */
 
 import { chromium } from 'playwright-core';
-import { existsSync, readFileSync, mkdirSync } from 'fs';
+import { existsSync, readFileSync, mkdirSync, writeFileSync } from 'fs';
 import { join, dirname } from 'path';
 
 // Parse command line input
@@ -49,8 +49,13 @@ const config = {
     td_number: input.td_number || null,
     headless: input.headless !== false,
     screenshotDir: input.screenshotDir || './storage/app/playwright-screenshots',
+    progressFile: input.progressFile || null,
     timeout: input.timeout || 30000,
     slowMo: input.slowMo || 50,
+    startRecord: Number.parseInt(input.startRecord || input.start_record || '1', 10) || 1,
+    onlyRecords: Array.isArray(input.onlyRecords || input.only_records)
+        ? (input.onlyRecords || input.only_records).map(n => Number.parseInt(n, 10)).filter(n => Number.isInteger(n) && n > 0)
+        : [],
 };
 
 // Result object
@@ -63,6 +68,8 @@ const result = {
     screenshots: [],
     logs: [],
     errors: [],
+    validation_errors: [],
+    validation_passed: null,
     warnings: [],
 };
 
@@ -71,6 +78,26 @@ function log(message, level = 'info') {
     const entry = { timestamp, level, message };
     result.logs.push(entry);
     console.error(`[${timestamp}] [${level.toUpperCase()}] ${message}`);
+}
+
+function writeProgress(event, data = {}) {
+    if (!config.progressFile) {
+        return;
+    }
+
+    try {
+        const payload = {
+            event,
+            timestamp: new Date().toISOString(),
+            td_number: result.td_number,
+            reference_number: result.reference_number,
+            ...data,
+        };
+
+        writeFileSync(config.progressFile, JSON.stringify(payload, null, 2));
+    } catch (e) {
+        log(`Failed to write progress file: ${e.message}`, 'warn');
+    }
 }
 
 // Find Chrome executable
@@ -232,12 +259,61 @@ async function createNewTD(page) {
         if (cells.length >= 2) {
             result.td_number = await cells[1].textContent();
             result.td_number = result.td_number.trim();
-            log(`Created TD: ${result.td_number}`);
         }
+    }
+
+    if (!result.td_number) {
+        result.td_number = await extractTdNumber(page);
+    }
+
+    if (result.td_number) {
+        result.reference_number = result.td_number;
+        log(`Created TD: ${result.td_number}`);
+        writeProgress('td_created', { td_number: result.td_number, reference_number: result.td_number });
+    } else {
+        log('Created TD, but TD number could not be extracted from the page', 'warn');
     }
     
     await takeScreenshot(page, '03-new-td-created');
     return true;
+}
+
+async function extractTdNumber(page) {
+    return await page.evaluate(() => {
+        const normalize = (value) => (value || '').replace(/\s+/g, ' ').trim();
+        const fullText = document.body?.innerText || '';
+        const fullTextMatch = fullText.match(/TD\s*NO\.?\s*:\s*[\r\n\s]*([0-9]{6,})/i);
+        if (fullTextMatch) {
+            return fullTextMatch[1];
+        }
+
+        const cells = Array.from(document.querySelectorAll('td, th, span, div'));
+        for (const cell of cells) {
+            if (!/TD\s*NO\.?\s*:/i.test(cell.textContent || '')) {
+                continue;
+            }
+
+            const row = cell.closest('tr') || cell.parentElement;
+            if (row) {
+                const rowMatch = normalize(row.innerText).match(/TD\s*NO\.?\s*:\s*([0-9]{6,})/i)
+                    || normalize(row.innerText).match(/\b([0-9]{6,})\b/);
+                if (rowMatch) {
+                    return rowMatch[1];
+                }
+            }
+
+            let sibling = cell.nextElementSibling;
+            while (sibling) {
+                const siblingMatch = normalize(sibling.textContent).match(/\b([0-9]{6,})\b/);
+                if (siblingMatch) {
+                    return siblingMatch[1];
+                }
+                sibling = sibling.nextElementSibling;
+            }
+        }
+
+        return '';
+    });
 }
 
 /**
@@ -270,7 +346,9 @@ async function openExistingTD(page, tdNumber) {
     }
 
     result.td_number = tdNumber;
+    result.reference_number = tdNumber;
     log(`Opened existing TD: ${tdNumber}`);
+    writeProgress('td_opened', { td_number: tdNumber, reference_number: tdNumber });
     await takeScreenshot(page, '03-td-opened');
     return true;
 }
@@ -612,7 +690,7 @@ async function addNewRecord(page, currentRecordCount) {
     
     // Click Add Record and wait for page reload.
     // CAPS reloads the entire page when adding a record, and it gets slower with more records.
-    const waitTimeout = Math.min(180000, 45000 + currentRecordCount * 8000);
+    const waitTimeout = Math.min(360000, 60000 + currentRecordCount * 10000);
     const nextRecNum = currentRecordCount + 1;
     const nextFieldName = `rec${nextRecNum}_CPC`;
 
@@ -623,38 +701,43 @@ async function addNewRecord(page, currentRecordCount) {
         ]);
     } catch (e) {
         log(`Navigation wait after Add Record (${waitTimeout}ms): ${e.message}`, 'warn');
-        await page.waitForTimeout(5000);
+        await page.waitForTimeout(15000);
         try {
-            await page.waitForLoadState('domcontentloaded', { timeout: 60000 });
+            await page.waitForLoadState('domcontentloaded', { timeout: 120000 });
         } catch (e2) {
             log('Page still loading after Add Record, waiting more...', 'warn');
-            await page.waitForTimeout(10000);
+            await page.waitForTimeout(30000);
         }
     }
-    await page.waitForTimeout(2000);
+    await page.waitForTimeout(5000);
 
     // Confirm the new record's input fields actually exist in the DOM
     try {
-        const confirmTimeout = Math.min(90000, 20000 + currentRecordCount * 5000);
+        const confirmTimeout = Math.min(300000, 60000 + currentRecordCount * 7000);
         await page.waitForFunction((fieldName) => {
             return !!document.querySelector(`input[name="${fieldName}"], textarea[name="${fieldName}"]`);
         }, nextFieldName, { timeout: confirmTimeout });
         log(`New item record #${nextRecNum} fields confirmed in DOM`);
     } catch (e) {
-        log(`Could not confirm new record fields (${nextFieldName}), continuing...`, 'warn');
+        throw new Error(`Could not confirm new record fields (${nextFieldName}) after Add Record: ${e.message}`);
     }
 
     // Scroll to the new record section
     const recPadded = nextRecNum.toString().padStart(4, '0');
-    await page.evaluate((pat) => {
-        const cells = document.querySelectorAll('td');
-        for (const cell of cells) {
-            if (cell.textContent.includes(`RECORD #${pat}`)) {
-                cell.scrollIntoView({ behavior: 'smooth', block: 'start' });
-                break;
+    try {
+        await page.waitForLoadState('domcontentloaded', { timeout: 60000 });
+        await page.evaluate((pat) => {
+            const cells = document.querySelectorAll('td');
+            for (const cell of cells) {
+                if (cell.textContent.includes(`RECORD #${pat}`)) {
+                    cell.scrollIntoView({ behavior: 'smooth', block: 'start' });
+                    break;
+                }
             }
-        }
-    }, recPadded);
+        }, recPadded);
+    } catch (e) {
+        log(`Could not scroll to new record #${nextRecNum}: ${e.message}`, 'warn');
+    }
 
     await page.waitForTimeout(500);
 }
@@ -662,16 +745,32 @@ async function addNewRecord(page, currentRecordCount) {
 /**
  * Fill all item records
  */
-async function fillItems(page, items) {
+async function fillItems(page, items, startRecord = 1) {
     if (!items || items.length === 0) {
         log('No items to fill');
         return;
     }
-    
-    log(`Filling ${items.length} item(s)...`);
-    
-    for (let i = 0; i < items.length; i++) {
+
+    const startIndex = Math.max(0, startRecord - 1);
+    const onlyRecords = new Set(config.onlyRecords || []);
+
+    if (startIndex >= items.length) {
+        log(`No items to fill from start record ${startRecord}; payload only has ${items.length} item(s)`);
+        return;
+    }
+
+    if (onlyRecords.size > 0) {
+        log(`Filling selected records: ${[...onlyRecords].sort((a, b) => a - b).join(', ')}`);
+    } else {
+        log(`Filling ${items.length - startIndex} item(s), starting at record #${startIndex + 1} of ${items.length}...`);
+    }
+
+    for (let i = startIndex; i < items.length; i++) {
         const recNum = i + 1;
+        if (onlyRecords.size > 0 && !onlyRecords.has(recNum)) {
+            continue;
+        }
+
         // Check if this record already exists in the DOM (editing existing TD)
         const recordExists = await page.$(`input[name="rec${recNum}_CPC"]`);
         
@@ -682,7 +781,7 @@ async function fillItems(page, items) {
         }
         
         await fillItemRecord(page, items[i], i);
-        await takeScreenshot(page, `05-item-${i + 1}-filled`);
+        await takeScreenshot(page, `05-item-${recNum}-filled`);
     }
     
     log(`All ${items.length} item(s) filled`);
@@ -917,8 +1016,11 @@ async function validateTD(page) {
             }
             return errors;
         });
-        errorDetails.forEach(e => log(`  CAPS Error: ${e}`, 'warn'));
-        result.warnings.push(`Validation errors: ${errorDetails.join('; ') || detectedErrors.join(', ')}`);
+        const validationErrors = [...new Set(errorDetails.length > 0 ? errorDetails : detectedErrors)];
+        validationErrors.forEach(e => log(`  CAPS Error: ${e}`, 'warn'));
+        result.validation_errors = validationErrors;
+        result.errors.push(...validationErrors.map(e => `CAPS validation error: ${e}`));
+        result.error = `CAPS validation failed: ${validationErrors.join('; ')}`;
     } else {
         log('Validation passed - no errors detected');
     }
@@ -1092,12 +1194,16 @@ async function runSubmission(browser) {
         } else {
             await createNewTD(page);
         }
+
+        if (config.action === 'attach') {
+            await attachFiles(page, context, config.attachments);
+        } else {
         
         // Step 3: Fill header section
         await fillHeaderSection(page, config.headerData, context);
         
         // Step 4: Fill item records
-        await fillItems(page, config.items);
+        await fillItems(page, config.items, config.startRecord);
         
         // Step 4b: Delete extra records when editing with fewer grouped items
         if (config.td_number) {
@@ -1119,19 +1225,33 @@ async function runSubmission(browser) {
                 result.validation_passed = validationPassed;
             }
         }
+        }
         
         const actionLabel = {
+            'attach': 'attachments uploaded',
             'save': 'saved',
             'validate': 'saved and validated',
             'submit': 'submitted'
         }[config.action] || 'processed';
-        
-        result.success = true;
-        result.message = `TD ${result.td_number} ${actionLabel} successfully`;
+
         result.reference_number = result.td_number;
+
+        if ((config.action === 'submit' || config.action === 'validate') && result.validation_passed === false) {
+            result.success = false;
+            result.message = `TD ${result.td_number} saved but CAPS validation failed`;
+        } else {
+            result.success = true;
+            result.message = `TD ${result.td_number} ${actionLabel} successfully`;
+        }
         
-        // Exit the form
-        await exitTD(page);
+        // Exit is cleanup after save/validation. Do not turn a completed
+        // validation into a failed run if CAPS navigates while leaving the form.
+        try {
+            await exitTD(page);
+        } catch (error) {
+            result.warnings.push(`Could not exit TD form cleanly: ${error.message}`);
+            log(`Could not exit TD form cleanly: ${error.message}`, 'warn');
+        }
         
     } finally {
         await takeScreenshot(page, '99-final-state');
@@ -1191,10 +1311,15 @@ async function main() {
         }
         
     } catch (error) {
+        if (result.success && result.validation_passed === true) {
+            result.warnings.push(`Post-validation cleanup error: ${error.message}`);
+            log(`Post-validation cleanup error: ${error.message}`, 'warn');
+        } else {
         result.success = false;
         result.error = error.message;
         result.errors.push(error.message);
         log(`Error: ${error.message}`, 'error');
+        }
     } finally {
         if (browser) {
             await browser.close();

@@ -24,6 +24,7 @@ class Country extends Model
         'ftp_port',
         'ftp_passive_mode',
         'ftp_base_path',
+        'ftp_response_path',
         'ftp_file_format',
         'submission_methods',
         'ftp_notification_email',
@@ -189,6 +190,7 @@ class Country extends Model
             'port' => $this->ftp_port ?? 21,
             'passive' => $this->ftp_passive_mode ?? true,
             'base_path' => $this->ftp_base_path ?? '/',
+            'response_path' => $this->ftp_response_path ?: ($this->ftp_base_path ?? '/'),
             'file_format' => $this->ftp_file_format ?? 'caps_t12',
             'notification_email' => $this->ftp_notification_email,
         ];

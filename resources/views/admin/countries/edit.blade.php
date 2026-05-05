@@ -175,6 +175,17 @@
                                             <div class="invalid-feedback">{{ $message }}</div>
                                         @enderror
                                     </div>
+                                    <div class="mb-3">
+                                        <label for="ftp_response_path" class="form-label">Response Path</label>
+                                        <input type="text" name="ftp_response_path" id="ftp_response_path"
+                                               class="form-control @error('ftp_response_path') is-invalid @enderror"
+                                               value="{{ old('ftp_response_path', $country->ftp_response_path) }}"
+                                               placeholder="(defaults to Base Path)">
+                                        <div class="form-text">Where CAPS posts <code>ETD&lt;filename&gt;_ATT_REP.TXT</code> response files. Leave blank to reuse the Base Path.</div>
+                                        @error('ftp_response_path')
+                                            <div class="invalid-feedback">{{ $message }}</div>
+                                        @enderror
+                                    </div>
                                 </div>
                                 <div class="col-md-6">
                                     <div class="mb-3">

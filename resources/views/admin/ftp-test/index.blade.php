@@ -551,6 +551,18 @@ document.addEventListener('DOMContentLoaded', function() {
             if (data.filename) {
                 msg += '<br><small>Filename: <code>' + data.filename + '</code></small>';
             }
+            if (data.success && data.submission_id) {
+                msg += '<hr class="my-2">';
+                msg += '<div class="d-flex gap-2 flex-wrap">';
+                msg += '<button type="button" class="btn btn-sm btn-outline-primary" onclick="adminUploadAttachments(' + data.submission_id + ')">';
+                msg += '<i class="fas fa-paperclip me-1"></i>Upload Attachments via FTP';
+                msg += '</button>';
+                msg += '<button type="button" class="btn btn-sm btn-outline-secondary" onclick="adminCheckStatus(' + data.submission_id + ')">';
+                msg += '<i class="fas fa-sync-alt me-1"></i>Check Attachment Status';
+                msg += '</button>';
+                msg += '</div>';
+                msg += '<div id="adminAttachmentResult-' + data.submission_id + '" class="mt-2 small"></div>';
+            }
             resultMessage.innerHTML = msg;
         })
         .catch(error => {
@@ -570,6 +582,50 @@ document.addEventListener('DOMContentLoaded', function() {
         return div.innerHTML;
     }
 });
+
+function adminUploadAttachments(submissionId) {
+    const target = document.getElementById('adminAttachmentResult-' + submissionId);
+    if (target) target.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Uploading attachments…';
+    fetch('{{ url('admin/ftp-test/attachments') }}/' + submissionId, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+        },
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (target) {
+            target.innerHTML = '<span class="' + (data.success ? 'text-success' : 'text-danger') + '">' +
+                '<i class="fas ' + (data.success ? 'fa-check' : 'fa-times') + ' me-1"></i>' + data.message + '</span>';
+        }
+    })
+    .catch(err => {
+        if (target) target.innerHTML = '<span class="text-danger">Error: ' + err.message + '</span>';
+    });
+}
+
+function adminCheckStatus(submissionId) {
+    const target = document.getElementById('adminAttachmentResult-' + submissionId);
+    if (target) target.innerHTML = '<i class="fas fa-spinner fa-spin me-1"></i>Checking status…';
+    fetch('{{ url('admin/ftp-test/check-status') }}/' + submissionId, {
+        method: 'POST',
+        headers: {
+            'X-CSRF-TOKEN': document.querySelector('meta[name="csrf-token"]').content,
+            'Accept': 'application/json',
+        },
+    })
+    .then(r => r.json())
+    .then(data => {
+        if (target) {
+            target.innerHTML = '<span class="' + (data.success ? 'text-success' : 'text-danger') + '">' +
+                '<i class="fas ' + (data.success ? 'fa-check' : 'fa-times') + ' me-1"></i>' + data.message + '</span>';
+        }
+    })
+    .catch(err => {
+        if (target) target.innerHTML = '<span class="text-danger">Error: ' + err.message + '</span>';
+    });
+}
 </script>
 @endpush
 @endsection

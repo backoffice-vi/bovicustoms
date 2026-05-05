@@ -354,6 +354,7 @@ class CapsT12Generator
             $this->formatDecimal($fob, 11, 2),                     // FOB Value
             $this->formatDecimal($cif, 11, 2),                     // CIF Value (= FOB + Freight + Insurance)
             $this->formatDecimal($item['total_due'] ?? 0, 11, 2),  // Total Due
+            $this->mapCurrencyCode($item['currency'] ?? null),     // Currency Code (Spec 4.0 Field 14)
         ];
 
         return implode(',', $fields);
@@ -529,6 +530,7 @@ class CapsT12Generator
                     'total_due' => $dutyData['total_due'] ?? 0,
                     'other_levies' => $dutyData['other_levies'] ?? [],
                     'additional_info' => [],
+                    'currency' => $this->resolveItemCurrency($declItem->currency ?? null, $declaration),
                 ];
             }
         }
@@ -557,6 +559,7 @@ class CapsT12Generator
                     'total_due' => $dutyData['total_due'] ?? 0,
                     'other_levies' => [],
                     'additional_info' => [],
+                    'currency' => $this->resolveItemCurrency($invoiceItem->currency ?? null, $declaration),
                 ];
             }
         }
@@ -584,11 +587,36 @@ class CapsT12Generator
                     'total_due' => $dutyData['total_due'] ?? $item['total_duty'] ?? 0,
                     'other_levies' => $item['other_levies'] ?? [],
                     'additional_info' => [],
+                    'currency' => $this->resolveItemCurrency($item['currency'] ?? null, $declaration),
                 ];
             }
         }
 
         return $items;
+    }
+
+    /**
+     * Resolve a currency code per item using the cascade:
+     *   item-level (AI invoice scan / TD creation)
+     *   -> declaration.currency (header AI extraction)
+     *   -> country.currency_code (country default)
+     *   -> 'USD'
+     */
+    protected function resolveItemCurrency(?string $itemCurrency, DeclarationForm $declaration): string
+    {
+        $candidates = [
+            $itemCurrency,
+            $declaration->currency,
+            $declaration->country?->currency_code,
+        ];
+
+        foreach ($candidates as $value) {
+            if (!empty($value)) {
+                return strtoupper(trim((string) $value));
+            }
+        }
+
+        return 'USD';
     }
     
     /**
@@ -856,6 +884,31 @@ class CapsT12Generator
         }
 
         return 'C400';
+    }
+
+    /**
+     * Map a currency code against CountryReferenceData (TYPE_CURRENCY).
+     * Returns the validated code (uppercase) if found, otherwise the trimmed
+     * uppercase input if it is already 3 characters, otherwise 'USD'.
+     */
+    protected function mapCurrencyCode(?string $currency): string
+    {
+        $normalized = strtoupper(trim((string) ($currency ?? '')));
+
+        if (empty($normalized)) {
+            return 'USD';
+        }
+
+        $code = $this->lookupReferenceCode(CountryReferenceData::TYPE_CURRENCY, $normalized, '');
+        if (!empty($code)) {
+            return strtoupper($code);
+        }
+
+        if (strlen($normalized) === 3) {
+            return $normalized;
+        }
+
+        return 'USD';
     }
 
     /**
@@ -1226,6 +1279,16 @@ class CapsT12Generator
                 }
                 if (empty($fields[5] ?? '')) {
                     $errors[] = ['severity' => 'warning', 'record' => "R30 (line {$recNum})", 'field' => 'Package Type (6)', 'message' => 'Package type is empty'];
+                }
+                if (count($fields) < 14) {
+                    $errors[] = ['severity' => 'error', 'record' => "R30 (line {$recNum})", 'field' => 'Currency Code (14)', 'message' => 'Currency code is missing — Spec 4.0 requires 14 fields per R30'];
+                } else {
+                    $currency = trim((string) ($fields[13] ?? ''));
+                    if (empty($currency)) {
+                        $errors[] = ['severity' => 'warning', 'record' => "R30 (line {$recNum})", 'field' => 'Currency Code (14)', 'message' => 'Currency code is empty'];
+                    } elseif (strlen($currency) !== 3) {
+                        $errors[] = ['severity' => 'warning', 'record' => "R30 (line {$recNum})", 'field' => 'Currency Code (14)', 'message' => 'Currency code must be exactly 3 characters; got ' . strlen($currency)];
+                    }
                 }
             }
         }

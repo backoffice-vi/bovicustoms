@@ -6,6 +6,7 @@ use App\Models\Country;
 use App\Models\DeclarationForm;
 use App\Models\OrganizationSubmissionCredential;
 use App\Models\WebFormSubmission;
+use App\Services\WebFormSubmission\CapsPreValidationService;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Storage;
 
@@ -14,21 +15,36 @@ use Illuminate\Support\Facades\Storage;
  */
 class FtpSubmissionService
 {
-    protected CapsT12Generator $generator;
-    protected $connection = null;
+    use FtpConnection;
 
-    public function __construct(CapsT12Generator $generator)
-    {
+    protected CapsT12Generator $generator;
+    protected CapsPreValidationService $capsPreValidation;
+    protected CapsAttachmentUploader $attachmentUploader;
+
+    public function __construct(
+        CapsT12Generator $generator,
+        CapsPreValidationService $capsPreValidation,
+        CapsAttachmentUploader $attachmentUploader
+    ) {
         $this->generator = $generator;
+        $this->capsPreValidation = $capsPreValidation;
+        $this->attachmentUploader = $attachmentUploader;
     }
 
     /**
-     * Submit a declaration via FTP
+     * Submit a declaration via FTP.
+     *
+     * @param bool $autoAttach when true, attachments (B/L, invoices) are uploaded
+     *                         immediately after the T12 file. Driven by the UI
+     *                         "Also upload attachments now" checkbox. Default
+     *                         is false to avoid silently changing existing
+     *                         callers (admin test page, etc).
      */
     public function submit(
         DeclarationForm $declaration,
         OrganizationSubmissionCredential $credentials,
-        bool $saveLocally = true
+        bool $saveLocally = true,
+        bool $autoAttach = false
     ): WebFormSubmission {
         $declaration->load(['country', 'organization']);
         
@@ -44,6 +60,11 @@ class FtpSubmissionService
 
         // Generate the T12 file
         $t12Data = $this->generator->generate($declaration, $credentials);
+        $preValidation = $this->capsPreValidation->validateT12Content($t12Data['content'], $declaration->country_id);
+
+        if (!$preValidation['valid']) {
+            throw new \RuntimeException('CAPS T12 pre-validation failed: ' . implode('; ', array_slice($preValidation['errors'], 0, 8)));
+        }
         
         // Create submission record
         $submission = WebFormSubmission::create([
@@ -58,6 +79,7 @@ class FtpSubmissionService
                 'trader_id' => $t12Data['trader_id'],
                 'line_count' => $t12Data['line_count'],
                 'item_count' => $t12Data['item_count'],
+                'caps_pre_validation' => $preValidation,
             ],
         ]);
 
@@ -116,6 +138,18 @@ class FtpSubmissionService
                 'remote_path' => $remotePath,
             ]);
 
+            // Optionally upload attachments alongside the T12 (Spec 4.0 §1.9)
+            if ($autoAttach) {
+                try {
+                    $this->attachmentUploader->uploadForSubmission($submission, $declaration, $country, $credentials);
+                } catch (\Throwable $e) {
+                    Log::warning('FTP attachment upload failed (T12 upload still succeeded)', [
+                        'submission_id' => $submission->id,
+                        'error' => $e->getMessage(),
+                    ]);
+                }
+            }
+
             return $submission;
 
         } catch (\Exception $e) {
@@ -139,6 +173,29 @@ class FtpSubmissionService
 
             throw $e;
         }
+    }
+
+    /**
+     * Manually trigger an attachment upload for an existing T12 submission.
+     * Used by the "Upload Attachments via FTP" button on the declaration page.
+     */
+    public function uploadAttachmentsOnly(
+        WebFormSubmission $submission,
+        DeclarationForm $declaration,
+        OrganizationSubmissionCredential $credentials
+    ): array {
+        $declaration->loadMissing('country');
+        $country = $declaration->country;
+
+        if (!$country || !$country->isFtpEnabled()) {
+            throw new \RuntimeException('FTP submission is not enabled for this country');
+        }
+
+        if (!$credentials->hasCompleteFtpCredentials()) {
+            throw new \RuntimeException('FTP credentials are incomplete');
+        }
+
+        return $this->attachmentUploader->uploadForSubmission($submission, $declaration, $country, $credentials);
     }
 
     /**
@@ -190,121 +247,6 @@ class FtpSubmissionService
                 'message' => 'Connection failed: ' . $e->getMessage(),
             ];
         }
-    }
-
-    /**
-     * Connect to FTP server
-     */
-    protected function connect(array $ftpSettings, array $credentials): void
-    {
-        $host = $ftpSettings['host'];
-        $port = $ftpSettings['port'] ?? 21;
-        $passive = $ftpSettings['passive'] ?? true;
-
-        // Establish connection
-        $this->connection = ftp_connect($host, $port, 30);
-        
-        if (!$this->connection) {
-            throw new \RuntimeException("Could not connect to FTP server: {$host}:{$port}");
-        }
-
-        // Login
-        $username = $credentials['username'];
-        $password = $credentials['password'];
-
-        if (!ftp_login($this->connection, $username, $password)) {
-            ftp_close($this->connection);
-            $this->connection = null;
-            throw new \RuntimeException("FTP login failed for user: {$username}");
-        }
-
-        // Set passive mode
-        if ($passive) {
-            ftp_pasv($this->connection, true);
-        }
-
-        Log::debug('FTP connected', ['host' => $host, 'user' => $username]);
-    }
-
-    /**
-     * Disconnect from FTP server
-     */
-    protected function disconnect(): void
-    {
-        if ($this->connection) {
-            ftp_close($this->connection);
-            $this->connection = null;
-        }
-    }
-
-    /**
-     * Upload content to FTP server
-     */
-    protected function upload(string $content, string $remotePath): void
-    {
-        if (!$this->connection) {
-            throw new \RuntimeException('Not connected to FTP server');
-        }
-
-        // Create a temporary file
-        $tempFile = tmpfile();
-        fwrite($tempFile, $content);
-        rewind($tempFile);
-        
-        $tempMeta = stream_get_meta_data($tempFile);
-        $tempPath = $tempMeta['uri'];
-
-        // Ensure directory exists
-        $remoteDir = dirname($remotePath);
-        $this->ensureDirectoryExists($remoteDir);
-
-        // Upload the file
-        $result = ftp_put($this->connection, $remotePath, $tempPath, FTP_ASCII);
-        
-        fclose($tempFile);
-
-        if (!$result) {
-            throw new \RuntimeException("Failed to upload file to: {$remotePath}");
-        }
-
-        Log::debug('FTP upload successful', ['remote_path' => $remotePath]);
-    }
-
-    /**
-     * Ensure remote directory exists
-     */
-    protected function ensureDirectoryExists(string $directory): void
-    {
-        if (empty($directory) || $directory === '/') {
-            return;
-        }
-
-        // Try to change to the directory
-        if (@ftp_chdir($this->connection, $directory)) {
-            // Directory exists, change back to root
-            ftp_chdir($this->connection, '/');
-            return;
-        }
-
-        // Directory doesn't exist, create it
-        $parts = explode('/', trim($directory, '/'));
-        $currentPath = '';
-
-        foreach ($parts as $part) {
-            $currentPath .= '/' . $part;
-            
-            if (!@ftp_chdir($this->connection, $currentPath)) {
-                if (!@ftp_mkdir($this->connection, $currentPath)) {
-                    // Directory might already exist due to race condition, try again
-                    if (!@ftp_chdir($this->connection, $currentPath)) {
-                        throw new \RuntimeException("Could not create directory: {$currentPath}");
-                    }
-                }
-            }
-        }
-
-        // Return to root
-        ftp_chdir($this->connection, '/');
     }
 
     /**
@@ -362,6 +304,11 @@ class FtpSubmissionService
         OrganizationSubmissionCredential $credentials
     ): array {
         return $this->generator->preview($declaration, $credentials);
+    }
+
+    public function validatePreview(array $preview, DeclarationForm $declaration): array
+    {
+        return $this->capsPreValidation->validateT12Preview($preview, $declaration->country_id);
     }
 
     /**

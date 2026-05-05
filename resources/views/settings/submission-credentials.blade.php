@@ -47,10 +47,18 @@
                     <div class="row">
                         <div class="col-md-6">
                             <h6><i class="fas fa-upload me-2 text-primary"></i>FTP Credentials</h6>
-                            <p class="small text-muted mb-0">
+                            <p class="small text-muted mb-1">
                                 For countries that support FTP submission (like BVI CAPS), you'll need your 
                                 <strong>Trader ID</strong>, <strong>username</strong>, and <strong>password</strong> 
                                 provided by the customs authority.
+                            </p>
+                            <p class="small text-muted mb-0">
+                                <i class="fas fa-paperclip me-1"></i>
+                                When you submit a declaration via FTP, you can choose to upload
+                                attachments (B/L, invoices) at the same time using the
+                                <em>"Also upload attachments now"</em> checkbox on the FTP submission
+                                page. You can always upload or re-upload attachments later from the
+                                declaration detail page.
                             </p>
                         </div>
                         <div class="col-md-6">

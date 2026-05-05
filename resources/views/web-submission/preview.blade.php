@@ -185,36 +185,37 @@
                                 </label>
                             </div>
 
-                            @if(!$isValid)
-                                <div class="form-check mb-3">
-                                    <input class="form-check-input" type="checkbox" name="force" id="forceSubmit">
-                                    <label class="form-check-label text-warning" for="forceSubmit">
-                                        <i class="fas fa-exclamation-triangle me-1"></i>
-                                        Submit anyway (ignore validation errors)
-                                    </label>
-                                </div>
+                            @if($isCaps)
+                                <a href="{{ route('web-submission.payload', ['declaration' => $declaration, 'target' => $target]) }}" 
+                                   target="_blank" class="btn btn-outline-secondary btn-sm mb-3">
+                                    <i class="fas fa-code me-1"></i>View Payload JSON
+                                </a>
                             @endif
 
                             @if($isCaps)
                                 <div class="d-grid gap-2 mt-auto">
-                                    <form action="{{ route('web-submission.submit', ['declaration' => $declaration, 'target' => $target]) }}" method="POST">
-                                        @csrf
-                                        <input type="hidden" name="action" value="save">
-                                        <input type="hidden" name="use_ai" value="1">
-                                        @if(!$isValid)<input type="hidden" name="force" value="1">@endif
-                                        <button type="submit" class="btn btn-warning btn-lg w-100 mb-2" id="saveBtn">
-                                            <i class="fas fa-save me-2"></i>Save (Draft)
+                                    @if(!$isValid)
+                                        <button class="btn btn-secondary btn-lg w-100 mb-2" disabled>
+                                            <i class="fas fa-ban me-2"></i>Fix Payload Errors First
                                         </button>
-                                    </form>
-                                    <form action="{{ route('web-submission.submit', ['declaration' => $declaration, 'target' => $target]) }}" method="POST">
-                                        @csrf
-                                        <input type="hidden" name="action" value="submit">
-                                        <input type="hidden" name="use_ai" value="1">
-                                        @if(!$isValid)<input type="hidden" name="force" value="1">@endif
-                                        <button type="submit" class="btn btn-success btn-lg w-100" id="submitBtn">
-                                            <i class="fas fa-paper-plane me-2"></i>Submit to Customs
-                                        </button>
-                                    </form>
+                                    @else
+                                        <form action="{{ route('web-submission.submit', ['declaration' => $declaration, 'target' => $target]) }}" method="POST">
+                                            @csrf
+                                            <input type="hidden" name="action" value="save">
+                                            <input type="hidden" name="use_ai" value="1">
+                                            <button type="submit" class="btn btn-warning btn-lg w-100 mb-2" id="saveBtn">
+                                                <i class="fas fa-save me-2"></i>Save (Draft)
+                                            </button>
+                                        </form>
+                                        <form action="{{ route('web-submission.submit', ['declaration' => $declaration, 'target' => $target]) }}" method="POST">
+                                            @csrf
+                                            <input type="hidden" name="action" value="submit">
+                                            <input type="hidden" name="use_ai" value="1">
+                                            <button type="submit" class="btn btn-success btn-lg w-100" id="submitBtn">
+                                                <i class="fas fa-paper-plane me-2"></i>Submit to Customs
+                                            </button>
+                                        </form>
+                                    @endif
                                 </div>
                             @else
                                 <form action="{{ route('web-submission.submit', ['declaration' => $declaration, 'target' => $target]) }}" method="POST" class="mt-auto">

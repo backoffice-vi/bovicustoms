@@ -1,0 +1,23 @@
+---
+description: Prevent short or padded tariff headings in CAPS submissions
+alwaysApply: true
+---
+
+# No Short CAPS Tariff Codes
+
+For CAPS web or FTP submissions, never use a short HS heading, a dotted heading, or a zero-padded fallback as a final tariff number.
+
+Legacy/raw HS values may remain in invoices, imported source data, or audit history. They do not need to be cleaned just because they are short. They must be resolved before they are used in a CAPS payload.
+
+## Required
+
+- Use only exact CAPS-accepted tariff codes for declaration item records.
+- Treat generated codes ending in filler zeros, such as `2009300`, `2202900`, or `1208900`, as suspicious unless confirmed as an exact CAPS tariff.
+- Do not convert a local heading like `2009.30` into `2009300` and submit it as final.
+- Do not overwrite source data solely to satisfy this rule; block or resolve the payload value instead.
+- If the exact CAPS tariff is unknown, stop and resolve it through the CAPS tariff lookup, official tariff reference, or a verified admin import before submission.
+- Local validation must block, not merely warn, when a tariff only matches a shorter heading and not an exact CAPS code.
+
+## Why
+
+CAPS rejects broad headings and padded fallback codes with `TARIFF NO. NOT KNOWN`. A locally plausible heading is not enough for final CAPS submission.

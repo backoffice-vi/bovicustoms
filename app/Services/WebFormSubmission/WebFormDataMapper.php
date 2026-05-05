@@ -292,7 +292,7 @@ class WebFormDataMapper
         }
 
         // Resolve B/L number: shipment field, then shipping document number
-        $billOfLading = $shipment?->bill_of_lading;
+        $billOfLading = $shipment?->bill_of_lading_number;
         if (empty($billOfLading) && $shipment) {
             $transportDoc = $shipment->shippingDocuments
                 ->first(fn($doc) => $doc->isPrimaryTransportDocument());
@@ -571,7 +571,7 @@ class WebFormDataMapper
      * 2. If fewer digits, try finding a valid 7-digit descendant in customs_codes
      * 3. Prefer catch-all "Other" codes (ending in 9) when multiple matches exist
      * 4. If subheading doesn't exist in DB, fall back to "Other" (x.90) under same heading
-     * 5. Fall back to zero-padding if nothing else found
+     * 5. Leave unresolved codes unchanged so validation can force review
      */
     /**
      * HS codes that were split/restructured in HS2017/2022.
@@ -626,13 +626,6 @@ class WebFormDataMapper
             return $best;
         }
 
-        // If this is a valid 6-digit subheading with no 7-digit children,
-        // the padded form (+ trailing 0) is accepted by CAPS.
-        $sixDigit = str_pad($digits, 6, '0');
-        if (strlen($digits) >= 5 && $this->subheadingExistsInDb($sixDigit)) {
-            return str_pad($sixDigit, 7, '0');
-        }
-
         // Subheading doesn't exist in DB — broaden search to the 4-digit heading
         // to find any valid 7-digit descendant (e.g., 1904.20 → 1904.900)
         $heading4 = substr($digits, 0, 4);
@@ -647,7 +640,9 @@ class WebFormDataMapper
             return $otherCode;
         }
 
-        return $padded;
+        // Do not fabricate a padded 7-digit tariff. CAPS rejects many
+        // heading-only fallbacks, so unresolved codes must be reviewed.
+        return $digits;
     }
 
     /**
@@ -970,7 +965,7 @@ PROMPT;
         // Add shipment data if available
         if ($declaration->shipment) {
             $data['shipment'] = [
-                'bill_of_lading' => $declaration->shipment->bill_of_lading,
+                'bill_of_lading' => $declaration->shipment->bill_of_lading_number,
                 'carrier' => $declaration->shipment->carrier,
                 'vessel_name' => $declaration->shipment->vessel_name,
                 'arrival_date' => $declaration->shipment->arrival_date,

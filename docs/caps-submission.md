@@ -2,6 +2,76 @@
 
 This document explains how the BVI Customs application automates the submission of Trade Declarations (TDs) to the **CAPS (Customs Automated Processing System)** web portal at `https://caps.gov.vg`.
 
+> **Related docs:**
+> - [Web-submission recent findings](web-submission-recent-findings.md) — MFT/FOB/B-L/tariff/record-51 issues found while submitting via the CAPS web portal.
+
+---
+
+## Spec 4.0 changes (May 2026)
+
+The CAPS Electronic Submission Guide v4.0 introduced two changes that are now reflected in the codebase:
+
+### 1. R30 Currency Code (field 14)
+
+Each item record (R30) now has a 14th field containing the 3-letter currency code (`USD`, `XCD`, etc.). The value comes from the cascade:
+
+1. `declaration_form_items.currency` (when items were created from the AI invoice scan or the TD form)
+2. `invoice_items.currency` (AI-extracted from the invoice itself)
+3. `declaration_forms.currency` (header AI extraction)
+4. `countries.currency_code` (country default)
+5. `'USD'` (final fallback)
+
+Mapping is performed by `CapsT12Generator::mapCurrencyCode()` against `CountryReferenceData::TYPE_CURRENCY` so that organizations with a custom currency table get validated codes. `validateT12()` now flags any R30 record that does not have exactly 14 fields, and warns on currency codes that are not 3 characters.
+
+### 2. FTP attachment upload (§1.9)
+
+In addition to the T12 declaration file, B/L and invoice attachments may now be sent via FTP using the format:
+
+```
+<T12 base filename>.<A-Z>.<extension>
+```
+
+For example, the T12 file `10018405052026.001` becomes:
+
+```
+10018405052026.001.A.pdf   ← Bill of Lading
+10018405052026.001.B.pdf   ← Invoice 1
+10018405052026.001.C.jpg   ← Invoice 2
+```
+
+Up to **26 attachments per submission** (letters A through Z) are supported. Allowed extensions: `pdf`, `jpg`, `jpeg`, `png`, `tif`, `tiff`, `gif`, `bmp`. Files are uploaded in `FTP_BINARY` mode.
+
+CAPS posts a confirmation file back to the same server:
+
+```
+ETD<T12 base filename>_ATT_REP.TXT
+e.g. ETD10018405052026.001_ATT_REP.TXT
+```
+
+The system polls for these response files **every 15 minutes** via the scheduled `App\Jobs\PollFtpAttachmentResponses` job and updates each `ftp_submission_attachments` row to `confirmed` or `rejected` accordingly. Response files are archived locally under `storage/app/ftp-submissions/{org}/responses/` for audit and are **not** deleted from the remote server (CAPS owns the lifecycle).
+
+### Where to control it
+
+| Surface | What it does |
+|---------|--------------|
+| FTP submission preview page → "Also upload attachments now" checkbox | Drives the `auto_attach` flag passed into `FtpSubmissionService::submit()`. Default is checked. |
+| Declaration show page → "Upload Attachments via FTP" button | Idempotent manual re-upload via `FtpSubmissionService::uploadAttachmentsOnly()`. Skips letters already in `uploaded`/`confirmed` state. Useful when the user uploads a missing B/L after the original T12 was sent. |
+| Declaration show page → "Check Status Now" button | Manually polls the CAPS response folder for this submission's `ETD…_ATT_REP.TXT` file. |
+| Admin → FTP Submission Testing → result block | Buttons to upload attachments and check status from the superadmin testing UI. |
+| Country admin → FTP tab → **Response Path** | Where CAPS posts the response files. Defaults to the Base Path when blank. |
+
+### Key new files
+
+| File | Purpose |
+|------|---------|
+| `app/Models/FtpSubmissionAttachment.php` | Per-attachment state (letter, remote filename, status, response). |
+| `database/migrations/2026_05_05_120000_create_ftp_submission_attachments_table.php` | Schema with unique `(web_form_submission_id, letter)`. |
+| `database/migrations/2026_05_05_120100_add_ftp_response_path_to_countries.php` | Adds `countries.ftp_response_path`. |
+| `app/Services/FtpSubmission/FtpConnection.php` | Trait that holds shared FTP plumbing (connect/disconnect/upload/list/download). |
+| `app/Services/FtpSubmission/CapsAttachmentUploader.php` | Builds attachment rows, uploads in `FTP_BINARY`, polls and parses response files. |
+| `app/Services/Documents/DeclarationAttachmentGatherer.php` | Shared by web (Playwright) and FTP flows so both pull the same B/L + invoice files. |
+| `app/Jobs/PollFtpAttachmentResponses.php` | Scheduled job — runs every 15 minutes via `App\Console\Kernel::schedule`. |
+
 ---
 
 ## Overview

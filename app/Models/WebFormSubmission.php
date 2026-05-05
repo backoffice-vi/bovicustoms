@@ -88,6 +88,14 @@ class WebFormSubmission extends Model
         return $this->belongsTo(Organization::class);
     }
 
+    /**
+     * FTP attachments uploaded for this submission (B/L, invoices, etc).
+     */
+    public function ftpAttachments()
+    {
+        return $this->hasMany(FtpSubmissionAttachment::class, 'web_form_submission_id');
+    }
+
     // ==========================================
     // Scopes
     // ==========================================

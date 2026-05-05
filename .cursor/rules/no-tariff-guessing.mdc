@@ -1,0 +1,19 @@
+---
+description: Never guess tariff codes; resolve them through a database/CAPS lookup
+alwaysApply: true
+---
+
+# No Tariff Guessing
+
+Never invent, pad, or guess a CAPS tariff number. Every tariff used in a CAPS payload must come from a real lookup against the project database (`customs_codes`) or the live CAPS Tariff Lookup. Pattern-matching on the description, "Other" suffixes, or trailing-digit conventions does not count as a lookup.
+
+## Required
+
+- Resolve every item tariff with an exact `CustomsCode` query (or the CAPS Tariff Lookup popup) before writing it to a payload, item record, or update script.
+- If no exact 7-digit match exists, search the database by description keywords or by parent heading and pick the actual stored code; do not synthesize a 7-digit suffix.
+- If neither the local DB nor CAPS lookup returns an exact code, stop and ask the user. Do not submit, save, or auto-fill a placeholder.
+- When updating a single bad tariff in CAPS, run the lookup first and quote the source row (code + description) so the user can confirm.
+
+## Why
+
+Padded codes like `1104209` or `0813200` look plausible but are rejected by CAPS as `TARIFF NO. NOT KNOWN`. Using a verified database row is the only reliable way to keep CAPS submissions valid.

@@ -22,7 +22,12 @@ class CapsErrorRecoveryService
 
     protected const NOT_FIXABLE_PATTERNS = [
         'login_failure' => '/login\s*fail|invalid\s*credentials|authentication/i',
+    ];
+
+    protected const TRANSIENT_PATTERNS = [
         'network_error' => '/ECONNREFUSED|ETIMEDOUT|network|connection\s*refused/i',
+        'parse_failure' => '/Failed to parse.*output|empty.*output|timeout|timed?\s*out/i',
+        'unexpected_page' => '/unexpected.*page|navigation.*failed|page.*crashed/i',
     ];
 
     public function __construct(ClaudeJsonClient $claude, WebFormDataMapper $dataMapper)
@@ -34,13 +39,10 @@ class CapsErrorRecoveryService
     /**
      * Analyze a CAPS result and determine if we can auto-fix and retry.
      *
-     * Returns:
-     *   can_retry      - whether the input was patched and a retry makes sense
-     *   fixes_applied  - human-readable list of fixes
-     *   fixed_input    - the patched Playwright input array
-     *   diagnosis      - AI-generated explanation of the failure
-     *   recommendations - AI suggestions for the user
-     *   error_categories - classified error types
+     * Strategy:
+     * 1. Pattern-based fixes (fast, deterministic)
+     * 2. If no pattern fixes, ask Claude to propose actual field changes
+     * 3. Transient errors (parse failures, timeouts) always get a retry
      */
     public function analyze(array $result, array $inputData): array
     {
@@ -50,10 +52,13 @@ class CapsErrorRecoveryService
             return $this->noErrorResult($inputData);
         }
 
+        $rawContext = trim(($result['raw_output'] ?? '') . "\n" . ($result['stderr'] ?? ''));
+
         $classified = $this->classifyErrors($errors);
         $fixesApplied = [];
         $fixedInput = $inputData;
 
+        // Phase 1: Pattern-based auto-fixes
         foreach ($classified as $entry) {
             $fix = $this->tryAutoFix($entry, $fixedInput);
             if ($fix) {
@@ -62,9 +67,27 @@ class CapsErrorRecoveryService
             }
         }
 
-        $aiAnalysis = $this->askClaudeForDiagnosis($errors, $inputData, $fixesApplied);
+        // Phase 2: If pattern fixes didn't resolve everything, ask AI for fixes
+        $hasUnfixedErrors = count($fixesApplied) < count(array_filter($classified, fn($e) => $e['category'] !== 'login_failure'));
+        $aiAnalysis = [];
 
-        $canRetry = !empty($fixesApplied) || $this->isRetriableWithoutChanges($classified);
+        if ($hasUnfixedErrors) {
+            $aiAnalysis = $this->askClaudeForFixes($errors, $fixedInput, $fixesApplied, $rawContext);
+
+            // Apply AI-proposed field changes
+            if (!empty($aiAnalysis['fixes'])) {
+                $aiFixResult = $this->applyAiFixes($aiAnalysis['fixes'], $fixedInput);
+                $fixedInput = $aiFixResult['input'];
+                foreach ($aiFixResult['applied'] as $desc) {
+                    $fixesApplied[] = "(AI) {$desc}";
+                }
+            }
+        } else {
+            $aiAnalysis = $this->askClaudeForDiagnosisOnly($errors, $fixedInput, $fixesApplied);
+        }
+
+        $isTransient = $this->isTransientError($classified);
+        $canRetry = !empty($fixesApplied) || $isTransient;
 
         return [
             'can_retry' => $canRetry,
@@ -121,6 +144,15 @@ class CapsErrorRecoveryService
                 }
             }
 
+            if ($category === 'unknown') {
+                foreach (self::TRANSIENT_PATTERNS as $cat => $pattern) {
+                    if (preg_match($pattern, $error)) {
+                        $category = $cat;
+                        break;
+                    }
+                }
+            }
+
             $recNumber = null;
             $boxNumber = null;
             if (preg_match('/Rec\s*(\d+)/i', $error, $m)) {
@@ -158,6 +190,230 @@ class CapsErrorRecoveryService
             default => null,
         };
     }
+
+    // ==========================================
+    // AI-driven fix proposal
+    // ==========================================
+
+    /**
+     * Ask Claude to diagnose AND propose concrete field changes.
+     */
+    protected function askClaudeForFixes(array $errors, array $inputData, array $existingFixes, string $rawContext = ''): array
+    {
+        $errorsText = implode("\n- ", $errors);
+        $fixesText = empty($existingFixes) ? 'None.' : implode("\n- ", $existingFixes);
+
+        $headerJson = json_encode(
+            collect($inputData['headerData'] ?? [])->filter()->toArray(),
+            JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES
+        );
+
+        $itemSample = array_slice($inputData['items'] ?? [], 0, 3);
+        $itemsJson = json_encode($itemSample, JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES);
+        $itemCount = count($inputData['items'] ?? []);
+
+        $rawOutput = '';
+        if ($rawContext) {
+            $rawOutput = "\nRaw Playwright output/stderr (last 2000 chars):\n" . substr($rawContext, -2000);
+        }
+
+        $prompt = <<<PROMPT
+You are a CAPS (BVI Customs Automated Processing System) expert and automated error recovery system.
+
+A submission to CAPS failed. Your job is to:
+1. Diagnose the root cause
+2. Propose CONCRETE field changes to fix the issue for retry
+
+Errors:
+- {$errorsText}
+
+Pattern-based fixes already applied:
+- {$fixesText}
+
+Header data sent:
+{$headerJson}
+
+Items ({$itemCount} total, first 3 shown):
+{$itemsJson}
+{$rawOutput}
+Known CAPS rules:
+- Tariff codes: exactly 7 digits, no dots, matching BVI tariff schedule
+- Payment method (Box 6a): must use code like "22", set via Lookup popup
+- Supplier ID: must be empty string unless it's a valid CAPS-registered trader code
+- Quantity units (Box 17b): must be "UNIT" — CAPS rejects "EA", "KG", etc.
+- Net weight (Box 17a): required per item; use quantity as fallback
+- Carrier/Voyage No (Box 3a): required, can use B/L number if not available
+- Manifest No (Box 4): required, can use B/L number if not available
+- Carrier ID: must be a valid registered carrier code (e.g. "ADP", "CRB")
+- "Failed to parse" errors: often caused by missing required fields that trigger CAPS validation popups the script didn't handle
+- All items need: tariff_number, net_weight, units, quantity, cif_value > 0
+
+Return JSON:
+{
+  "diagnosis": "Clear 1-2 sentence explanation of what went wrong",
+  "recommendations": ["User-facing recommendation 1", "..."],
+  "severity": "critical" | "recoverable" | "minor",
+  "fixes": [
+    {
+      "target": "header" | "item",
+      "item_index": null | 0,
+      "field": "field_name_in_the_data",
+      "old_value": "current value or null",
+      "new_value": "proposed value",
+      "reason": "why this change should fix it"
+    }
+  ]
+}
+
+Rules for proposing fixes:
+- Only propose fixes you are confident will help resolve the error
+- For "Failed to parse" errors, check if required header fields (head_CarrierNo, head_ManifestNo, head_CarrierID) are empty and propose values
+- For item errors, identify which items have issues (missing tariff, weight, units)
+- Use existing data from the input to derive fix values (e.g. use B/L number for missing carrier/manifest)
+- If no fix is possible (e.g. login failure), return empty fixes array
+- Limit to 10 most important fixes
+PROMPT;
+
+        try {
+            $result = $this->claude->promptForJson($prompt, 60, 2000);
+            return is_array($result) ? $result : [];
+        } catch (\Exception $e) {
+            Log::error('CapsErrorRecovery: Claude fix proposal failed', ['error' => $e->getMessage()]);
+            return [
+                'diagnosis' => 'AI fix proposal unavailable: ' . $e->getMessage(),
+                'recommendations' => ['Review the CAPS error messages manually.'],
+                'fixes' => [],
+            ];
+        }
+    }
+
+    /**
+     * Apply AI-proposed fixes to the input data.
+     */
+    protected function applyAiFixes(array $fixes, array $input): array
+    {
+        $applied = [];
+
+        foreach ($fixes as $fix) {
+            if (!is_array($fix) || empty($fix['field']) || !isset($fix['new_value'])) {
+                continue;
+            }
+
+            $target = $fix['target'] ?? 'header';
+            $field = $fix['field'];
+            $newValue = $fix['new_value'];
+            $reason = $fix['reason'] ?? '';
+
+            if ($target === 'header') {
+                $oldValue = $input['headerData'][$field] ?? null;
+                $input['headerData'][$field] = $newValue;
+                $applied[] = "{$field}: '{$oldValue}' → '{$newValue}'" . ($reason ? " ({$reason})" : '');
+            } elseif ($target === 'item') {
+                $idx = $fix['item_index'] ?? null;
+
+                if ($idx === null) {
+                    // Apply to all items
+                    foreach ($input['items'] ?? [] as $i => &$item) {
+                        $oldValue = $item[$field] ?? null;
+                        $item[$field] = $newValue;
+                    }
+                    unset($item);
+                    $applied[] = "All items {$field} → '{$newValue}'" . ($reason ? " ({$reason})" : '');
+                } elseif (isset($input['items'][$idx])) {
+                    $oldValue = $input['items'][$idx][$field] ?? null;
+                    $input['items'][$idx][$field] = $newValue;
+                    $applied[] = "Item {$idx} {$field}: '{$oldValue}' → '{$newValue}'" . ($reason ? " ({$reason})" : '');
+                }
+            }
+
+            if (count($applied) >= 10) {
+                break;
+            }
+        }
+
+        return ['input' => $input, 'applied' => $applied];
+    }
+
+    /**
+     * Diagnosis-only prompt (when pattern fixes already covered everything).
+     */
+    protected function askClaudeForDiagnosisOnly(array $errors, array $inputData, array $fixesApplied): array
+    {
+        $errorsText = implode("\n- ", $errors);
+        $fixesText = empty($fixesApplied) ? 'None applied yet.' : implode("\n- ", $fixesApplied);
+
+        $headerSummary = collect($inputData['headerData'] ?? [])
+            ->only([
+                'head_SupplierID', 'head_SupplierName', 'head_CarrierID', 'head_CarrierNo',
+                'head_PortOfArrival', 'head_ManifestNo', 'head_PaymentCode_line1',
+                'supplier_name', 'carrier_id', 'port_of_arrival', 'payment_method',
+            ])
+            ->filter()
+            ->map(fn($v, $k) => "{$k}: {$v}")
+            ->implode("\n");
+
+        $itemCount = count($inputData['items'] ?? []);
+
+        $prompt = <<<PROMPT
+You are a CAPS (BVI Customs Automated Processing System) expert.
+
+A submission to CAPS failed with these errors:
+- {$errorsText}
+
+Auto-fixes already applied:
+- {$fixesText}
+
+Header data sent:
+{$headerSummary}
+
+Number of items: {$itemCount}
+
+Known CAPS quirks:
+- Tariff codes must be exactly 7 digits matching the BVI tariff schedule
+- Payment method (Box 6a) must be set via the Lookup popup, not direct JS
+- Supplier ID must be empty unless it's a valid CAPS-registered trader code
+- Quantity units (Box 17b) must be "UNIT" — CAPS rejects "EA"
+- Net weight (Box 17a) is required; falls back to quantity if no explicit weight
+- Carrier/Voyage No (Box 3a) and Manifest No (Box 4) are required
+
+Provide a diagnosis and actionable recommendations.
+
+Return JSON only:
+{
+  "diagnosis": "Clear 1-2 sentence explanation of what went wrong",
+  "recommendations": ["Actionable recommendation 1", "Recommendation 2"],
+  "severity": "critical" | "recoverable" | "minor"
+}
+PROMPT;
+
+        try {
+            $result = $this->claude->promptForJson($prompt, 30, 500);
+            return is_array($result) ? $result : [];
+        } catch (\Exception $e) {
+            Log::error('CapsErrorRecovery: Claude diagnosis failed', ['error' => $e->getMessage()]);
+            return [
+                'diagnosis' => 'AI diagnosis unavailable: ' . $e->getMessage(),
+                'recommendations' => ['Review the CAPS error messages manually and correct the input data.'],
+            ];
+        }
+    }
+
+    /**
+     * Check if the errors are transient (worth retrying even without fixes).
+     */
+    protected function isTransientError(array $classified): bool
+    {
+        foreach ($classified as $entry) {
+            if (in_array($entry['category'], ['network_error', 'parse_failure', 'unexpected_page'])) {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    // ==========================================
+    // Pattern-based fix methods
+    // ==========================================
 
     protected function fixTariffCode(array $entry, array $input): ?array
     {
@@ -336,77 +592,6 @@ class CapsErrorRecoveryService
             ];
         }
         return null;
-    }
-
-    protected function askClaudeForDiagnosis(array $errors, array $inputData, array $fixesApplied): array
-    {
-        $errorsText = implode("\n- ", $errors);
-        $fixesText = empty($fixesApplied) ? 'None applied yet.' : implode("\n- ", $fixesApplied);
-
-        $headerSummary = collect($inputData['headerData'] ?? [])
-            ->only([
-                'head_SupplierID', 'head_SupplierName', 'head_CarrierID', 'head_CarrierNo',
-                'head_PortOfArrival', 'head_ManifestNo', 'head_PaymentCode_line1',
-                'supplier_name', 'carrier_id', 'port_of_arrival', 'payment_method',
-            ])
-            ->filter()
-            ->map(fn($v, $k) => "{$k}: {$v}")
-            ->implode("\n");
-
-        $itemCount = count($inputData['items'] ?? []);
-
-        $prompt = <<<PROMPT
-You are a CAPS (BVI Customs Automated Processing System) expert.
-
-A submission to CAPS failed with these errors:
-- {$errorsText}
-
-Auto-fixes already applied:
-- {$fixesText}
-
-Header data sent:
-{$headerSummary}
-
-Number of items: {$itemCount}
-
-Known CAPS quirks:
-- Tariff codes must be exactly 7 digits matching the BVI tariff schedule
-- Payment method (Box 6a) must be set via the Lookup popup, not direct JS
-- Supplier ID must be empty unless it's a valid CAPS-registered trader code
-- Quantity units (Box 17b) must be "UNIT" — CAPS rejects "EA"
-- Net weight (Box 17a) is required; falls back to quantity if no explicit weight
-- Carrier/Voyage No (Box 3a) and Manifest No (Box 4) are required
-
-Provide a diagnosis and actionable recommendations.
-
-Return JSON only:
-{
-  "diagnosis": "Clear 1-2 sentence explanation of what went wrong",
-  "recommendations": ["Actionable recommendation 1", "Recommendation 2"],
-  "severity": "critical" | "recoverable" | "minor"
-}
-PROMPT;
-
-        try {
-            $result = $this->claude->promptForJson($prompt, 30, 500);
-            return is_array($result) ? $result : [];
-        } catch (\Exception $e) {
-            Log::error('CapsErrorRecovery: Claude diagnosis failed', ['error' => $e->getMessage()]);
-            return [
-                'diagnosis' => 'AI diagnosis unavailable: ' . $e->getMessage(),
-                'recommendations' => ['Review the CAPS error messages manually and correct the input data.'],
-            ];
-        }
-    }
-
-    protected function isRetriableWithoutChanges(array $classified): bool
-    {
-        foreach ($classified as $entry) {
-            if (in_array($entry['category'], ['network_error'])) {
-                return true;
-            }
-        }
-        return false;
     }
 
     protected function resolveCountryId(array $input): ?int

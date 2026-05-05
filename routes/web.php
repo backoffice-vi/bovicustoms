@@ -123,6 +123,7 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
     Route::prefix('declaration-forms/{declaration}/web-submit')->name('web-submission.')->group(function () {
         Route::get('/', [App\Http\Controllers\WebSubmissionController::class, 'index'])->name('index');
         Route::get('/preview/{target}', [App\Http\Controllers\WebSubmissionController::class, 'preview'])->name('preview');
+        Route::get('/payload/{target}', [App\Http\Controllers\WebSubmissionController::class, 'payload'])->name('payload');
         Route::post('/submit/{target}', [App\Http\Controllers\WebSubmissionController::class, 'submit'])->name('submit');
         Route::get('/result/{submission}', [App\Http\Controllers\WebSubmissionController::class, 'result'])->name('result');
         Route::get('/history', [App\Http\Controllers\WebSubmissionController::class, 'history'])->name('history');
@@ -140,6 +141,8 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         Route::get('/history', [App\Http\Controllers\FtpSubmissionController::class, 'history'])->name('history');
     });
     Route::post('ftp-submission/{submission}/retry', [App\Http\Controllers\FtpSubmissionController::class, 'retry'])->name('ftp-submission.retry');
+    Route::post('ftp-submission/{submission}/attachments', [App\Http\Controllers\FtpSubmissionController::class, 'uploadAttachments'])->name('ftp-submission.attachments');
+    Route::post('ftp-submission/{submission}/check-status', [App\Http\Controllers\FtpSubmissionController::class, 'checkAttachmentStatus'])->name('ftp-submission.check-status');
 
     // Trade Contacts (reusable shipper, consignee, broker data)
     Route::resource('trade-contacts', TradeContactController::class);
@@ -354,6 +357,8 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
             Route::get('/download/{declaration}', [App\Http\Controllers\Admin\FtpTestController::class, 'downloadT12'])->name('download');
             Route::post('/submit', [App\Http\Controllers\Admin\FtpTestController::class, 'submit'])->name('submit');
             Route::get('/credentials', [App\Http\Controllers\Admin\FtpTestController::class, 'getCredentials'])->name('credentials');
+            Route::post('/attachments/{submission}', [App\Http\Controllers\Admin\FtpTestController::class, 'uploadAttachments'])->name('attachments');
+            Route::post('/check-status/{submission}', [App\Http\Controllers\Admin\FtpTestController::class, 'checkAttachmentStatus'])->name('check-status');
         });
     });
 
