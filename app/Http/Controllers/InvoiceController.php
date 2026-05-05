@@ -388,6 +388,18 @@ class InvoiceController extends Controller
         // Store the classification payload in cache so the artisan command can read it
         Cache::put("pending_classification_{$invoice->id}", $pending, now()->addHours(2));
 
+        // Ensure a queue worker is running before kicking off classification.
+        // Classification itself runs as a detached artisan process, but the
+        // ItemClassifier dispatches notifications/broadcast events that are
+        // queued — so we need a worker to drain them.
+        try {
+            EnsureQueueWorker::ensureRunning();
+        } catch (\Throwable $e) {
+            Log::warning('Could not auto-start queue worker before classification', [
+                'error' => $e->getMessage(),
+            ]);
+        }
+
         // Spawn background artisan process — returns immediately so the browser can poll
         $php = PHP_BINARY ?: 'php';
         $artisan = base_path('artisan');
