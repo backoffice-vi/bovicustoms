@@ -431,34 +431,21 @@ PROMPT;
         $item = $items[$itemIndex];
         $currentCode = $item['tariff_number'] ?? '';
 
+        // Only re-run the resolver. It will renormalize the code (e.g. strip
+        // dots, pad XXXX.YY headings to XXXXYY0) but it must NEVER substitute
+        // a sibling subheading or "Other" code — that violates the
+        // no-tariff-guessing rule and silently misclassifies the item.
         $newCode = $this->dataMapper->resolveCapsTariffCodePublic($currentCode);
         if ($newCode && $newCode !== $currentCode && $newCode !== '0000000') {
             $input['items'][$itemIndex]['tariff_number'] = $newCode;
             return [
                 'input' => $input,
-                'description' => "Rec {$rec}: Tariff code changed from {$currentCode} to {$newCode}",
+                'description' => "Rec {$rec}: Tariff code renormalized from {$currentCode} to {$newCode}",
             ];
         }
 
-        $digits = preg_replace('/[^0-9]/', '', $currentCode);
-        $heading4 = substr($digits, 0, 4);
-
-        $alternates = \App\Models\CustomsCode::where('code', 'LIKE', $heading4 . '.%')
-            ->limit(5)
-            ->pluck('code')
-            ->toArray();
-
-        if (!empty($alternates)) {
-            $bestCode = $alternates[0];
-            $sevenDigit = preg_replace('/[^0-9]/', '', $bestCode);
-            $sevenDigit = str_pad($sevenDigit, 7, '0');
-            $input['items'][$itemIndex]['tariff_number'] = $sevenDigit;
-            return [
-                'input' => $input,
-                'description' => "Rec {$rec}: Tariff code changed from {$currentCode} to {$sevenDigit} (heading {$heading4} fallback)",
-            ];
-        }
-
+        // No safe automatic fix is possible. Surface the failure so the user
+        // can reclassify the item against the real CAPS tariff schedule.
         return null;
     }
 

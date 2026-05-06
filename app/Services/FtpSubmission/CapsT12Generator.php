@@ -53,7 +53,7 @@ class CapsT12Generator
     /**
      * Generate a T12 file content from a declaration
      */
-    public function generate(DeclarationForm $declaration, OrganizationSubmissionCredential $credentials): array
+    public function generate(DeclarationForm $declaration, OrganizationSubmissionCredential $credentials, bool $isAmendment = false): array
     {
         $declaration->load([
             'country',
@@ -82,9 +82,11 @@ class CapsT12Generator
 
         $lines = [];
         $lineCount = 0;
+        $items = $this->getDeclarationItems($declaration);
+        $headerTotals = $this->calculateHeaderTotals($items);
 
         // R10 - Header
-        $headerLine = $this->generateHeader($declaration, $traderId, $ftpCreds);
+        $headerLine = $this->generateHeader($declaration, $traderId, $ftpCreds, $headerTotals);
         $lines[] = $headerLine;
         $lineCount++;
 
@@ -103,7 +105,6 @@ class CapsT12Generator
         }
 
         // Process items
-        $items = $this->getDeclarationItems($declaration);
         foreach ($items as $index => $item) {
             // R30 - Item Record
             $itemLine = $this->generateItemRecord($item, $declaration);
@@ -137,8 +138,10 @@ class CapsT12Generator
         $lines[] = $trailerLine;
 
         $content = implode(self::LINE_ENDING, $lines);
-        $sequence = $this->getNextSequence($traderId, $declaration);
-        $filename = $this->generateFilename($traderId, $declaration, $sequence);
+        $sequence = $this->getNextSequence($traderId, $declaration, $isAmendment);
+        $filename = $isAmendment
+            ? $this->generateAmendmentFilename($traderId, $declaration, $sequence)
+            : $this->generateFilename($traderId, $declaration, $sequence);
 
         return [
             'content' => $content,
@@ -147,6 +150,7 @@ class CapsT12Generator
             'line_count' => $lineCount + 1,
             'item_count' => count($items),
             'sequence' => $sequence,
+            'is_amendment' => $isAmendment,
         ];
     }
 
@@ -217,7 +221,7 @@ class CapsT12Generator
     /**
      * R10 - Header Record
      */
-    protected function generateHeader(DeclarationForm $declaration, string $traderId, array $ftpCreds): string
+    protected function generateHeader(DeclarationForm $declaration, string $traderId, array $ftpCreds, array $headerTotals = []): string
     {
         $shipper = $declaration->shipperContact ?? $declaration->shipment?->shipperContact;
         $importer = $declaration->consigneeContact ?? $declaration->shipment?->consigneeContact;
@@ -260,12 +264,12 @@ class CapsT12Generator
             $this->formatField($cityOfShipment, 20),                       // City (Direct Shipment) - 5a
             $this->formatCountryCode($supplierCountry),                    // Country (Direct Shipment) - 5b
             $this->formatCountryCode($countryOfOrigin),                    // Country (Original Shipment) - 5c
-            $this->formatNumber($this->getItemCount($declaration), 3),     // Total No. of Records
-            $this->formatDecimal($declaration->freight_total ?? $shipment?->freight_total ?? 0, 11, 2), // Total Freight
+            $this->formatNumber($headerTotals['item_count'] ?? $this->getItemCount($declaration), 3),     // Total No. of Records
+            $this->formatDecimal($headerTotals['freight_total'] ?? $declaration->freight_total ?? $shipment?->freight_total ?? 0, 11, 2), // Total Freight
             $declaration->freight_prorated ? 'Y' : 'N',                    // Is Freight Prorated?
-            $this->formatDecimal($declaration->insurance_total ?? $shipment?->insurance_total ?? 0, 11, 2), // Total Insurance
+            $this->formatDecimal($headerTotals['insurance_total'] ?? $declaration->insurance_total ?? $shipment?->insurance_total ?? 0, 11, 2), // Total Insurance
             $declaration->insurance_prorated ? 'Y' : 'N',                  // Is Insurance Prorated?
-            $this->formatDecimal($declaration->total_duty ?? 0, 11, 2),    // Total Payable
+            $this->formatDecimal($headerTotals['total_payable'] ?? $declaration->total_duty ?? 0, 11, 2),    // Total Payable
             $this->mapPaymentMethod($declaration->payment_method),           // Payment method code
             $this->formatField($ftpCreds['declarant_name'] ?? '', 30),       // Declarant Person Name
             $this->formatField($declaration->organization?->trader_id ?? $traderId, 6), // Declarant Company ID
@@ -353,7 +357,7 @@ class CapsT12Generator
             $this->mapUnitCode($item['units'] ?? ''),              // Units (CAPS unit code)
             $this->formatDecimal($fob, 11, 2),                     // FOB Value
             $this->formatDecimal($cif, 11, 2),                     // CIF Value (= FOB + Freight + Insurance)
-            $this->formatDecimal($item['total_due'] ?? 0, 11, 2),  // Total Due
+            $this->formatDecimal($this->calculateItemTaxTotal($item), 11, 2),  // Total Due
             $this->mapCurrencyCode($item['currency'] ?? null),     // Currency Code (Spec 4.0 Field 14)
         ];
 
@@ -593,6 +597,56 @@ class CapsT12Generator
         }
 
         return $items;
+    }
+
+    /**
+     * Build R10 totals from the same rounded values emitted in R30/R40/R50.
+     * CAPS validates header totals against detail rows, so model-level totals
+     * can drift when per-item rounding is applied.
+     */
+    protected function calculateHeaderTotals(array $items): array
+    {
+        $totals = [
+            'item_count' => count($items),
+            'freight_total' => 0.0,
+            'insurance_total' => 0.0,
+            'total_payable' => 0.0,
+        ];
+
+        foreach ($items as $item) {
+            $totals['freight_total'] += round((float) ($item['freight_amount'] ?? 0), 2);
+            $totals['insurance_total'] += round((float) ($item['insurance_amount'] ?? 0), 2);
+            $totals['total_payable'] += $this->calculateItemTaxTotal($item);
+        }
+
+        return [
+            'item_count' => $totals['item_count'],
+            'freight_total' => round($totals['freight_total'], 2),
+            'insurance_total' => round($totals['insurance_total'], 2),
+            'total_payable' => round($totals['total_payable'], 2),
+        ];
+    }
+
+    /**
+     * R30 total due should equal the sum of emitted R50 tax amounts.
+     */
+    protected function calculateItemTaxTotal(array $item): float
+    {
+        $total = 0.0;
+
+        if (!empty($item['customs_duty']) && $item['customs_duty'] > 0) {
+            $total += round((float) $item['customs_duty'], 2);
+        }
+
+        if (!empty($item['wharfage']) && $item['wharfage'] > 0) {
+            $total += round((float) $item['wharfage'], 2);
+        }
+
+        foreach ($item['other_levies'] ?? [] as $levy) {
+            $total += round((float) ($levy['amount'] ?? 0), 2);
+        }
+
+        return round($total, 2);
     }
 
     /**
@@ -1053,10 +1107,14 @@ class CapsT12Generator
             return '';
         }
 
-        // Strip commas (field delimiter)
-        $value = str_replace(',', ' ', $value);
-        
-        // Limit length
+        // CAPS only accepts: alphanumeric + space + # & * ( ) - . /
+        // Anything else triggers a Format Error Report (apostrophes, plus signs,
+        // accented chars, quotes, commas, etc.). Replace disallowed chars with
+        // a space, then collapse runs of whitespace.
+        $value = preg_replace('/[^A-Za-z0-9 #&*()\-.\/]/u', ' ', $value);
+        $value = preg_replace('/\s+/', ' ', $value);
+        $value = trim($value);
+
         return Str::limit($value, $maxLength, '');
     }
 
@@ -1133,8 +1191,10 @@ class CapsT12Generator
 
     /**
      * Format tariff number (7 digits, no periods).
-     * Delegates to WebFormDataMapper's resolveCapsTariffCode for proper BVI tariff resolution
-     * (HS version mappings, "Other" catch-alls, 7-digit descendant search).
+     * Delegates to WebFormDataMapper::resolveCapsTariffCode which strips
+     * formatting and pads short codes (XXXX.YY) to the CAPS XXXXYY0 form.
+     * It does NOT substitute siblings or "Other" subheadings — unresolved
+     * codes flow through to the pre-validator which blocks them.
      */
     protected function formatTariffNumber(?string $tariff): string
     {

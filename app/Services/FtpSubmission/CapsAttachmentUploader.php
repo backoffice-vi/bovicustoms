@@ -295,6 +295,20 @@ class CapsAttachmentUploader
         $declaration->load(['shipment.shippingDocuments', 'shipment.invoices', 'invoice']);
 
         $gathered = $this->gatherer->gather($declaration, includeMissing: true);
+
+        Log::debug('CAPS attachment gather result', [
+            'submission_id' => $submission->id,
+            'declaration_id' => $declaration->id,
+            'count' => count($gathered),
+            'entries' => array_map(fn ($e) => [
+                'type' => $e['type'] ?? null,
+                'srcRef' => $e['sourceReference'] ?? null,
+                'orig' => $e['originalFilename'] ?? null,
+                'exists' => $e['exists'] ?? null,
+            ], $gathered),
+            'existing_keys' => $existing->keys()->all(),
+        ]);
+
         $rows = [];
 
         foreach ($gathered as $entry) {

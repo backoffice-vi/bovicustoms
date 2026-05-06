@@ -146,34 +146,64 @@ class ItemClassifier
     /**
      * Annotate a classifier result with CAPS-readiness flags.
      *
-     * CAPS only accepts exact 7-digit BVI sub-item codes. Headings (4-digit),
-     * subheadings (6-digit), and padded headings (7 digits ending in trailing
-     * filler zeros) are rejected as TARIFF NO. NOT KNOWN.
+     * BVI CAPS accepts two forms of 7-digit tariff codes (verified against
+     * legacy CAPS-approved declarations):
+     *
+     *   1. True 7-digit subheadings stored as XXXX.YYY (e.g. 1902.001 → 1902001)
+     *   2. 6-digit headings stored as XXXX.YY rendered with a trailing 0
+     *      (e.g. 0804.10 → 0804100)
+     *
+     * A code is CAPS-ready iff an exact row exists in customs_codes for either
+     * form. The classifier MUST NOT substitute or pad to a code that is not
+     * present in the local tariff schedule.
      */
     protected function annotateCapsReadiness(array $result): array
     {
         $code = (string) ($result['code'] ?? '');
         $digits = preg_replace('/\D/', '', $code);
 
-        $isExact7 = strlen($digits) === 7;
-        $endsWithFillerZero = $isExact7 && substr($digits, -1) === '0';
-        $hasParentLevels = strlen($digits) >= 1 && strlen($digits) < 7;
+        $capsReady = false;
+        $reason = null;
 
-        $capsReady = $isExact7 && !$endsWithFillerZero;
+        if ($code === '' || $digits === '') {
+            $reason = 'No tariff code resolved.';
+        } elseif (strlen($digits) > 7) {
+            $reason = "Code '{$digits}' has more than 7 digits; trim to a 7-digit BVI tariff.";
+        } else {
+            // True 7-digit subheading: code must exist as XXXX.YYY (or as the
+            // 7-digit form without the dot) in customs_codes.
+            $dotted7 = strlen($digits) >= 5
+                ? substr($digits, 0, 4) . '.' . substr($digits, 4)
+                : null;
+            $hasSubheading = $dotted7 !== null && CustomsCode::where('code', $dotted7)->exists();
+
+            // 6-digit heading: only counts as CAPS-ready when the classifier
+            // returned exactly the heading form (XXXX.YY or XXXXYY) and the
+            // heading row exists. A 7-digit code whose dotted form does NOT
+            // exist (e.g. 1515.501 when only 1515.50 is in the DB) must be
+            // flagged so the user can choose the heading or a real sub-item.
+            $hasHeadingForm = false;
+            if (strlen($digits) === 6) {
+                $dotted6 = substr($digits, 0, 4) . '.' . substr($digits, 4, 2);
+                $hasHeadingForm = CustomsCode::where('code', $dotted6)->exists();
+            } elseif (strlen($digits) === 7 && substr($digits, -1) === '0') {
+                // XXXXYY0 form — heading rendered with trailing 0 (CAPS form).
+                $dotted6 = substr($digits, 0, 4) . '.' . substr($digits, 4, 2);
+                $hasHeadingForm = CustomsCode::where('code', $dotted6)->exists();
+            }
+
+            if ($hasSubheading || $hasHeadingForm) {
+                $capsReady = true;
+            } else {
+                $reason = "Code '{$code}' is not in the BVI customs_codes table; reclassify to an exact tariff row (XXXX.YY heading or XXXX.YYY sub-item).";
+            }
+        }
 
         $result['caps_ready'] = $capsReady;
         $result['needs_subitem'] = !$capsReady;
 
         if (!$capsReady) {
-            $reason = match (true) {
-                $code === '' || $digits === '' => 'No tariff code resolved.',
-                $hasParentLevels => "Code '{$code}' is a heading or subheading; CAPS requires a 7-digit sub-item.",
-                $endsWithFillerZero => "Code '{$digits}' looks like a padded heading; CAPS requires an exact BVI 7-digit sub-item.",
-                strlen($digits) > 7 => "Code '{$digits}' has more than 7 digits; trim to the BVI 7-digit sub-item.",
-                default => "Code '{$code}' is not an exact 7-digit CAPS sub-item.",
-            };
             $result['caps_subitem_required_reason'] = $reason;
-
             $result['warnings'] = array_values(array_unique(array_merge(
                 $result['warnings'] ?? [],
                 [$reason]
@@ -509,48 +539,41 @@ class ItemClassifier
         if (empty($result['code'])) {
             return $result;
         }
-        
-        // Look up the main code in database (exact match first)
-        $mainCode = CustomsCode::where('code', $result['code'])
-            ->when($countryId, fn($q) => $q->where('country_id', $countryId))
-            ->first();
-        
-        // If no exact match, try to find a parent/similar code
-        if (!$mainCode) {
-            $searchCode = $result['code'];
-            $normalizedCode = str_replace('.', '', $searchCode);
-            
-            // Try finding codes that start with the suggested code prefix
-            $matchingCodes = CustomsCode::where(function($q) use ($searchCode, $normalizedCode) {
-                    $q->where('code', 'like', substr($searchCode, 0, 4) . '%')
-                      ->orWhereRaw("REPLACE(code, '.', '') LIKE ?", [substr($normalizedCode, 0, 4) . '%']);
-                })
+
+        $rawCode = (string) $result['code'];
+        $digits = preg_replace('/\D/', '', $rawCode);
+
+        // Try the exact dotted form Claude returned, and the canonical BVI
+        // dotted forms derived from its digits. Both XXXX.YYY (true 7-digit
+        // subheading) and XXXX.YY (6-digit heading rendered as XXXXYY0 in
+        // CAPS) are valid; both require an exact row in customs_codes.
+        $candidates = array_values(array_unique(array_filter([
+            $rawCode,
+            $digits,
+            strlen($digits) >= 5 ? substr($digits, 0, 4) . '.' . substr($digits, 4) : null,
+            strlen($digits) >= 6 ? substr($digits, 0, 4) . '.' . substr($digits, 4, 2) : null,
+        ])));
+
+        $mainCode = null;
+        foreach ($candidates as $candidate) {
+            $mainCode = CustomsCode::where('code', $candidate)
                 ->when($countryId, fn($q) => $q->where('country_id', $countryId))
-                ->get();
-            
-            if ($matchingCodes->isNotEmpty()) {
-                // Find the best match (longest code that is a prefix of or matches the suggested code)
-                $mainCode = $matchingCodes->sortByDesc(function($code) use ($normalizedCode) {
-                    $dbCode = str_replace('.', '', $code->code);
-                    // Score by how much of the suggested code matches
-                    $matchLen = 0;
-                    for ($i = 0; $i < min(strlen($dbCode), strlen($normalizedCode)); $i++) {
-                        if ($dbCode[$i] === $normalizedCode[$i]) {
-                            $matchLen++;
-                        } else {
-                            break;
-                        }
-                    }
-                    return $matchLen * 100 + strlen($dbCode);
-                })->first();
-                
-                // Update the result code to the actual database code
-                if ($mainCode) {
-                    $result['code'] = $mainCode->code;
-                }
+                ->first();
+            if ($mainCode) {
+                break;
             }
         }
-        
+
+        // If no exact row exists, do NOT substitute a sibling under the same
+        // 4-digit heading — that violates the no-tariff-guessing rule and was
+        // the source of silent misclassification (e.g. sesame oil → linseed
+        // oil). Return the original code untouched and let the validator /
+        // CAPS readiness annotation flag it for manual review.
+        if ($mainCode) {
+            // Normalize result code to the exact DB form.
+            $result['code'] = $mainCode->code;
+        }
+
         if ($mainCode) {
             // Override with database values (source of truth)
             $result['duty_rate'] = $mainCode->duty_rate;
@@ -1496,7 +1519,7 @@ PROMPT;
         }
 
         return <<<PROMPT
-You are a customs classification expert. Classify the following item based on the Harmonized System (HS) codes and chapter notes provided.
+You are a customs classification expert for the **British Virgin Islands (BVI)**. Classify the following item against the BVI tariff schedule using ONLY codes from the AVAILABLE TARIFF CODES list below.
 
 ## IMPORTANT NOTES AND RULES
 These notes contain critical rules for classification. Read them carefully:
@@ -1512,10 +1535,11 @@ These notes contain critical rules for classification. Read them carefully:
 {$codesText}
 
 ## INSTRUCTIONS
-1. Read the chapter notes carefully - they contain exclusions and definitions
-2. Apply any relevant rules from the notes (e.g., if notes say "does not cover X", don't classify X under this chapter)
-3. Find the most specific code that matches the item
-4. Consider the item's primary function and composition
+1. Read the chapter notes carefully — they contain exclusions and definitions.
+2. Apply any relevant rules from the notes (e.g., if notes say "does not cover X", don't classify X under this chapter).
+3. **Pick the most specific code from the AVAILABLE TARIFF CODES list above.** Prefer a 7-digit BVI sub-item (XXXX.YYY) over a 6-digit heading (XXXX.YY) when both exist for the same product.
+4. **Do NOT invent codes.** Your response MUST use a code that appears verbatim in the AVAILABLE TARIFF CODES list. If no candidate fits, return status="insufficient" rather than guessing.
+5. Consider the item's primary function and composition.
 
 ## RESPONSE FORMAT
 Return a JSON object with a status field:
@@ -1530,12 +1554,12 @@ Return a JSON object with a status field:
 }
 
 STATUS VALUES:
-- "success" = Found a matching code from the list
-- "insufficient" = The item doesn't match any of the provided codes (e.g., looking for electronics but only food codes provided)
-- "ambiguous" = Multiple codes could apply equally well, need more item details
-- "not_found" = Cannot determine classification from provided information
+- "success" = Found a matching code that appears in the AVAILABLE TARIFF CODES list above.
+- "insufficient" = The item does not match any of the provided codes (e.g., looking for electronics but only food codes provided).
+- "ambiguous" = Multiple codes could apply equally well; need more item details.
+- "not_found" = Cannot determine classification from provided information.
 
-If status is NOT "success", still provide your best explanation of why and what type of code would be appropriate.
+If status is NOT "success", still explain what type of code would be appropriate.
 
 Only return the JSON object, no other text.
 PROMPT;
@@ -1749,21 +1773,25 @@ PROMPT;
         $displayDesc = $expandedDescription ?: $itemDescription;
 
         $prompt = <<<PROMPT
-You are a customs classification expert specializing in the Harmonized System (HS).
+You are a customs classification expert for the **British Virgin Islands (BVI)** tariff schedule.
 
-Classify the following product with the correct 6-digit HS code. The first line is the raw invoice text; the second (if present) is an expanded description.
+Classify the following product with a BVI tariff code. The first line is the raw invoice text; the second (if present) is an expanded description.
 
 RAW INVOICE TEXT: {$itemDescription}
 EXPANDED DESCRIPTION: {$displayDesc}
 
 IMPORTANT RULES:
-- Identify brand names and ignore them for classification (e.g., "ARROWHEAD MILLS" is a brand, not a product)
-- Focus on what the product actually IS — its material, composition, preparation method, and intended use
-- Use the standard WCO Harmonized System 2022 nomenclature
-- For food products: distinguish between raw/unprocessed (Chapters 1-14), processed/prepared (Chapters 15-24), and specifically prepared foods (Chapter 19-21)
-- Popcorn kernels (unpopped) = Chapter 10 (cereals/maize), prepared/popped popcorn = 19.04
-- Seeds for sowing vs seeds for consumption have different codes
-- Dried legumes = 07.13, fresh legumes = 07.08
+- Output a code in the BVI dotted format. Two valid forms exist:
+    * XXXX.YYY  (7-digit BVI sub-item, e.g. 1902.001, 0801.309) — prefer this when one exists for the product.
+    * XXXX.YY   (6-digit heading, e.g. 0902.00, 1515.50) — use this only when no more specific BVI sub-item exists.
+- Do NOT pad a heading with extra digits. Do NOT invent a 7th digit. If only the 6-digit heading is appropriate, return XXXX.YY exactly.
+- Identify brand names and ignore them for classification (e.g., "ARROWHEAD MILLS" is a brand, not a product).
+- Focus on what the product actually IS — its material, composition, preparation method, and intended use.
+- For food products: distinguish between raw/unprocessed (Chapters 1-14), processed/prepared (Chapters 15-24), and specifically prepared foods (Chapters 19-21).
+- Popcorn kernels (unpopped) = Chapter 10 (cereals/maize), prepared/popped popcorn = 19.04.
+- Seeds for sowing vs seeds for consumption have different codes.
+- Dried legumes = 07.13, fresh legumes = 07.08.
+- Dietary supplements / herbal capsules without therapeutic claims = 21.06; medicaments with active ingredients = Chapter 30.
 
 Return ONLY a JSON object:
 {
@@ -1772,7 +1800,7 @@ Return ONLY a JSON object:
     "description": "Prepared foods obtained by the swelling or roasting of cereals",
     "confidence": 90,
     "explanation": "Brief reasoning for this classification",
-    "alternatives": ["1905.90"]
+    "alternatives": ["1905.009"]
 }
 
 If you truly cannot classify, set status to "not_found" with an explanation.
@@ -2860,15 +2888,15 @@ PROMPT;
         }
 
         return <<<PROMPT
-You are a customs classification expert. Your task is to classify the item below using the Harmonized System (HS) codes.
+You are a customs classification expert for the **British Virgin Islands (BVI)** tariff schedule. Classify the item below using ONLY codes that appear verbatim in the CANDIDATE TARIFF CODES list.
 
 ## IMPORTANT CONTEXT
 The candidate codes below were found by **semantic similarity search**, not keyword matching. This means:
-- A product description like "Liver Detox 60 caps" might match codes for organ extracts (because "liver" is similar to "glands/organs")
-- BUT you must use **reasoning** to determine the item's TRUE nature
+- A product description like "Liver Detox 60 caps" might match codes for organ extracts (because "liver" is similar to "glands/organs").
+- You must use **reasoning** to determine the item's TRUE nature, not just pick the most similar candidate.
 - Dietary/nutritional supplements, vitamins, and health products in capsule/tablet form are typically classified under:
-  - **21.06** - Food preparations not elsewhere specified (for supplements without medicinal claims)
-  - **30.04** - Medicaments (if they make therapeutic claims and contain active pharmaceutical ingredients)
+  - **21.06** — Food preparations not elsewhere specified (for supplements without medicinal claims).
+  - **30.04** — Medicaments (if they make therapeutic claims and contain active pharmaceutical ingredients).
 
 {$ruleInstructionText}
 {$notesText}
@@ -2880,30 +2908,32 @@ The candidate codes below were found by **semantic similarity search**, not keyw
 "{$itemDescription}"
 
 ## YOUR TASK
-1. **Analyze the item's true nature** - What is this product actually? (e.g., a dietary supplement, medicine, food, chemical, etc.)
-2. **Consider the form** - Capsules, tablets, powders suggest supplements or medicines; raw materials suggest different chapters
-3. **Apply chapter notes** - Check if any exclusion rules redirect this item
-4. **Select the most appropriate code** - Choose based on the item's nature, not just word similarity
+1. **Analyze the item's true nature** — what is this product actually? (e.g., a dietary supplement, medicine, food, chemical, etc.)
+2. **Consider the form** — capsules, tablets, powders suggest supplements or medicines; raw materials suggest different chapters.
+3. **Apply chapter notes** — check if any exclusion rules redirect this item.
+4. **Pick the most specific code from the CANDIDATE TARIFF CODES list above.** Prefer a 7-digit BVI sub-item (XXXX.YYY) over a 6-digit heading (XXXX.YY) when both fit the same product.
+5. **Do NOT invent codes.** Your response MUST use a code that appears verbatim in the CANDIDATE TARIFF CODES list. If none of the candidates fit, return status="insufficient".
+6. **Do NOT pad headings.** Return XXXX.YY exactly when only the heading applies; do not append extra digits to make it look 7-digit.
 
 ## RESPONSE FORMAT
 Return a JSON object with a status field:
 {
     "status": "success",
-    "code": "21.06",
+    "code": "2106.009",
     "description": "Dietary supplement in capsule form for liver health support",
-    "duty_rate": 15,
+    "duty_rate": 5,
     "confidence": 85,
     "explanation": "This is a dietary supplement (detox product in capsule form) rather than an organ extract. Supplements are classified under 21.06 as food preparations not elsewhere specified.",
-    "alternatives": ["30.04", "30.01"]
+    "alternatives": ["3004.509"]
 }
 
 STATUS VALUES:
-- "success" = Found a matching code from the list
-- "insufficient" = The item doesn't match any of the provided codes (e.g., looking for electronics but only food codes provided)
-- "ambiguous" = Multiple codes could apply equally well, need more item details
-- "not_found" = Cannot determine classification from provided information
+- "success" = Found a matching code that appears in the CANDIDATE TARIFF CODES list above.
+- "insufficient" = The item doesn't match any of the provided codes (e.g., looking for electronics but only food codes provided).
+- "ambiguous" = Multiple codes could apply equally well, need more item details.
+- "not_found" = Cannot determine classification from provided information.
 
-If status is NOT "success", still provide your best explanation of why and what type of code would be appropriate.
+If status is NOT "success", still explain what type of code would be appropriate.
 
 Only return the JSON object, no other text.
 PROMPT;

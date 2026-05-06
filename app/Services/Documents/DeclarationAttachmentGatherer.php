@@ -65,12 +65,18 @@ class DeclarationAttachmentGatherer
                 continue;
             }
 
+            $invoiceFallback = $invoice->original_filename;
+            if (empty($invoiceFallback) || $this->looksLikeStorageHash($invoiceFallback)) {
+                $ext = pathinfo($invoice->source_file_path, PATHINFO_EXTENSION) ?: 'pdf';
+                $invoiceFallback = 'Invoice-' . ($invoice->invoice_number ?? $invoice->id) . '.' . $ext;
+            }
+
             $entry = $this->buildEntry(
                 relativePath: $invoice->source_file_path,
                 label: 'Invoice #' . ($invoice->invoice_number ?? $invoice->id),
                 type: 'invoice',
                 sourceReference: $invoice->invoice_number,
-                originalFilename: $invoice->original_filename ?? null,
+                originalFilename: $invoiceFallback,
             );
 
             if ($entry['exists'] || $includeMissing) {
@@ -116,15 +122,32 @@ class DeclarationAttachmentGatherer
         $absolute = storage_path('app/' . ltrim($relativePath, '/'));
         $exists = is_file($absolute);
 
+        $resolvedOriginal = $originalFilename;
+        if ($resolvedOriginal === null || $resolvedOriginal === '' || $this->looksLikeStorageHash($resolvedOriginal)) {
+            $base = basename($relativePath);
+            $resolvedOriginal = $this->looksLikeStorageHash($base)
+                ? ($label . '.' . (pathinfo($relativePath, PATHINFO_EXTENSION) ?: 'bin'))
+                : $base;
+        }
+
         return [
             'label' => $label,
             'filePath' => $exists ? $absolute : null,
             'relativePath' => $relativePath,
             'type' => $type,
             'sourceReference' => $sourceReference,
-            'originalFilename' => $originalFilename ?? basename($relativePath),
+            'originalFilename' => $resolvedOriginal,
             'exists' => $exists,
             'missingReason' => $exists ? null : 'File not found on disk at ' . $absolute,
         ];
+    }
+
+    /**
+     * Detect Laravel-style storage hashes (e.g. "6wibawJ96fpLBzkHJthehojb6Plj5IYZnFzc12UH.pdf")
+     * that should not surface to brokers as a "filename".
+     */
+    private function looksLikeStorageHash(string $name): bool
+    {
+        return (bool) preg_match('/^[A-Za-z0-9]{20,}\.[A-Za-z0-9]+$/', $name);
     }
 }

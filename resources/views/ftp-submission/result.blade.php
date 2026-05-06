@@ -43,6 +43,95 @@
     </div>
     @endif
 
+    @if(session('warning'))
+    <div class="alert alert-warning alert-dismissible fade show" role="alert">
+        <i class="fas fa-exclamation-triangle me-2"></i>{{ session('warning') }}
+        <button type="button" class="btn-close" data-bs-dismiss="alert" aria-label="Close"></button>
+    </div>
+    @endif
+
+    {{-- CAPS-side response panel: only meaningful for successful FTP uploads. --}}
+    @if($submission->is_successful)
+        <div class="card mb-4">
+            <div class="card-header bg-{{ $submission->caps_response_color }} text-white">
+                <h5 class="mb-0">
+                    <i class="fas fa-stamp me-2"></i>CAPS Response: {{ $submission->caps_response_label }}
+                </h5>
+            </div>
+            <div class="card-body">
+                @if($submission->caps_accepted)
+                    <p class="mb-3 text-success">
+                        <i class="fas fa-check-circle me-2"></i>
+                        CAPS accepted this declaration on
+                        {{ $submission->caps_response_received_at?->format('d/m/Y H:i') }}.
+                    </p>
+                    <form action="{{ route('ftp-submission.amendment', $submission) }}" method="POST"
+                        onsubmit="return confirm('Submit an amendment T12 (XXXXXXDDMMYYYYA.SSS) for this accepted declaration?');">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="fas fa-edit me-2"></i>Submit Amendment
+                        </button>
+                    </form>
+                @elseif($submission->caps_rejected)
+                    @php
+                        $errors = $submission->caps_response_errors['errors'] ?? [];
+                    @endphp
+                    <p class="mb-3 text-danger">
+                        <i class="fas fa-exclamation-circle me-2"></i>
+                        CAPS rejected this declaration with {{ count($errors) }} error(s).
+                    </p>
+
+                    @if(!empty($errors))
+                        <div class="table-responsive mb-3">
+                            <table class="table table-sm table-bordered">
+                                <thead class="table-light">
+                                    <tr>
+                                        <th style="width:60px">Line</th>
+                                        <th>Description</th>
+                                        <th>Tariff</th>
+                                        <th>Error</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach($errors as $err)
+                                        <tr>
+                                            <td>{{ $err['line_number'] ?? '—' }}</td>
+                                            <td>{{ $err['item_description'] ?? '—' }}</td>
+                                            <td><code>{{ $err['tariff_code'] ?? '—' }}</code></td>
+                                            <td><span class="text-danger">{{ $err['error_message'] }}</span></td>
+                                        </tr>
+                                    @endforeach
+                                </tbody>
+                            </table>
+                        </div>
+                    @endif
+
+                    <a href="{{ route('ftp-submission.fix', $submission) }}" class="btn btn-warning">
+                        <i class="fas fa-tools me-2"></i>Fix and Resubmit
+                    </a>
+                @else
+                    {{-- Still awaiting CAPS response: offer manual upload. --}}
+                    <p class="mb-3 text-muted">
+                        <i class="fas fa-clock me-2"></i>
+                        CAPS has not yet responded for this submission. If you've received a query report
+                        by email, upload the PDF below to mark it rejected and start the Fix and Resubmit
+                        flow.
+                    </p>
+                    <form action="{{ route('ftp-submission.mark-rejected', $submission) }}" method="POST"
+                        enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center">
+                        @csrf
+                        <input type="file" name="caps_response_file" accept="application/pdf,.pdf,.txt,text/plain"
+                            class="form-control" style="max-width: 380px" required>
+                        <button type="submit" class="btn btn-outline-danger">
+                            <i class="fas fa-file-upload me-2"></i>Upload CAPS Report
+                        </button>
+                        <small class="text-muted ms-2">PDF or TXT, max 20 MB</small>
+                    </form>
+                @endif
+            </div>
+        </div>
+    @endif
+
     <div class="row">
         <!-- Result Card -->
         <div class="col-lg-6 mb-4">
@@ -156,6 +245,22 @@
                             <tr>
                                 <th>Remote Path:</th>
                                 <td><code>{{ $submission->response_data['remote_path'] }}</code></td>
+                            </tr>
+                        @endif
+                        @if($submission->parent_submission_id)
+                            <tr>
+                                <th>Resubmission Of:</th>
+                                <td>
+                                    <a href="{{ route('ftp-submission.result', ['declaration' => $declaration->id, 'submission' => $submission->parent_submission_id]) }}">
+                                        <code>{{ $submission->parentSubmission?->external_reference ?? ('#' . $submission->parent_submission_id) }}</code>
+                                    </a>
+                                </td>
+                            </tr>
+                        @endif
+                        @if(($submission->request_data['is_amendment'] ?? false))
+                            <tr>
+                                <th>Amendment:</th>
+                                <td><span class="badge bg-info"><i class="fas fa-edit me-1"></i>Yes</span></td>
                             </tr>
                         @endif
                     </table>

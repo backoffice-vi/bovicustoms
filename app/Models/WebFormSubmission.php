@@ -20,6 +20,21 @@ class WebFormSubmission extends Model
     const STATUS_REJECTED = 'rejected';
 
     /**
+     * CAPS response status constants (distinct from FTP-layer `status`).
+     */
+    const CAPS_RESPONSE_PENDING = 'pending';
+    const CAPS_RESPONSE_ACCEPTED = 'accepted';
+    const CAPS_RESPONSE_REJECTED = 'rejected';
+    const CAPS_RESPONSE_PARTIAL = 'partial';
+
+    /**
+     * CAPS response source constants.
+     */
+    const CAPS_SOURCE_MANUAL_UPLOAD = 'manual_upload';
+    const CAPS_SOURCE_FTP_POLL = 'ftp_poll';
+    const CAPS_SOURCE_EMAIL = 'email';
+
+    /**
      * Submission type constants
      */
     const TYPE_WEB = 'web';
@@ -48,6 +63,12 @@ class WebFormSubmission extends Model
         'submitted_at',
         'completed_at',
         'duration_seconds',
+        'caps_response_status',
+        'caps_response_received_at',
+        'caps_response_source',
+        'caps_response_file_path',
+        'caps_response_errors',
+        'parent_submission_id',
     ];
 
     protected $casts = [
@@ -62,6 +83,8 @@ class WebFormSubmission extends Model
         'started_at' => 'datetime',
         'submitted_at' => 'datetime',
         'completed_at' => 'datetime',
+        'caps_response_received_at' => 'datetime',
+        'caps_response_errors' => 'array',
     ];
 
     // ==========================================
@@ -94,6 +117,38 @@ class WebFormSubmission extends Model
     public function ftpAttachments()
     {
         return $this->hasMany(FtpSubmissionAttachment::class, 'web_form_submission_id');
+    }
+
+    /**
+     * Original submission this one was created from (for resubmissions/amendments).
+     */
+    public function parentSubmission()
+    {
+        return $this->belongsTo(self::class, 'parent_submission_id');
+    }
+
+    /**
+     * Resubmissions/amendments derived from this submission.
+     */
+    public function childSubmissions()
+    {
+        return $this->hasMany(self::class, 'parent_submission_id');
+    }
+
+    /**
+     * Walk to the root of the resubmission chain.
+     */
+    public function rootSubmission(): self
+    {
+        $cursor = $this;
+        while ($cursor->parent_submission_id) {
+            $next = $cursor->parentSubmission()->first();
+            if (!$next) {
+                break;
+            }
+            $cursor = $next;
+        }
+        return $cursor;
     }
 
     // ==========================================
@@ -158,6 +213,24 @@ class WebFormSubmission extends Model
     public function scopeForDeclaration($query, $declarationId)
     {
         return $query->where('declaration_form_id', $declarationId);
+    }
+
+    public function scopeCapsAccepted($query)
+    {
+        return $query->where('caps_response_status', self::CAPS_RESPONSE_ACCEPTED);
+    }
+
+    public function scopeCapsRejected($query)
+    {
+        return $query->whereIn('caps_response_status', [
+            self::CAPS_RESPONSE_REJECTED,
+            self::CAPS_RESPONSE_PARTIAL,
+        ]);
+    }
+
+    public function scopeAwaitingCapsResponse($query)
+    {
+        return $query->where('caps_response_status', self::CAPS_RESPONSE_PENDING);
     }
 
     // ==========================================
@@ -244,11 +317,85 @@ class WebFormSubmission extends Model
     }
 
     /**
-     * Check if submission can be retried
+     * Check if submission can be retried.
+     *
+     * A submission is retryable if either:
+     *  - the FTP-layer submission failed (legacy retry path), or
+     *  - CAPS rejected the declaration after a successful FTP upload.
+     *
+     * Retries are capped at 3 to avoid runaway loops.
      */
     public function getCanRetryAttribute(): bool
     {
-        return $this->status === self::STATUS_FAILED && $this->retry_count < 3;
+        if ($this->retry_count >= 3) {
+            return false;
+        }
+
+        if ($this->status === self::STATUS_FAILED) {
+            return true;
+        }
+
+        return in_array($this->caps_response_status, [
+            self::CAPS_RESPONSE_REJECTED,
+            self::CAPS_RESPONSE_PARTIAL,
+        ], true);
+    }
+
+    /**
+     * True if CAPS has issued any response (accepted, rejected, partial).
+     */
+    public function getHasCapsResponseAttribute(): bool
+    {
+        return $this->caps_response_status
+            && $this->caps_response_status !== self::CAPS_RESPONSE_PENDING;
+    }
+
+    /**
+     * True if CAPS accepted the declaration. Amendments are only allowed
+     * against an accepted parent.
+     */
+    public function getCapsAcceptedAttribute(): bool
+    {
+        return $this->caps_response_status === self::CAPS_RESPONSE_ACCEPTED;
+    }
+
+    /**
+     * True if CAPS rejected the declaration (full or partial).
+     */
+    public function getCapsRejectedAttribute(): bool
+    {
+        return in_array($this->caps_response_status, [
+            self::CAPS_RESPONSE_REJECTED,
+            self::CAPS_RESPONSE_PARTIAL,
+        ], true);
+    }
+
+    /**
+     * Get CAPS response status label.
+     */
+    public function getCapsResponseLabelAttribute(): string
+    {
+        return match ($this->caps_response_status) {
+            self::CAPS_RESPONSE_ACCEPTED => 'Accepted by CAPS',
+            self::CAPS_RESPONSE_REJECTED => 'Rejected by CAPS',
+            self::CAPS_RESPONSE_PARTIAL => 'Partially accepted',
+            self::CAPS_RESPONSE_PENDING => 'Awaiting CAPS response',
+            default => 'Unknown',
+        };
+    }
+
+    /**
+     * Get CAPS response status color for UI badges.
+     */
+    public function getCapsResponseColorAttribute(): string
+    {
+        return match ($this->caps_response_status) {
+            self::CAPS_RESPONSE_ACCEPTED => 'success',
+            self::CAPS_RESPONSE_REJECTED => 'danger',
+            self::CAPS_RESPONSE_PARTIAL => 'warning',
+            self::CAPS_RESPONSE_PENDING => 'secondary',
+            default => 'secondary',
+        };
     }
 
     /**
@@ -335,6 +482,44 @@ class WebFormSubmission extends Model
     }
 
     /**
+     * Record a CAPS rejection (full or partial). Does not change the FTP-layer
+     * `status`, which remains `submitted` because the file was uploaded
+     * successfully — only CAPS's verdict on the contents changed.
+     */
+    public function markCapsRejected(
+        array $errors,
+        string $source = self::CAPS_SOURCE_MANUAL_UPLOAD,
+        ?string $filePath = null,
+        bool $partial = false
+    ): void {
+        $this->update([
+            'caps_response_status' => $partial
+                ? self::CAPS_RESPONSE_PARTIAL
+                : self::CAPS_RESPONSE_REJECTED,
+            'caps_response_received_at' => now(),
+            'caps_response_source' => $source,
+            'caps_response_file_path' => $filePath,
+            'caps_response_errors' => $errors,
+        ]);
+    }
+
+    /**
+     * Record a CAPS acceptance.
+     */
+    public function markCapsAccepted(
+        string $source = self::CAPS_SOURCE_MANUAL_UPLOAD,
+        ?string $filePath = null
+    ): void {
+        $this->update([
+            'caps_response_status' => self::CAPS_RESPONSE_ACCEPTED,
+            'caps_response_received_at' => now(),
+            'caps_response_source' => $source,
+            'caps_response_file_path' => $filePath,
+            'caps_response_errors' => null,
+        ]);
+    }
+
+    /**
      * Add a log entry
      */
     public function addLog(string $message, string $level = 'info'): void
@@ -390,7 +575,8 @@ class WebFormSubmission extends Model
     }
 
     /**
-     * Create a retry submission
+     * Create a retry submission. The new submission keeps a `parent_submission_id`
+     * link back to the original so the resubmission chain is queryable.
      */
     public function createRetry(): self
     {
@@ -399,8 +585,10 @@ class WebFormSubmission extends Model
             'declaration_form_id' => $this->declaration_form_id,
             'user_id' => auth()->id() ?? $this->user_id,
             'organization_id' => $this->organization_id,
+            'submission_type' => $this->submission_type,
             'status' => self::STATUS_PENDING,
             'retry_count' => $this->retry_count + 1,
+            'parent_submission_id' => $this->id,
         ]);
     }
 }

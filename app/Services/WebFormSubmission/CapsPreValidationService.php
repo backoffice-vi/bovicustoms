@@ -70,6 +70,8 @@ class CapsPreValidationService
                 $records++;
                 $currentRecord = [
                     'record' => $records,
+                    'cpc' => strtoupper(trim((string) ($fields[1] ?? ''))),
+                    'tariff' => preg_replace('/\D/', '', (string) ($fields[2] ?? '')),
                     'fob' => $this->money($fields[10] ?? 0),
                     'cif' => $this->money($fields[11] ?? 0),
                     'freight' => 0.0,
@@ -98,13 +100,33 @@ class CapsPreValidationService
             if ($type === 'R50' && $currentRecord) {
                 $taxType = strtoupper(trim((string) ($fields[1] ?? '')));
                 $taxValue = $this->money($fields[3] ?? 0);
+                $taxRate = $this->money($fields[4] ?? 0);
+                $taxAmount = $this->money($fields[5] ?? 0);
 
                 $this->checkReference($countryId, CountryReferenceData::TYPE_TAX_TYPE, $taxType, "Record {$currentRecord['record']} tax type", true, $errors, $warnings);
+                $this->assertMoneyEquals(
+                    "Record {$currentRecord['record']} {$taxType} amount must equal value multiplied by rate",
+                    $taxValue * ($taxRate / 100),
+                    $taxAmount,
+                    $errors,
+                    0.01
+                );
 
                 if ($taxType === 'CUD') {
                     $this->assertMoneyEquals("Record {$currentRecord['record']} CUD tax value must equal CIF", $currentRecord['cif'], $taxValue, $errors);
+                    $this->validateCudRateAgainstTariff(
+                        $currentRecord['tariff'] ?? '',
+                        $taxRate,
+                        $currentRecord['cpc'] ?? '',
+                        "Record {$currentRecord['record']}",
+                        $errors,
+                        $warnings
+                    );
                 } elseif ($taxType === 'WHA') {
                     $this->assertMoneyEquals("Record {$currentRecord['record']} WHA tax value must equal FOB", $currentRecord['fob'], $taxValue, $errors);
+                    if (abs($taxRate - 2.0) > 0.001) {
+                        $errors[] = "Record {$currentRecord['record']} WHA tax rate must be 2.000, got " . number_format($taxRate, 3, '.', '') . '.';
+                    }
                 }
             }
         }
@@ -350,11 +372,67 @@ class CapsPreValidationService
 
         if (!$this->tariffExactLooksKnown($digits)) {
             if ($this->tariffHeadingLooksKnown($digits)) {
-                $warnings[] = "{$label} tariff '{$digits}' matches a local heading but is not in the local exact-code table. Verify it in CAPS before submission.";
+                $errors[] = "{$label} tariff '{$digits}' matches a local heading but is not an exact CAPS tariff code. Resolve it before submission.";
             } else {
-                $warnings[] = "{$label} tariff '{$digits}' was not found as an exact local CAPS tariff code. Verify it in CAPS before submission.";
+                $errors[] = "{$label} tariff '{$digits}' was not found as an exact local CAPS tariff code. Resolve it before submission.";
             }
         }
+    }
+
+    protected function validateCudRateAgainstTariff(string $sevenDigits, float $taxRate, string $cpc, string $label, array &$errors, array &$warnings): void
+    {
+        if ($sevenDigits === '') {
+            return;
+        }
+
+        $tariff = $this->findExactTariff($sevenDigits);
+        if (!$tariff || $tariff->duty_rate === null || $tariff->duty_rate === '') {
+            return;
+        }
+
+        $expectedRate = (float) $tariff->duty_rate;
+        if (abs($expectedRate - $taxRate) <= 0.001) {
+            return;
+        }
+
+        // CAPS allows certain CPCs (e.g. C420) to apply a concessionary or
+        // preferential rate that differs from the standard tariff. Only the
+        // regular release-to-free-circulation CPC (C400) is required to match
+        // the customs_codes duty rate exactly. For any other CPC, surface a
+        // warning so the user can confirm but don't block submission.
+        $message = "{$label} CUD tax rate " . number_format($taxRate, 3, '.', '')
+            . " does not match tariff {$tariff->code} duty rate "
+            . number_format($expectedRate, 3, '.', '');
+
+        $cpc = strtoupper($cpc);
+        if ($cpc === '' || $cpc === 'C400') {
+            $errors[] = $message . '.';
+        } else {
+            $warnings[] = $message . " (CPC {$cpc} may apply a concessionary rate; verify before submission).";
+        }
+    }
+
+    protected function findExactTariff(string $sevenDigits): ?CustomsCode
+    {
+        $dotted7 = substr($sevenDigits, 0, 4) . '.' . substr($sevenDigits, 4);
+
+        $row = CustomsCode::where('code', $sevenDigits)->first()
+            ?? CustomsCode::where('code', $dotted7)->first();
+
+        if ($row) {
+            return $row;
+        }
+
+        // CAPS renders 6-digit headings as XXXXYY0 (e.g. 0804.10 -> 0804100).
+        // When the 7-digit code ends in '0' and we don't find a true 7-digit
+        // subheading, fall back to the dotted 6-digit heading row so duty
+        // rates are sourced from the correct tariff line.
+        if (substr($sevenDigits, -1) === '0') {
+            $dotted6 = substr($sevenDigits, 0, 4) . '.' . substr($sevenDigits, 4, 2);
+            return CustomsCode::where('code', $dotted6)->first();
+        }
+
+        return null;
     }
 
     protected function tariffExactLooksKnown(string $sevenDigits): bool
@@ -365,8 +443,18 @@ class CapsPreValidationService
 
         $dotted7 = substr($sevenDigits, 0, 4) . '.' . substr($sevenDigits, 4);
 
-        return $this->tariffExactKnownCache[$sevenDigits] = CustomsCode::where('code', $sevenDigits)->exists()
+        // True 7-digit subheading (e.g. 1902.001 -> CAPS form 1902001).
+        $known = CustomsCode::where('code', $sevenDigits)->exists()
             || CustomsCode::where('code', $dotted7)->exists();
+
+        // 6-digit heading rendered as XXXXYY0 (e.g. 0804.10 -> CAPS form 0804100).
+        // CAPS accepts this — confirmed against approved legacy declarations.
+        if (!$known && substr($sevenDigits, -1) === '0') {
+            $dotted6 = substr($sevenDigits, 0, 4) . '.' . substr($sevenDigits, 4, 2);
+            $known = CustomsCode::where('code', $dotted6)->exists();
+        }
+
+        return $this->tariffExactKnownCache[$sevenDigits] = $known;
     }
 
     protected function tariffHeadingLooksKnown(string $sevenDigits): bool

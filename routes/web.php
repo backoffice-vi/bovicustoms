@@ -155,6 +155,12 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
     Route::post('ftp-submission/{submission}/attachments', [App\Http\Controllers\FtpSubmissionController::class, 'uploadAttachments'])->name('ftp-submission.attachments');
     Route::post('ftp-submission/{submission}/check-status', [App\Http\Controllers\FtpSubmissionController::class, 'checkAttachmentStatus'])->name('ftp-submission.check-status');
 
+    // CAPS rejection -> fix -> resubmit loop
+    Route::post('ftp-submission/{submission}/mark-rejected', [App\Http\Controllers\FtpSubmissionController::class, 'markRejected'])->name('ftp-submission.mark-rejected');
+    Route::get('ftp-submission/{submission}/fix', [App\Http\Controllers\FtpSubmissionController::class, 'showFixPage'])->name('ftp-submission.fix');
+    Route::post('ftp-submission/{submission}/fix', [App\Http\Controllers\FtpSubmissionController::class, 'applyFixAndResubmit'])->name('ftp-submission.fix.apply');
+    Route::post('ftp-submission/{submission}/amendment', [App\Http\Controllers\FtpSubmissionController::class, 'submitAmendment'])->name('ftp-submission.amendment');
+
     // Trade Contacts (reusable shipper, consignee, broker data)
     Route::resource('trade-contacts', TradeContactController::class);
     Route::patch('trade-contacts/{tradeContact}/toggle-default', [TradeContactController::class, 'toggleDefault'])->name('trade-contacts.toggle-default');

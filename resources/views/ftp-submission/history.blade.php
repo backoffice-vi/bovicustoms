@@ -45,6 +45,7 @@
                                 <th>Date</th>
                                 <th>Reference</th>
                                 <th>Status</th>
+                                <th>CAPS</th>
                                 <th>Trader ID</th>
                                 <th>Lines</th>
                                 <th>Items</th>
@@ -56,10 +57,25 @@
                             @foreach($submissions as $submission)
                             <tr>
                                 <td>{{ $submission->created_at->format('d/m/Y H:i') }}</td>
-                                <td><code>{{ $submission->external_reference ?? 'N/A' }}</code></td>
+                                <td>
+                                    <code>{{ $submission->external_reference ?? 'N/A' }}</code>
+                                    @if($submission->parent_submission_id)
+                                        <span class="badge bg-light text-dark ms-1" title="Resubmission of #{{ $submission->parent_submission_id }}">
+                                            <i class="fas fa-link"></i> resub
+                                        </span>
+                                    @endif
+                                    @if(($submission->request_data['is_amendment'] ?? false))
+                                        <span class="badge bg-info ms-1"><i class="fas fa-edit"></i> amend</span>
+                                    @endif
+                                </td>
                                 <td>
                                     <span class="badge bg-{{ $submission->status_color }}">
                                         {{ $submission->status_label }}
+                                    </span>
+                                </td>
+                                <td>
+                                    <span class="badge bg-{{ $submission->caps_response_color }}">
+                                        {{ $submission->caps_response_label }}
                                     </span>
                                 </td>
                                 <td><code>{{ $submission->request_data['trader_id'] ?? 'N/A' }}</code></td>
@@ -67,14 +83,18 @@
                                 <td>{{ $submission->request_data['item_count'] ?? '-' }}</td>
                                 <td>{{ $submission->user?->name ?? 'System' }}</td>
                                 <td>
-                                    <a href="{{ route('ftp-submission.result', ['declaration' => $declaration, 'submission' => $submission]) }}" 
+                                    <a href="{{ route('ftp-submission.result', ['declaration' => $declaration, 'submission' => $submission]) }}"
                                        class="btn btn-sm btn-outline-primary">
                                         <i class="fas fa-eye"></i> View
                                     </a>
-                                    @if($submission->can_retry)
+                                    @if($submission->caps_rejected)
+                                        <a href="{{ route('ftp-submission.fix', $submission) }}" class="btn btn-sm btn-outline-warning" title="Fix and Resubmit">
+                                            <i class="fas fa-tools"></i>
+                                        </a>
+                                    @elseif($submission->can_retry)
                                         <form action="{{ route('ftp-submission.retry', $submission) }}" method="POST" class="d-inline">
                                             @csrf
-                                            <button type="submit" class="btn btn-sm btn-outline-warning">
+                                            <button type="submit" class="btn btn-sm btn-outline-warning" title="Retry">
                                                 <i class="fas fa-redo"></i>
                                             </button>
                                         </form>

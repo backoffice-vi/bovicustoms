@@ -154,30 +154,30 @@ class DutyCalculationService
                 $itemInsurance = $proration['prorated_insurance'] * $itemRatio;
                 $itemCif = $itemFob + $itemFreight + $itemInsurance;
 
-                // Look up tariff rate
+                // Look up tariff rate.
+                // customs_codes is the source of truth for CAPS — the rate
+                // cached on the invoice item can be stale or AI-invented and
+                // will be rejected by CAPS as TAX RATE NOT CORRECT.
                 $tariffCode = $item->customs_code ?? $item->hs_code ?? null;
                 $dutyRate = 0;
                 $dutyAmount = 0;
                 $tariffDescription = null;
 
-                // First, use the rate stored on the item (from classification)
-                if ($item->duty_rate !== null) {
+                $customsCode = $tariffCode
+                    ? $this->resolveExactCustomsCode($tariffCode, $countryId)
+                    : null;
+
+                if ($customsCode) {
+                    $dutyRate = (float) $customsCode->duty_rate;
+                    $tariffDescription = $customsCode->description;
+                    $dutyAmount = $itemCif * ($dutyRate / 100);
+                } elseif ($item->duty_rate !== null) {
+                    // No exact match — fall back to the cached rate so we still
+                    // produce a number, but downstream pre-validation will block
+                    // the submission until the tariff is resolved.
                     $dutyRate = (float) $item->duty_rate;
                     $tariffDescription = $item->customs_code_description;
                     $dutyAmount = $itemCif * ($dutyRate / 100);
-                }
-                // Fall back to lookup in customs_codes table
-                elseif ($tariffCode) {
-                    $customsCode = CustomsCode::forCountry($countryId)
-                        ->where('code', 'like', $tariffCode . '%')
-                        ->first();
-
-                    if ($customsCode) {
-                        $dutyRate = (float) $customsCode->duty_rate;
-                        $tariffDescription = $customsCode->description;
-                        // Duty is calculated on CIF value
-                        $dutyAmount = $itemCif * ($dutyRate / 100);
-                    }
                 }
 
                 $itemDuties[] = [
@@ -276,6 +276,34 @@ class DutyCalculationService
     {
         return $invoices->flatMap(fn($inv) => $inv->invoiceItems ?? collect())
             ->sum('quantity') ?? 1;
+    }
+
+    /**
+     * Resolve a tariff string to its exact `customs_codes` row.
+     * Handles dotted (`1905.009`) and undotted (`1905009`) inputs.
+     * Returns null when the code is heading-level, padded, or unknown — the
+     * caller should fall back to the cached rate, and pre-validation will
+     * block the submission.
+     */
+    protected function resolveExactCustomsCode(string $tariffCode, int $countryId): ?CustomsCode
+    {
+        $digits = preg_replace('/\D/', '', $tariffCode);
+        $candidates = array_unique(array_filter([
+            $tariffCode,
+            $digits,
+            strlen($digits) >= 5 ? substr($digits, 0, 4) . '.' . substr($digits, 4) : null,
+        ]));
+
+        foreach ($candidates as $candidate) {
+            $row = CustomsCode::forCountry($countryId)
+                ->where('code', $candidate)
+                ->first();
+            if ($row) {
+                return $row;
+            }
+        }
+
+        return null;
     }
 
     /**

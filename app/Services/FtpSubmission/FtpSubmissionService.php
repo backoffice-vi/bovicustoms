@@ -35,16 +35,18 @@ class FtpSubmissionService
      * Submit a declaration via FTP.
      *
      * @param bool $autoAttach when true, attachments (B/L, invoices) are uploaded
-     *                         immediately after the T12 file. Driven by the UI
-     *                         "Also upload attachments now" checkbox. Default
-     *                         is false to avoid silently changing existing
-     *                         callers (admin test page, etc).
+     *                         immediately after the T12 file. Defaults to true
+     *                         because every CAPS submission requires the
+     *                         supporting documents — the broker can opt out
+     *                         from the preview UI when they intend to upload
+     *                         attachments separately.
      */
     public function submit(
         DeclarationForm $declaration,
         OrganizationSubmissionCredential $credentials,
         bool $saveLocally = true,
-        bool $autoAttach = false
+        bool $autoAttach = true,
+        bool $isAmendment = false
     ): WebFormSubmission {
         $declaration->load(['country', 'organization']);
         
@@ -58,8 +60,8 @@ class FtpSubmissionService
             throw new \RuntimeException('FTP credentials are incomplete');
         }
 
-        // Generate the T12 file
-        $t12Data = $this->generator->generate($declaration, $credentials);
+        // Generate the T12 file (amendment vs original chooses filename pattern)
+        $t12Data = $this->generator->generate($declaration, $credentials, $isAmendment);
         $preValidation = $this->capsPreValidation->validateT12Content($t12Data['content'], $declaration->country_id);
 
         if (!$preValidation['valid']) {
@@ -79,6 +81,7 @@ class FtpSubmissionService
                 'trader_id' => $t12Data['trader_id'],
                 'line_count' => $t12Data['line_count'],
                 'item_count' => $t12Data['item_count'],
+                'is_amendment' => $isAmendment,
                 'caps_pre_validation' => $preValidation,
             ],
         ]);

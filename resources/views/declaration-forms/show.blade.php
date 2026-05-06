@@ -391,28 +391,43 @@
                         @else
                             <ul class="list-group list-group-flush mb-3">
                                 @foreach($ftpAttachments as $att)
+                                    @php
+                                        $rawOriginal = (string) ($att->original_filename ?? '');
+                                        $looksLikeStorageHash = $rawOriginal !== ''
+                                            && preg_match('/^[A-Za-z0-9]{20,}\.[A-Za-z0-9]+$/', $rawOriginal);
+                                        $displayName = $looksLikeStorageHash
+                                            ? ($att->document_type === 'invoice'
+                                                ? 'Invoice attachment'
+                                                : ($att->document_type
+                                                    ? Str::headline($att->document_type) . ' attachment'
+                                                    : 'Document'))
+                                            : ($rawOriginal !== '' ? $rawOriginal : 'Document');
+                                        $badgeClass = match ($att->status) {
+                                            \App\Models\FtpSubmissionAttachment::STATUS_CONFIRMED => 'bg-success',
+                                            \App\Models\FtpSubmissionAttachment::STATUS_UPLOADED => 'bg-info',
+                                            \App\Models\FtpSubmissionAttachment::STATUS_REJECTED => 'bg-danger',
+                                            \App\Models\FtpSubmissionAttachment::STATUS_FAILED => 'bg-danger',
+                                            default => 'bg-secondary',
+                                        };
+                                    @endphp
                                     <li class="list-group-item px-0 py-2">
-                                        <div class="d-flex justify-content-between align-items-start">
-                                            <div class="me-2">
+                                        <div class="d-flex justify-content-between align-items-start gap-2">
+                                            <div class="flex-grow-1" style="min-width: 0;">
                                                 <code class="small">{{ $att->letter }}</code>
-                                                <span class="ms-1">{{ $att->original_filename }}</span>
+                                                <span class="ms-1 text-break">{{ $displayName }}</span>
+                                                @if($looksLikeStorageHash && $rawOriginal !== '')
+                                                    <div class="small text-muted text-break" title="{{ $rawOriginal }}">
+                                                        {{ Str::limit($rawOriginal, 40) }}
+                                                    </div>
+                                                @endif
                                                 <div class="small text-muted">
-                                                    <code>{{ $att->remote_filename }}</code>
+                                                    <code class="text-break">{{ $att->remote_filename }}</code>
                                                 </div>
                                                 @if($att->error_message)
                                                     <div class="small text-danger">{{ $att->error_message }}</div>
                                                 @endif
                                             </div>
-                                            @php
-                                                $badgeClass = match ($att->status) {
-                                                    \App\Models\FtpSubmissionAttachment::STATUS_CONFIRMED => 'bg-success',
-                                                    \App\Models\FtpSubmissionAttachment::STATUS_UPLOADED => 'bg-info',
-                                                    \App\Models\FtpSubmissionAttachment::STATUS_REJECTED => 'bg-danger',
-                                                    \App\Models\FtpSubmissionAttachment::STATUS_FAILED => 'bg-danger',
-                                                    default => 'bg-secondary',
-                                                };
-                                            @endphp
-                                            <span class="badge {{ $badgeClass }}">{{ $att->statusLabel() }}</span>
+                                            <span class="badge {{ $badgeClass }} flex-shrink-0">{{ $att->statusLabel() }}</span>
                                         </div>
                                     </li>
                                 @endforeach

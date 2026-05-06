@@ -228,7 +228,10 @@ class FtpTestController extends Controller
         ]);
 
         try {
-            $submission = $this->ftpService->submit($declaration, $tempCredential);
+            // Admin test page: don't auto-attach. Real submissions handle this
+            // via the broker preview UI; this endpoint exists to validate FTP
+            // credentials end-to-end with a generated T12 file only.
+            $submission = $this->ftpService->submit($declaration, $tempCredential, true, false);
 
             return response()->json([
                 'success' => $submission->is_successful,

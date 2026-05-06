@@ -579,16 +579,20 @@ class WebFormDataMapper
      * CAPS BVI uses the latest HS version where these subheadings no longer exist.
      */
     /**
-     * Codes that CAPS rejects with trailing "0". Maps 6-digit code to the
-     * correct 7-digit CAPS code. When CAPS uses BVI-specific 7th digit "1"
-     * instead of "0" for these subheadings.
+     * Reserved for genuine HS-version remappings (e.g. when an old 6-digit
+     * code was officially split into a different 7-digit BVI tariff).
+     *
+     * IMPORTANT: Only add an entry here if BOTH conditions hold:
+     *   1. The target 7-digit code exists as an exact row in `customs_codes`
+     *      (either as XXXX.YYY or as the equivalent CAPS form), and
+     *   2. You can cite the BVI tariff schedule or a CAPS-approved legacy
+     *      declaration that uses the target code for the same product.
+     *
+     * Do NOT add entries that merely guess a "BVI-specific" subheading. CAPS
+     * accepts XXXX.YY headings rendered as XXXXYY0 directly; let the resolver
+     * pad them naturally rather than substituting an unverified subheading.
      */
-    protected static array $hsVersionMappings = [
-        '200980' => '2009801', // 2009.80 Juice of other single fruit — BVI sub-item 1
-        '120790' => '1207901', // 1207.90 Other oil seeds — BVI sub-item 1
-        '120700' => '1207901', // 12.07 heading → 1207.901
-        '210220' => '2102201', // 2102.20 Inactive yeasts — BVI sub-item 1
-    ];
+    protected static array $hsVersionMappings = [];
 
     protected function resolveCapsTariffCode(string $rawCode): string
     {
@@ -603,14 +607,12 @@ class WebFormDataMapper
             return static::$hsVersionMappings[$sixDigit];
         }
 
-        // If already 7+ digits, check it exists; if so, use it
+        // If already 7+ digits, take the first 7 and only return it if exact.
+        // Per the no-tariff-guessing rule we must NEVER substitute a sibling
+        // or "Other" subheading silently — return the digits as-is and let the
+        // pre-validator block the submission.
         if (strlen($digits) >= 7) {
-            $digits = substr($digits, 0, 7);
-            if ($this->tariffExistsInDb($digits)) {
-                return $digits;
-            }
-            $best = $this->findBest7DigitCode(substr($digits, 0, 6));
-            return $best ?: $digits;
+            return substr($digits, 0, 7);
         }
 
         $padded = str_pad($digits, 7, '0');
@@ -619,30 +621,12 @@ class WebFormDataMapper
             return $padded;
         }
 
-        // Search for 7-digit descendants under the exact prefix first
-        // (e.g., 170310 → finds 1703.102)
-        $best = $this->findBest7DigitCode($digits);
-        if ($best) {
-            return $best;
-        }
-
-        // Subheading doesn't exist in DB — broaden search to the 4-digit heading
-        // to find any valid 7-digit descendant (e.g., 1904.20 → 1904.900)
-        $heading4 = substr($digits, 0, 4);
-        $best = $this->findBest7DigitCode($heading4);
-        if ($best) {
-            return $best;
-        }
-
-        // Last resort: find the "Other" (.90) subheading under the same heading
-        $otherCode = $this->findOtherSubheading($heading4);
-        if ($otherCode) {
-            return $otherCode;
-        }
-
-        // Do not fabricate a padded 7-digit tariff. CAPS rejects many
-        // heading-only fallbacks, so unresolved codes must be reviewed.
-        return $digits;
+        // Subheading doesn't exist in DB. We MUST NOT fabricate or jump to a
+        // sibling/other subheading — that violates the no-tariff-guessing rule
+        // and produces tariffs CAPS rejects as "TARIFF NO. NOT KNOWN" or
+        // wildly wrong product categories. Return the padded form so the
+        // pre-validator can block; the user must resolve via classification.
+        return $padded;
     }
 
     /**

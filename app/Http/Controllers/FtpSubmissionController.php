@@ -5,6 +5,9 @@ namespace App\Http\Controllers;
 use App\Models\DeclarationForm;
 use App\Models\OrganizationSubmissionCredential;
 use App\Models\WebFormSubmission;
+use App\Services\FtpSubmission\CapsErrorAgent;
+use App\Services\FtpSubmission\CapsResponseParser;
+use App\Services\FtpSubmission\FixAndResubmitService;
 use App\Services\FtpSubmission\FtpSubmissionService;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Log;
@@ -400,5 +403,217 @@ class FtpSubmissionController extends Controller
             ]);
             return redirect()->back()->with('error', 'Status check failed: ' . $e->getMessage());
         }
+    }
+
+    /**
+     * Manually mark an FTP submission as rejected by CAPS by uploading the
+     * query report PDF (or .TXT response file). Parses it via Claude into
+     * structured per-line errors and saves them on the submission.
+     *
+     * Workflow:
+     *   1. Broker receives the CAPS query email + PDF.
+     *   2. Broker visits the submission result page and uploads the PDF here.
+     *   3. The system runs CapsResponseParser, persists errors, and flips
+     *      caps_response_status. The Fix and Resubmit UI then becomes active.
+     */
+    public function markRejected(
+        Request $request,
+        WebFormSubmission $submission,
+        CapsResponseParser $parser
+    ) {
+        if (!$submission->is_ftp) {
+            return redirect()->back()->with('error', 'This is not an FTP submission.');
+        }
+
+        $request->validate([
+            'caps_response_file' => ['required', 'file', 'mimes:pdf,txt', 'max:20480'],
+        ], [
+            'caps_response_file.mimes' => 'CAPS reports must be PDF or TXT files.',
+        ]);
+
+        $file = $request->file('caps_response_file');
+
+        try {
+            $storedPath = $parser->storeUploadedFile($file, $submission->id);
+            $parsed = $parser->parseUploadedFile($file);
+        } catch (\Throwable $e) {
+            Log::error('CAPS response parsing failed', [
+                'submission_id' => $submission->id,
+                'error' => $e->getMessage(),
+            ]);
+            return redirect()->back()
+                ->with('error', 'Could not parse the CAPS report: ' . $e->getMessage());
+        }
+
+        $overall = $parsed['overall_status'] ?? 'rejected';
+
+        if ($overall === 'accepted') {
+            $submission->markCapsAccepted(
+                WebFormSubmission::CAPS_SOURCE_MANUAL_UPLOAD,
+                $storedPath
+            );
+            return redirect()->back()
+                ->with('success', 'CAPS report parsed: declaration was accepted by CAPS.');
+        }
+
+        $submission->markCapsRejected(
+            $parsed,
+            WebFormSubmission::CAPS_SOURCE_MANUAL_UPLOAD,
+            $storedPath,
+            $overall === 'partial'
+        );
+
+        $errorCount = count($parsed['errors'] ?? []);
+        return redirect()->route('ftp-submission.fix', $submission)
+            ->with(
+                'warning',
+                "CAPS rejected the declaration with {$errorCount} error(s). Review the suggestions and apply fixes before resubmitting."
+            );
+    }
+
+    /**
+     * Show the Fix and Resubmit page for a CAPS-rejected submission. Builds
+     * AI suggestions per affected line item.
+     */
+    public function showFixPage(WebFormSubmission $submission, CapsErrorAgent $agent)
+    {
+        if (!$submission->is_ftp) {
+            return redirect()->back()->with('error', 'This is not an FTP submission.');
+        }
+
+        if (!$submission->caps_rejected) {
+            return redirect()->route('ftp-submission.result', [
+                'declaration' => $submission->declaration_form_id,
+                'submission' => $submission->id,
+            ])->with('info', 'This submission has not been rejected by CAPS.');
+        }
+
+        $declaration = $submission->declaration;
+        $declaration->loadMissing(['country', 'declarationItems']);
+
+        $parsed = $submission->caps_response_errors ?? [];
+        $suggestions = $agent->suggestFixes($declaration, $parsed);
+
+        return view('ftp-submission.fix', [
+            'submission' => $submission,
+            'declaration' => $declaration,
+            'parsed' => $parsed,
+            'suggestions' => $suggestions,
+        ]);
+    }
+
+    /**
+     * Apply the broker-confirmed fixes and resubmit the declaration.
+     */
+    public function applyFixAndResubmit(
+        Request $request,
+        WebFormSubmission $submission,
+        FixAndResubmitService $service
+    ) {
+        if (!$submission->is_ftp) {
+            return redirect()->back()->with('error', 'This is not an FTP submission.');
+        }
+
+        if (!$submission->caps_rejected) {
+            return redirect()->back()->with('error', 'Only CAPS-rejected submissions can be resubmitted via this flow.');
+        }
+
+        $validated = $request->validate([
+            'fixes' => ['required', 'array', 'min:1'],
+            'fixes.*.declaration_form_item_id' => ['nullable', 'integer'],
+            'fixes.*.invoice_item_id' => ['nullable', 'integer'],
+            'fixes.*.new_code' => ['required', 'string', 'max:20'],
+            'auto_attach' => ['nullable', 'boolean'],
+        ]);
+
+        $declaration = $submission->declaration;
+        $declaration->loadMissing(['country', 'organization', 'shipment.invoices.invoiceItems']);
+
+        $organization = $declaration->organization ?? auth()->user()->organization;
+        $credentials = $organization?->getFtpCredentials($declaration->country_id);
+
+        if (!$credentials || !$credentials->hasCompleteFtpCredentials()) {
+            return redirect()->route('settings.submission-credentials')
+                ->with('error', 'FTP credentials are not configured for this country.');
+        }
+
+        $autoAttach = (bool) ($validated['auto_attach'] ?? true);
+
+        try {
+            $newSubmission = $service->apply(
+                $submission,
+                $declaration,
+                $credentials,
+                $validated['fixes'],
+                $autoAttach
+            );
+        } catch (\Throwable $e) {
+            Log::error('Fix and resubmit failed', [
+                'submission_id' => $submission->id,
+                'error' => $e->getMessage(),
+            ]);
+            return redirect()->back()
+                ->withInput()
+                ->with('error', 'Resubmission failed: ' . $e->getMessage());
+        }
+
+        return redirect()->route('ftp-submission.result', [
+            'declaration' => $declaration->id,
+            'submission' => $newSubmission->id,
+        ])->with('success', 'Fixes applied and declaration resubmitted as ' . $newSubmission->external_reference . '.');
+    }
+
+    /**
+     * Submit an amendment T12 (filename pattern XXXXXXDDMMYYYYA.SSS) for a
+     * declaration whose original submission was already accepted by CAPS.
+     * Used when the broker needs to correct a declaration after acceptance.
+     */
+    public function submitAmendment(WebFormSubmission $submission)
+    {
+        if (!$submission->is_ftp) {
+            return redirect()->back()->with('error', 'This is not an FTP submission.');
+        }
+
+        if (!$submission->caps_accepted) {
+            return redirect()->back()
+                ->with('error', 'Amendments can only be filed after CAPS has accepted the original submission.');
+        }
+
+        $declaration = $submission->declaration;
+        $declaration->loadMissing(['country', 'organization']);
+
+        $organization = $declaration->organization ?? auth()->user()->organization;
+        $credentials = $organization?->getFtpCredentials($declaration->country_id);
+
+        if (!$credentials || !$credentials->hasCompleteFtpCredentials()) {
+            return redirect()->route('settings.submission-credentials')
+                ->with('error', 'FTP credentials are not configured for this country.');
+        }
+
+        try {
+            $newSubmission = $this->ftpService->submit(
+                $declaration,
+                $credentials,
+                true,   // saveLocally
+                true,   // autoAttach
+                true    // isAmendment
+            );
+
+            $newSubmission->update([
+                'parent_submission_id' => $submission->id,
+            ]);
+        } catch (\Throwable $e) {
+            Log::error('Amendment submission failed', [
+                'submission_id' => $submission->id,
+                'error' => $e->getMessage(),
+            ]);
+            return redirect()->back()
+                ->with('error', 'Amendment submission failed: ' . $e->getMessage());
+        }
+
+        return redirect()->route('ftp-submission.result', [
+            'declaration' => $declaration->id,
+            'submission' => $newSubmission->id,
+        ])->with('success', 'Amendment ' . $newSubmission->external_reference . ' submitted successfully.');
     }
 }
