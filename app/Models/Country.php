@@ -2,12 +2,22 @@
 
 namespace App\Models;
 
+use Carbon\CarbonInterface;
+use DateTimeInterface;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class Country extends Model
 {
     use HasFactory;
+
+    /**
+     * Fallback IANA timezone used when a country row has no `timezone` set.
+     * Tortola/AST (UTC-4, no DST). The platform was built BVI-first, so this
+     * is the safest default; new countries should set their own timezone.
+     */
+    public const DEFAULT_TIMEZONE = 'America/Tortola';
 
     protected $fillable = [
         'code',
@@ -15,6 +25,7 @@ class Country extends Model
         'currency_code',
         'is_active',
         'flag_emoji',
+        'timezone',
         'customs_form_template',
         'default_insurance_percentage',
         'default_insurance_method',
@@ -211,5 +222,47 @@ class Country extends Model
     {
         return $query->where('ftp_enabled', true)
                     ->whereNotNull('ftp_host');
+    }
+
+    // ==========================================
+    // Timezone helpers
+    // ==========================================
+
+    /**
+     * Effective IANA timezone for this country. Falls back to
+     * Country::DEFAULT_TIMEZONE (America/Tortola, UTC-4) when not set.
+     */
+    public function getEffectiveTimezone(): string
+    {
+        $tz = trim((string) ($this->attributes['timezone'] ?? ''));
+
+        if ($tz !== '' && in_array($tz, timezone_identifiers_list(), true)) {
+            return $tz;
+        }
+
+        return self::DEFAULT_TIMEZONE;
+    }
+
+    /**
+     * Format a timestamp in this country's local timezone.
+     *
+     * Accepts anything Carbon can parse (Carbon, DateTime, ISO string, etc.).
+     * Returns null when input is null so Blade calls stay short.
+     */
+    public function formatLocalTime($value, string $format = 'd/m/Y H:i:s'): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        if ($value instanceof CarbonInterface) {
+            $dt = $value->copy();
+        } elseif ($value instanceof DateTimeInterface) {
+            $dt = Carbon::instance($value);
+        } else {
+            $dt = Carbon::parse($value);
+        }
+
+        return $dt->setTimezone($this->getEffectiveTimezone())->format($format);
     }
 }

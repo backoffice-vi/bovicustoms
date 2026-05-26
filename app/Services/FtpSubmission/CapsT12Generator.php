@@ -51,6 +51,18 @@ class CapsT12Generator
     protected array $tariffCache = [];
 
     /**
+     * Resolved customs-duty basis for the current declaration ('fob' or 'cif').
+     * Set per-generate() based on DeclarationForm.duty_basis (preferred) or
+     * by re-resolving via the policy resolver as a fallback.
+     */
+    protected ?string $resolvedDutyBasis = null;
+
+    public function __construct(
+        protected \App\Services\DutyPolicyResolver $policyResolver,
+    ) {
+    }
+
+    /**
      * Generate a T12 file content from a declaration
      */
     public function generate(DeclarationForm $declaration, OrganizationSubmissionCredential $credentials, bool $isAmendment = false): array
@@ -73,6 +85,14 @@ class CapsT12Generator
         $this->tariffCache = [];
         $this->tariffResolver = null;
 
+        // Lock in the duty basis used by the CUD R50 records. Prefer the
+        // basis stored on the declaration (snapshotted at the most recent
+        // recalculation); fall back to resolving live in case the column is
+        // unset (e.g. older declarations recalculated before the basis
+        // column existed).
+        $this->resolvedDutyBasis = $declaration->duty_basis
+            ?: $this->policyResolver->resolveBasisForDeclaration($declaration);
+
         $ftpCreds = $credentials->getFtpCredentials();
         $traderId = $ftpCreds['trader_id'] ?? '';
 
@@ -82,7 +102,10 @@ class CapsT12Generator
 
         $lines = [];
         $lineCount = 0;
-        $items = $this->getDeclarationItems($declaration);
+        $items = $this->reconcileItemChargeTotals(
+            $this->getDeclarationItems($declaration),
+            $declaration
+        );
         $headerTotals = $this->calculateHeaderTotals($items);
 
         // R10 - Header
@@ -395,24 +418,65 @@ class CapsT12Generator
     }
 
     /**
+     * Pick the right tax base for the CUD R50 record based on the resolved
+     * duty basis for this declaration. Reads pre-computed FOB/CIF off the
+     * item dict so it stays consistent with what DutyCalculationService
+     * computed in the same pass.
+     */
+    protected function resolveCudBase(array $item, DeclarationForm $declaration): float
+    {
+        $basis = $this->resolvedDutyBasis
+            ?: ($declaration->duty_basis
+                ?: $this->policyResolver->resolveBasisForDeclaration($declaration));
+
+        // Item dicts populated by recalculateItemDuties expose
+        // 'duty_base_value' directly. When that's available, trust it —
+        // it's already the post-policy number and matches duty_amount.
+        if (isset($item['duty_base_value']) && (float) $item['duty_base_value'] > 0) {
+            return (float) $item['duty_base_value'];
+        }
+
+        return $this->policyResolver->pickDutyBaseValue(
+            $basis,
+            (float) ($item['fob_value'] ?? 0),
+            (float) ($item['cif_value'] ?? 0),
+        );
+    }
+
+    /**
      * R50 - Tax Records per item
      */
     protected function generateItemTaxes(array $item, DeclarationForm $declaration): array
     {
         $lines = [];
-        
-        // Custom Duty
-        if (!empty($item['customs_duty']) && $item['customs_duty'] > 0) {
-            $fields = [
-                'R50',                                              // Record Type
-                $this->mapTaxType('CUD'),                           // Tax Type (Custom Duty, from reference data)
-                '',                                                 // Exemption Indicator (E if exempt)
-                $this->formatDecimal($item['cif_value'] ?? 0, 11, 2), // Value for Tax
-                $this->formatDecimal($item['duty_rate'] ?? 0, 7, 3), // Tax Rate
-                $this->formatDecimal($item['customs_duty'], 11, 2), // Tax Amount
-            ];
-            $lines[] = implode(',', $fields);
-        }
+
+        // Customs Duty (CUD) — emit for EVERY item, even at 0% rate / $0 amount.
+        //
+        // CAPS' validator inspects each R30 item for an accompanying CUD R50
+        // record. Items with a 0% duty rate (e.g. Drinking Water 2201.101,
+        // brown rice, certain organic flours) still need a CUD declaration
+        // showing $0 — otherwise CAPS rejects the line with
+        // "CUSTOMS DUTY TAX TYPE NOT PROVIDED".
+        //
+        // Tax base depends on the country's active duty policy:
+        //   - 'cif' (default): Value for Tax = CIF
+        //   - 'fob' (e.g. BVI 2026 cost-of-living measure): Value for Tax = FOB
+        // The basis is decided by DutyPolicyResolver at calculation time and
+        // stored on the declaration. This keeps every line in the T12
+        // consistent with whatever DutyCalculationService computed.
+        $cudBase = $this->resolveCudBase($item, $declaration);
+        $cudAmount = (float) ($item['customs_duty'] ?? 0);
+        $cudRate = (float) ($item['duty_rate'] ?? 0);
+
+        $fields = [
+            'R50',                                              // Record Type
+            $this->mapTaxType('CUD'),                           // Tax Type (Custom Duty, from reference data)
+            '',                                                 // Exemption Indicator (E if exempt)
+            $this->formatDecimal($cudBase, 11, 2),              // Value for Tax (FOB or CIF per policy)
+            $this->formatDecimal($cudRate, 7, 3),               // Tax Rate
+            $this->formatDecimal($cudAmount, 11, 2),            // Tax Amount
+        ];
+        $lines[] = implode(',', $fields);
 
         // Wharfage — based on FOB value at 2% per CAPS spec
         if (!empty($item['wharfage']) && $item['wharfage'] > 0) {
@@ -628,6 +692,47 @@ class CapsT12Generator
     }
 
     /**
+     * R40 freight/insurance rows are emitted per R30 item, so rounded
+     * per-item prorations must add back to the shipment/declaration totals.
+     * Without this final penny adjustment, a B/L freight of 125.00 became
+     * 124.97 across 68 records and triggered officer review.
+     */
+    protected function reconcileItemChargeTotals(array $items, DeclarationForm $declaration): array
+    {
+        if (empty($items)) {
+            return $items;
+        }
+
+        foreach (['freight_amount' => 'freight_total', 'insurance_amount' => 'insurance_total'] as $itemKey => $declarationKey) {
+            $target = $declaration->{$declarationKey};
+            if ($target === null || $target === '') {
+                continue;
+            }
+
+            $target = round((float) $target, 2);
+            $sum = 0.0;
+            $lastIndex = array_key_last($items);
+
+            foreach ($items as $index => $item) {
+                $amount = round((float) ($item[$itemKey] ?? 0), 2);
+                $items[$index][$itemKey] = $amount;
+                $sum += $amount;
+
+                if ($amount > 0) {
+                    $lastIndex = $index;
+                }
+            }
+
+            $delta = round($target - round($sum, 2), 2);
+            if (abs($delta) >= 0.01 && $lastIndex !== null) {
+                $items[$lastIndex][$itemKey] = round(((float) ($items[$lastIndex][$itemKey] ?? 0)) + $delta, 2);
+            }
+        }
+
+        return $items;
+    }
+
+    /**
      * R30 total due should equal the sum of emitted R50 tax amounts.
      */
     protected function calculateItemTaxTotal(array $item): float
@@ -674,53 +779,62 @@ class CapsT12Generator
     }
     
     /**
-     * Build a lookup map of duty data by item description from duty_breakdown
+     * Build a lookup map of duty data by item description from duty_breakdown.
+     *
+     * The CUD base (FOB or CIF) follows the country's active duty policy on
+     * the declaration date — the same basis already locked in
+     * $this->resolvedDutyBasis at the top of generate(). Wharfage stays on
+     * FOB at 2% per CAPS spec.
      */
     protected function buildDutyLookup(DeclarationForm $declaration): array
     {
         $lookup = [];
-        
+
         if (empty($declaration->duty_breakdown) || !is_array($declaration->duty_breakdown)) {
             return $lookup;
         }
-        
-        // Wharfage is 2% of FOB per CAPS spec
+
         $wharfageRate = 0.02;
-        
+        $basis = $this->resolvedDutyBasis
+            ?: ($declaration->duty_basis
+                ?: $this->policyResolver->resolveBasisForDeclaration($declaration));
+
         foreach ($declaration->duty_breakdown as $tariffGroup) {
             $tariffCode = $tariffGroup['tariff_code'] ?? '';
             $dutyRate = $tariffGroup['duty_rate'] ?? 0;
             $itemCount = $tariffGroup['item_count'] ?? count($tariffGroup['items'] ?? []);
-            
+
             // Per-item values for freight/insurance (prorated within tariff group)
             $groupTotalFob = $tariffGroup['total_fob'] ?? 0;
             $groupTotalFreight = $tariffGroup['total_freight'] ?? 0;
             $groupTotalInsurance = $tariffGroup['total_insurance'] ?? 0;
-            $groupTotalDuty = $tariffGroup['total_duty'] ?? 0;
-            
+
             if (!empty($tariffGroup['items'])) {
                 foreach ($tariffGroup['items'] as $item) {
                     $description = $item['description'] ?? '';
                     $fobValue = $item['fob_value'] ?? 0;
                     $cifValue = $item['cif_value'] ?? $fobValue;
-                    
-                    // Calculate prorated freight/insurance based on FOB proportion
+
+                    // Prorated freight/insurance based on FOB proportion
                     $fobProportion = $groupTotalFob > 0 ? ($fobValue / $groupTotalFob) : (1 / max(1, $itemCount));
                     $itemFreight = $groupTotalFreight * $fobProportion;
                     $itemInsurance = $groupTotalInsurance * $fobProportion;
-                    
-                    // Calculate item duty based on CIF and rate
-                    $itemDuty = $cifValue * ($dutyRate / 100);
-                    
-                    // Wharfage is based on FOB value, not CIF
+
+                    // Customs duty base depends on the country's policy.
+                    $dutyBaseValue = $this->policyResolver->pickDutyBaseValue($basis, $fobValue, $cifValue);
+                    $itemDuty = $dutyBaseValue * ($dutyRate / 100);
+
+                    // Wharfage stays on FOB at 2% per CAPS spec.
                     $itemWharfage = $fobValue * $wharfageRate;
-                    
+
                     $dutyEntry = [
                         'tariff_code' => $tariffCode,
                         'duty_rate' => $dutyRate,
                         'quantity' => $item['quantity'] ?? 1,
                         'fob_value' => $fobValue,
                         'cif_value' => $cifValue,
+                        'duty_base_value' => round($dutyBaseValue, 2),
+                        'duty_basis' => $basis,
                         'customs_duty' => round($itemDuty, 2),
                         'wharfage' => round($itemWharfage, 2),
                         'freight_amount' => round($itemFreight, 2),

@@ -110,9 +110,10 @@ class CapsAttachmentUploader
                 }
 
                 $remotePath = $this->buildRemotePath($ftpSettings, $traderId, $attachment->remote_filename);
+                $localToUpload = $this->prepareForUpload($row['localPath'], $attachment->remote_filename);
 
                 try {
-                    $this->uploadLocalFile($row['localPath'], $remotePath, FTP_BINARY);
+                    $this->uploadLocalFile($localToUpload, $remotePath, FTP_BINARY);
 
                     $attachment->update([
                         'status' => FtpSubmissionAttachment::STATUS_UPLOADED,
@@ -263,12 +264,138 @@ class CapsAttachmentUploader
     }
 
     /**
+     * Map of attachment extensions to the 3-letter form CAPS expects on the
+     * wire. Spec examples (§1.9) consistently use `.pdf`, `.jpg`, `.tif`.
+     * 4-letter forms (`jpeg`, `tiff`) cause CAPS' attachment scanner to log
+     * "was not uploaded successfully" for the entire submission, even though
+     * the FTP transfer reports OK.
+     */
+    public const EXTENSION_NORMALIZATION = [
+        'jpeg' => 'jpg',
+        'tiff' => 'tif',
+    ];
+
+    /**
+     * Normalize a JPEG attachment to baseline (non-progressive) before upload.
+     *
+     * CAPS' attachment scanner only renders baseline-encoded JPEGs (SOF0).
+     * Progressive JPEGs (SOF2) — which is what WhatsApp, modern phones, and
+     * most browsers produce — are silently rejected with a generic "was not
+     * uploaded successfully" error. We detect the FFC2 marker and re-encode
+     * via GD to a baseline JPEG into a temp file. PDFs and other formats
+     * pass through untouched.
+     *
+     * @return string The path to upload (either original or a normalized
+     *                tempfile). Tempfiles are cleaned up by tmpfile() / GC.
+     */
+    protected function prepareForUpload(string $localPath, string $remoteFilename): string
+    {
+        $ext = strtolower(pathinfo($remoteFilename, PATHINFO_EXTENSION));
+        if (!in_array($ext, ['jpg', 'jpeg'], true)) {
+            return $localPath;
+        }
+
+        if (!extension_loaded('gd')) {
+            Log::warning('CAPS attachment: GD not available, uploading JPEG as-is', [
+                'local' => $localPath,
+            ]);
+            return $localPath;
+        }
+
+        if (!$this->isProgressiveJpeg($localPath)) {
+            return $localPath;
+        }
+
+        try {
+            $img = @imagecreatefromjpeg($localPath);
+            if ($img === false) {
+                Log::warning('CAPS attachment: failed to decode JPEG', ['local' => $localPath]);
+                return $localPath;
+            }
+
+            // Force baseline (non-progressive) encoding
+            imageinterlace($img, false);
+
+            $tmp = tempnam(sys_get_temp_dir(), 'caps_attach_');
+            $tmpJpg = $tmp . '.jpg';
+            @rename($tmp, $tmpJpg);
+
+            if (!@imagejpeg($img, $tmpJpg, 92)) {
+                imagedestroy($img);
+                @unlink($tmpJpg);
+                Log::warning('CAPS attachment: failed to re-encode JPEG to baseline', ['local' => $localPath]);
+                return $localPath;
+            }
+            imagedestroy($img);
+
+            Log::info('CAPS attachment: progressive JPEG converted to baseline', [
+                'local' => $localPath,
+                'tmp' => $tmpJpg,
+                'in_size' => @filesize($localPath),
+                'out_size' => @filesize($tmpJpg),
+            ]);
+            return $tmpJpg;
+        } catch (Throwable $e) {
+            Log::warning('CAPS attachment: JPEG normalization error', [
+                'local' => $localPath,
+                'error' => $e->getMessage(),
+            ]);
+            return $localPath;
+        }
+    }
+
+    /**
+     * True if the JPEG uses progressive encoding (SOF2 = 0xFFC2 marker).
+     */
+    protected function isProgressiveJpeg(string $path): bool
+    {
+        $fp = @fopen($path, 'rb');
+        if (!$fp) {
+            return false;
+        }
+
+        try {
+            // Validate JFIF/Exif signature
+            $head = fread($fp, 2);
+            if ($head !== "\xff\xd8") {
+                return false;
+            }
+
+            // Walk markers up to 64KB to find SOF
+            $bytesRead = 2;
+            while ($bytesRead < 65536 && !feof($fp)) {
+                $b = fread($fp, 1);
+                if ($b === '' || $b !== "\xff") {
+                    $bytesRead++;
+                    continue;
+                }
+                $marker = fread($fp, 1);
+                $bytesRead += 2;
+                if ($marker === '' || $marker === "\x00" || $marker === "\xff") {
+                    continue;
+                }
+
+                // SOF markers: 0xC0..0xCF except 0xC4, 0xC8, 0xCC
+                $code = ord($marker);
+                if ($code >= 0xC0 && $code <= 0xCF && !in_array($code, [0xC4, 0xC8, 0xCC], true)) {
+                    return $code === 0xC2; // SOF2 = progressive
+                }
+            }
+        } finally {
+            fclose($fp);
+        }
+
+        return false;
+    }
+
+    /**
      * Build remote filename per Spec 4.0 §1.9: <T12 base>.<A-Z>.<ext>
      */
     public function buildRemoteFilename(string $t12Filename, string $letter, string $extension): string
     {
         $letter = strtoupper(trim($letter));
         $extension = strtolower(ltrim(trim($extension), '.'));
+        $extension = self::EXTENSION_NORMALIZATION[$extension] ?? $extension;
 
         return $t12Filename . '.' . $letter . '.' . $extension;
     }
@@ -408,6 +535,7 @@ class CapsAttachmentUploader
         $basePath = rtrim($ftpSettings['base_path'] ?? '', '/');
         return ($basePath === '' ? '' : $basePath) . '/' . $remoteFilename;
     }
+
 
     /**
      * Parse a response file and update the matching attachment rows.

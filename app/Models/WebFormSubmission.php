@@ -23,9 +23,13 @@ class WebFormSubmission extends Model
      * CAPS response status constants (distinct from FTP-layer `status`).
      */
     const CAPS_RESPONSE_PENDING = 'pending';
+    /** Broker has uploaded a CAPS report; we're waiting on the parser job. */
+    const CAPS_RESPONSE_PARSING = 'parsing';
     const CAPS_RESPONSE_ACCEPTED = 'accepted';
     const CAPS_RESPONSE_REJECTED = 'rejected';
     const CAPS_RESPONSE_PARTIAL = 'partial';
+    /** Parser job failed; we still have the uploaded file but no errors yet. */
+    const CAPS_RESPONSE_PARSE_FAILED = 'parse_failed';
 
     /**
      * CAPS response source constants.
@@ -343,11 +347,16 @@ class WebFormSubmission extends Model
 
     /**
      * True if CAPS has issued any response (accepted, rejected, partial).
+     * Excludes the interim parsing/parse_failed states — those mean we
+     * received a file from the broker but haven't successfully parsed it yet.
      */
     public function getHasCapsResponseAttribute(): bool
     {
-        return $this->caps_response_status
-            && $this->caps_response_status !== self::CAPS_RESPONSE_PENDING;
+        return in_array($this->caps_response_status, [
+            self::CAPS_RESPONSE_ACCEPTED,
+            self::CAPS_RESPONSE_REJECTED,
+            self::CAPS_RESPONSE_PARTIAL,
+        ], true);
     }
 
     /**
@@ -380,6 +389,8 @@ class WebFormSubmission extends Model
             self::CAPS_RESPONSE_REJECTED => 'Rejected by CAPS',
             self::CAPS_RESPONSE_PARTIAL => 'Partially accepted',
             self::CAPS_RESPONSE_PENDING => 'Awaiting CAPS response',
+            self::CAPS_RESPONSE_PARSING => 'Parsing CAPS report…',
+            self::CAPS_RESPONSE_PARSE_FAILED => 'Could not parse CAPS report',
             default => 'Unknown',
         };
     }
@@ -394,8 +405,58 @@ class WebFormSubmission extends Model
             self::CAPS_RESPONSE_REJECTED => 'danger',
             self::CAPS_RESPONSE_PARTIAL => 'warning',
             self::CAPS_RESPONSE_PENDING => 'secondary',
+            self::CAPS_RESPONSE_PARSING => 'info',
+            self::CAPS_RESPONSE_PARSE_FAILED => 'warning',
             default => 'secondary',
         };
+    }
+
+    /**
+     * IANA timezone used for displaying this submission's timestamps.
+     * Resolved from the declaration's country, falling back to
+     * Country::DEFAULT_TIMEZONE (America/Tortola) when the declaration or
+     * country isn't loadable. Database storage stays UTC.
+     */
+    public function getDisplayTimezoneAttribute(): string
+    {
+        $country = $this->declaration?->country;
+
+        if ($country instanceof Country) {
+            return $country->getEffectiveTimezone();
+        }
+
+        return Country::DEFAULT_TIMEZONE;
+    }
+
+    /**
+     * Format any timestamp on this submission in the resolved local timezone.
+     * Useful for Blade: {{ $submission->formatLocalTime($submission->submitted_at) }}.
+     */
+    public function formatLocalTime($value, string $format = 'd/m/Y H:i:s'): ?string
+    {
+        if ($value === null || $value === '') {
+            return null;
+        }
+
+        $tz = $this->display_timezone;
+
+        if ($value instanceof \Carbon\CarbonInterface) {
+            $dt = $value->copy();
+        } elseif ($value instanceof \DateTimeInterface) {
+            $dt = \Illuminate\Support\Carbon::instance($value);
+        } else {
+            $dt = \Illuminate\Support\Carbon::parse($value);
+        }
+
+        return $dt->setTimezone($tz)->format($format);
+    }
+
+    /**
+     * Short local-timezone abbreviation for display (e.g. AST).
+     */
+    public function getLocalTimezoneAbbreviationAttribute(): string
+    {
+        return now()->setTimezone($this->display_timezone)->format('T');
     }
 
     /**
@@ -479,6 +540,54 @@ class WebFormSubmission extends Model
             'status' => self::STATUS_REJECTED,
             'external_response' => $reason,
         ]);
+    }
+
+    /**
+     * Mark this submission as having a CAPS report queued for parsing.
+     * The result page renders an interim "parsing" state with auto-refresh
+     * while the background job runs CapsResponseParser on the file.
+     */
+    public function markCapsParsing(
+        string $source = self::CAPS_SOURCE_MANUAL_UPLOAD,
+        ?string $filePath = null
+    ): void {
+        $this->update([
+            'caps_response_status' => self::CAPS_RESPONSE_PARSING,
+            'caps_response_received_at' => now(),
+            'caps_response_source' => $source,
+            'caps_response_file_path' => $filePath,
+            'caps_response_errors' => null,
+        ]);
+    }
+
+    /**
+     * Mark a CAPS report as failed to parse. We keep the uploaded file path
+     * so the broker can re-trigger parsing or fall back to manual review.
+     */
+    public function markCapsParseFailed(string $reason): void
+    {
+        $this->update([
+            'caps_response_status' => self::CAPS_RESPONSE_PARSE_FAILED,
+            'caps_response_errors' => [
+                'parse_error' => $reason,
+            ],
+        ]);
+    }
+
+    /**
+     * True while the parser job is still running on a freshly uploaded report.
+     */
+    public function getIsCapsParsingAttribute(): bool
+    {
+        return $this->caps_response_status === self::CAPS_RESPONSE_PARSING;
+    }
+
+    /**
+     * True if the parser failed on the uploaded report.
+     */
+    public function getCapsParseFailedAttribute(): bool
+    {
+        return $this->caps_response_status === self::CAPS_RESPONSE_PARSE_FAILED;
     }
 
     /**

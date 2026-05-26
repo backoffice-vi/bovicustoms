@@ -198,6 +198,12 @@
                             <li><a class="dropdown-item" href="{{ route('admin.country-levies.index') }}">
                                 <i class="fas fa-percentage me-1"></i>Country Levies
                             </a></li>
+                            <li><a class="dropdown-item" href="{{ route('admin.country-duty-policies.index') }}">
+                                <i class="fas fa-balance-scale me-1"></i>Duty Policies (FOB/CIF)
+                            </a></li>
+                            <li><a class="dropdown-item" href="{{ route('admin.customs-code-rate-overrides.index') }}">
+                                <i class="fas fa-percent me-1"></i>Rate Overrides
+                            </a></li>
                             <li><hr class="dropdown-divider"></li>
                             <li><a class="dropdown-item" href="{{ route('admin.web-form-targets.index') }}">
                                 <i class="fas fa-globe me-1"></i>Web Form Targets

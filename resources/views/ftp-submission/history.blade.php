@@ -56,7 +56,10 @@
                         <tbody>
                             @foreach($submissions as $submission)
                             <tr>
-                                <td>{{ $submission->created_at->format('d/m/Y H:i') }}</td>
+                                <td>
+                                    {{ $submission->formatLocalTime($submission->created_at, 'd/m/Y H:i') }}
+                                    <small class="text-muted">{{ $submission->local_timezone_abbreviation }}</small>
+                                </td>
                                 <td>
                                     <code>{{ $submission->external_reference ?? 'N/A' }}</code>
                                     @if($submission->parent_submission_id)

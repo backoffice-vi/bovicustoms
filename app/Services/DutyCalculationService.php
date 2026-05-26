@@ -6,21 +6,36 @@ use App\Models\Shipment;
 use App\Models\Invoice;
 use App\Models\InvoiceItem;
 use App\Models\CustomsCode;
+use App\Models\CountryDutyPolicy;
 use App\Models\CountryLevy;
 use App\Models\DeclarationForm;
+use Illuminate\Support\Carbon;
 use Illuminate\Support\Collection;
 
 class DutyCalculationService
 {
+    public function __construct(
+        protected DutyPolicyResolver $policyResolver,
+    ) {
+    }
+
     /**
-     * Calculate all duties and levies for a shipment
+     * Calculate all duties and levies for a shipment.
+     *
+     * The optional $effectiveDate is used to look up the country's duty
+     * policy (FOB vs CIF) and any tariff-rate overrides in effect on that
+     * day. Defaults to the shipment's arrival_date, then today.
      *
      * @param Shipment $shipment
+     * @param string|null $effectiveDate ISO date the policy should be
+     *        evaluated on (typically the declaration_date).
      * @return array Complete calculation breakdown
      */
-    public function calculateForShipment(Shipment $shipment): array
+    public function calculateForShipment(Shipment $shipment, ?string $effectiveDate = null): array
     {
         $countryId = $shipment->country_id;
+        $effectiveDate = $this->normalizeEffectiveDate($effectiveDate, $shipment);
+        $basis = $this->policyResolver->resolveBasis($countryId, $effectiveDate);
         
         // Get all invoices in the shipment with their items
         $invoices = $shipment->invoices()->with('invoiceItems')->get();
@@ -34,8 +49,16 @@ class DutyCalculationService
         // Calculate proration ratios for each invoice
         $invoiceProrations = $this->calculateInvoiceProrations($invoices, $fobTotal, $freightTotal, $insuranceTotal);
 
-        // Calculate duty for each line item
-        $itemDuties = $this->calculateItemDuties($invoices, $invoiceProrations, $countryId);
+        // Calculate duty for each line item — resolver picks FOB or CIF
+        // as the tax base depending on the country policy on $effectiveDate
+        // and applies any tariff-rate overrides in effect.
+        $itemDuties = $this->calculateItemDuties(
+            $invoices,
+            $invoiceProrations,
+            $countryId,
+            $effectiveDate,
+            $basis,
+        );
 
         // Sum up customs duty
         $customsDutyTotal = collect($itemDuties)->sum('duty_amount');
@@ -70,20 +93,41 @@ class DutyCalculationService
             'wharfage_total' => round($wharfageTotal, 2),
             'other_levies_total' => round($otherLeviesTotal, 2),
             'total_duty' => round($totalDuty, 2),
-            
+
+            // Provenance for the chosen calculation method. Downstream
+            // (T12 generator, pre-validation, broker UI) reads these
+            // instead of re-resolving the policy.
+            'duty_basis' => $basis,
+            'effective_date' => $effectiveDate,
+
             'invoice_prorations' => $invoiceProrations,
             'item_duties' => $itemDuties,
             'levies' => $levyResult['levies'],
-            
+
             'duty_breakdown' => $this->groupDutiesByTariff($itemDuties),
             'levy_breakdown' => $levyResult['levies'],
-            
+
             'summary' => [
                 'invoice_count' => $invoices->count(),
                 'item_count' => collect($itemDuties)->count(),
                 'tariff_codes_used' => collect($itemDuties)->pluck('tariff_code')->unique()->count(),
             ],
         ];
+    }
+
+    /**
+     * Normalize the effective-date argument used by every entry point.
+     * Order of preference: explicit override → shipment arrival_date → today.
+     */
+    protected function normalizeEffectiveDate(?string $effectiveDate, ?Shipment $shipment = null): string
+    {
+        if ($effectiveDate) {
+            return Carbon::parse($effectiveDate)->toDateString();
+        }
+        if ($shipment && $shipment->arrival_date) {
+            return Carbon::parse($shipment->arrival_date)->toDateString();
+        }
+        return Carbon::now()->toDateString();
     }
 
     /**
@@ -132,10 +176,22 @@ class DutyCalculationService
     }
 
     /**
-     * Calculate duty for each line item across all invoices
+     * Calculate duty for each line item across all invoices.
+     *
+     * The CUD base is FOB or CIF depending on the country policy resolved
+     * for $effectiveDate. Any active CustomsCodeRateOverride for the line's
+     * tariff at that date wins over the base rate on customs_codes.
      */
-    protected function calculateItemDuties(Collection $invoices, array $invoiceProrations, int $countryId): array
-    {
+    protected function calculateItemDuties(
+        Collection $invoices,
+        array $invoiceProrations,
+        int $countryId,
+        ?string $effectiveDate = null,
+        ?string $basis = null,
+    ): array {
+        $effectiveDate = $effectiveDate ?? Carbon::now()->toDateString();
+        $basis = $basis ?? $this->policyResolver->resolveBasis($countryId, $effectiveDate);
+
         $itemDuties = [];
 
         foreach ($invoices as $invoice) {
@@ -144,15 +200,18 @@ class DutyCalculationService
 
             $invoiceItems = $invoice->invoiceItems ?? collect();
             $invoiceFob = $proration['fob_value'];
-            
+
             foreach ($invoiceItems as $item) {
                 $itemFob = (float) ($item->line_total ?? (($item->quantity ?? 1) * ($item->unit_price ?? 0)));
-                
+
                 // Calculate item's share of freight and insurance
                 $itemRatio = $invoiceFob > 0 ? $itemFob / $invoiceFob : 0;
                 $itemFreight = $proration['prorated_freight'] * $itemRatio;
                 $itemInsurance = $proration['prorated_insurance'] * $itemRatio;
                 $itemCif = $itemFob + $itemFreight + $itemInsurance;
+
+                // Pick FOB or CIF as the duty base per the resolved policy.
+                $dutyBaseValue = $this->policyResolver->pickDutyBaseValue($basis, $itemFob, $itemCif);
 
                 // Look up tariff rate.
                 // customs_codes is the source of truth for CAPS — the rate
@@ -162,22 +221,34 @@ class DutyCalculationService
                 $dutyRate = 0;
                 $dutyAmount = 0;
                 $tariffDescription = null;
+                $rateSource = 'none';
 
                 $customsCode = $tariffCode
                     ? $this->resolveExactCustomsCode($tariffCode, $countryId)
                     : null;
 
                 if ($customsCode) {
-                    $dutyRate = (float) $customsCode->duty_rate;
+                    // Resolver returns the override rate when in effect,
+                    // otherwise the customs_codes.duty_rate.
+                    $resolvedRate = $this->policyResolver->resolveRate(
+                        $customsCode,
+                        $countryId,
+                        $effectiveDate,
+                    );
+                    $dutyRate = $resolvedRate;
+                    $rateSource = abs($resolvedRate - (float) $customsCode->duty_rate) > 0.0001
+                        ? 'override'
+                        : 'customs_code';
                     $tariffDescription = $customsCode->description;
-                    $dutyAmount = $itemCif * ($dutyRate / 100);
+                    $dutyAmount = $dutyBaseValue * ($dutyRate / 100);
                 } elseif ($item->duty_rate !== null) {
                     // No exact match — fall back to the cached rate so we still
                     // produce a number, but downstream pre-validation will block
                     // the submission until the tariff is resolved.
                     $dutyRate = (float) $item->duty_rate;
                     $tariffDescription = $item->customs_code_description;
-                    $dutyAmount = $itemCif * ($dutyRate / 100);
+                    $rateSource = 'item_cache';
+                    $dutyAmount = $dutyBaseValue * ($dutyRate / 100);
                 }
 
                 $itemDuties[] = [
@@ -192,9 +263,12 @@ class DutyCalculationService
                     'freight_share' => round($itemFreight, 2),
                     'insurance_share' => round($itemInsurance, 2),
                     'cif_value' => round($itemCif, 2),
+                    'duty_base_value' => round($dutyBaseValue, 2),
+                    'duty_basis' => $basis,
                     'tariff_code' => $tariffCode,
                     'tariff_description' => $tariffDescription,
                     'duty_rate' => $dutyRate,
+                    'duty_rate_source' => $rateSource,
                     'duty_amount' => round($dutyAmount, 2),
                 ];
             }
@@ -377,9 +451,16 @@ class DutyCalculationService
     /**
      * Calculate duties for a single invoice (standalone, not in shipment)
      */
-    public function calculateForInvoice(Invoice $invoice, float $freight = 0, float $insurance = 0): array
-    {
+    public function calculateForInvoice(
+        Invoice $invoice,
+        float $freight = 0,
+        float $insurance = 0,
+        ?string $effectiveDate = null,
+    ): array {
         $countryId = $invoice->country_id;
+        $effectiveDate = $this->normalizeEffectiveDate($effectiveDate);
+        $basis = $this->policyResolver->resolveBasis($countryId, $effectiveDate);
+
         $fobTotal = (float) $invoice->total_amount;
         $cifTotal = $fobTotal + $freight + $insurance;
 
@@ -397,7 +478,13 @@ class DutyCalculationService
         ];
 
         // Calculate item duties
-        $itemDuties = $this->calculateItemDuties(collect([$invoice]), $invoiceProration, $countryId);
+        $itemDuties = $this->calculateItemDuties(
+            collect([$invoice]),
+            $invoiceProration,
+            $countryId,
+            $effectiveDate,
+            $basis,
+        );
         $customsDutyTotal = collect($itemDuties)->sum('duty_amount');
 
         // Calculate levies
@@ -423,6 +510,8 @@ class DutyCalculationService
             'wharfage_total' => round($wharfageTotal, 2),
             'other_levies_total' => round($levyResult['total_levies'] - $wharfageTotal, 2),
             'total_duty' => round($totalDuty, 2),
+            'duty_basis' => $basis,
+            'effective_date' => $effectiveDate,
             'item_duties' => $itemDuties,
             'levies' => $levyResult['levies'],
             'duty_breakdown' => $this->groupDutiesByTariff($itemDuties),
@@ -443,6 +532,7 @@ class DutyCalculationService
             'wharfage_total' => $calculation['wharfage_total'],
             'other_levies_total' => $calculation['other_levies_total'],
             'total_duty' => $calculation['total_duty'],
+            'duty_basis' => $calculation['duty_basis'] ?? null,
             'duty_breakdown' => $calculation['duty_breakdown'] ?? null,
             'levy_breakdown' => $calculation['levy_breakdown'] ?? $calculation['levies'] ?? null,
         ]);
@@ -451,9 +541,9 @@ class DutyCalculationService
     /**
      * Recalculate and update a shipment's totals
      */
-    public function recalculateShipment(Shipment $shipment): array
+    public function recalculateShipment(Shipment $shipment, ?string $effectiveDate = null): array
     {
-        $calculation = $this->calculateForShipment($shipment);
+        $calculation = $this->calculateForShipment($shipment, $effectiveDate);
 
         // Update shipment totals
         $shipment->update([

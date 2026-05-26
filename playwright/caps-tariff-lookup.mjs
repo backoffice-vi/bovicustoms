@@ -241,32 +241,41 @@ async function searchPrefix(popup, prefix) {
     const rows = await popup.evaluate((pfx) => {
         const out = [];
         const seen = new Set();
-        const re = new RegExp('^' + pfx.replace(/[^0-9]/g, '') + '\\d{0,3}$');
-        const dotted = new RegExp('^' + pfx.replace(/[^0-9]/g, '').replace(/(\\d{4})(\\d*)/, '$1\\.$2'));
 
-        const rows = Array.from(document.querySelectorAll('tr'));
-        for (const tr of rows) {
+        const trs = Array.from(document.querySelectorAll('tr'));
+        for (const tr of trs) {
             const cells = tr.querySelectorAll('td, th');
             if (cells.length < 2) continue;
-            for (const cell of cells) {
-                const txt = (cell.textContent || '').trim();
+            const cellTexts = Array.from(cells).map(c => (c.textContent || '').trim());
+            let raw = null;
+            for (const txt of cellTexts) {
                 const codeMatch = txt.match(/\b(\d{4}\.?\d{0,3})\b/);
                 if (!codeMatch) continue;
-                const raw = codeMatch[1];
-                const digits = raw.replace(/\D/g, '');
-                if (!digits.startsWith(pfx.replace(/\D/g, ''))) continue;
-
-                const desc = Array.from(cells)
-                    .map(c => (c.textContent || '').trim())
-                    .filter(s => s && s !== raw)
-                    .join(' | ');
-
-                const key = `${raw}|${desc}`;
-                if (seen.has(key)) continue;
-                seen.add(key);
-                out.push({ code: raw, description: desc });
-                break;
+                const digits = codeMatch[1].replace(/\D/g, '');
+                if (digits.startsWith(pfx.replace(/\D/g, ''))) {
+                    raw = codeMatch[1];
+                    break;
+                }
             }
+            if (!raw) continue;
+
+            // Extract first percentage / numeric rate found in any cell (skip the code cell itself).
+            let rate = null;
+            for (const txt of cellTexts) {
+                if (txt === raw) continue;
+                const pct = txt.match(/(\d{1,3}(?:\.\d{1,3})?)\s*%/);
+                if (pct) { rate = pct[1] + '%'; break; }
+                // Also catch standalone integers like '10' or '20' in a column labelled rate
+                const stand = txt.match(/^\s*(\d{1,3}(?:\.\d{1,3})?)\s*$/);
+                if (stand && txt !== raw) { rate = stand[1]; break; }
+            }
+
+            const desc = cellTexts.filter(s => s && s !== raw).join(' | ');
+
+            const key = `${raw}|${desc}`;
+            if (seen.has(key)) continue;
+            seen.add(key);
+            out.push({ code: raw, description: desc, rate });
         }
         return out;
     }, prefix);

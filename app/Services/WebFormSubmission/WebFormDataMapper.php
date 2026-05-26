@@ -18,10 +18,14 @@ use Illuminate\Support\Facades\Log;
 class WebFormDataMapper
 {
     protected ?ClaudeJsonClient $claude = null;
-    
-    public function __construct(?ClaudeJsonClient $claude = null)
+    protected ?\App\Services\DutyPolicyResolver $policyResolver = null;
+
+    public function __construct(?ClaudeJsonClient $claude = null, ?\App\Services\DutyPolicyResolver $policyResolver = null)
     {
         $this->claude = $claude;
+        // Resolver is only used to pick the CUD tax base; pull from the
+        // container if not injected so older call sites still work.
+        $this->policyResolver = $policyResolver ?? app(\App\Services\DutyPolicyResolver::class);
     }
 
     /**
@@ -430,6 +434,11 @@ class WebFormDataMapper
             $declarationItems = $this->groupItemsByHsCode($declarationItems);
         }
 
+        // Resolve duty basis for this declaration (FOB or CIF) so the
+        // CUD tax_value matches whatever DutyCalculationService used.
+        $cudBasis = $declaration->duty_basis
+            ?: ($this->policyResolver?->resolveBasisForDeclaration($declaration) ?? 'cif');
+
         // Calculate totals for proration
         $totalFob = array_sum(array_map(fn($i) => floatval($i['fob_value'] ?? $i['value'] ?? 0), $declarationItems));
         $totalFreight = floatval($shipment?->freight_total ?? $shipment?->freight_cost ?? 0);
@@ -487,7 +496,13 @@ class WebFormDataMapper
                 'insurance_amount' => number_format($itemInsurance, 2, '.', ''),
                 'cif_value' => number_format($cifValue, 2, '.', ''),
                 'tax_type_1' => 'CUD',
-                'tax_value_1' => number_format($cifValue, 2, '.', ''),
+                // CUD base follows the active country duty policy: FOB or CIF.
+                'tax_value_1' => number_format(
+                    $cudBasis === 'fob' ? $fobValue : $cifValue,
+                    2,
+                    '.',
+                    ''
+                ),
                 'tax_type_2' => 'WHA',
                 'tax_value_2' => number_format($fobValue, 2, '.', ''),
             ];
@@ -621,12 +636,36 @@ class WebFormDataMapper
             return $padded;
         }
 
-        // Subheading doesn't exist in DB. We MUST NOT fabricate or jump to a
-        // sibling/other subheading — that violates the no-tariff-guessing rule
-        // and produces tariffs CAPS rejects as "TARIFF NO. NOT KNOWN" or
-        // wildly wrong product categories. Return the padded form so the
-        // pre-validator can block; the user must resolve via classification.
+        // The padded form (XXXXYY0) is only a valid CAPS code when the 6-digit
+        // heading has NO 7-digit children. If the heading has children in our
+        // local tariff DB, CAPS will reject the padded form as
+        // "TARIFF NO. NOT KNOWN" — the user must pick a specific child.
+        // Return the unpadded digits so the pre-validator blocks the submission
+        // (the 7-digit length check will fail).
+        if (strlen($digits) === 6 && $this->headingHasChildren($digits)) {
+            return $digits;
+        }
+
+        // Heading has no children — XXXXYY0 is the canonical CAPS form.
+        // Note: a small number of these still get rejected by CAPS (e.g.
+        // 1513.10 -> 1513100). Those must be resolved via the CAPS Tariff
+        // Lookup; no programmatic mapping is safe per the no-tariff-guessing
+        // rule. The pre-validator surfaces them as warnings.
         return $padded;
+    }
+
+    /**
+     * Whether a 6-digit heading has any 7-digit child subheadings in our
+     * local customs_codes DB. When children exist, the XXXXYY0 zero-padded
+     * form is NOT acceptable to CAPS — the user must pick a specific child.
+     */
+    protected function headingHasChildren(string $sixDigits): bool
+    {
+        $dotted6 = substr($sixDigits, 0, 4) . '.' . substr($sixDigits, 4);
+
+        return \App\Models\CustomsCode::where('code', 'LIKE', $dotted6 . '%')
+            ->where('code', '!=', $dotted6)
+            ->exists();
     }
 
     /**

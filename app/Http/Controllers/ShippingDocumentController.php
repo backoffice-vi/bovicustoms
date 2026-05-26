@@ -222,6 +222,7 @@ class ShippingDocumentController extends Controller
         $validated = $request->validate([
             'document_number' => 'nullable|string|max:100',
             'manifest_number' => 'nullable|string|max:100',
+            'booking_number' => 'nullable|string|max:100',
             'carrier_name' => 'nullable|string|max:255',
             'vessel_name' => 'nullable|string|max:255',
             'voyage_number' => 'nullable|string|max:100',
@@ -234,6 +235,7 @@ class ShippingDocumentController extends Controller
             'freight_terms' => 'nullable|string|max:50',
             'insurance_amount' => 'nullable|numeric|min:0',
             'other_charges' => 'nullable|numeric|min:0',
+            'freight_grand_total' => 'nullable|numeric|min:0',
             'total_packages' => 'nullable|integer|min:0',
             'package_type' => 'nullable|string|max:100',
             'goods_description' => 'nullable|string|max:1000',
@@ -318,8 +320,20 @@ class ShippingDocumentController extends Controller
             if ($newBol) {
                 // Use values from the remaining B/L
                 $updates['bill_of_lading_number'] = $newBol->document_number;
+                if ($newBol->manifest_number) {
+                    $updates['manifest_number'] = $newBol->manifest_number;
+                }
+                if ($newBol->booking_number) {
+                    $updates['booking_number'] = $newBol->booking_number;
+                }
                 if ($newBol->freight_charges) {
-                    $updates['freight_total'] = $newBol->freight_charges;
+                    $updates['freight_base_amount'] = $newBol->freight_charges;
+                    $updates['freight_other_charges'] = $newBol->other_charges ?? 0;
+                    $updates['freight_grand_total'] = $newBol->freight_grand_total
+                        ?? round((float) $newBol->freight_charges + (float) ($newBol->other_charges ?? 0), 2);
+                    $updates['freight_total'] = ($shipment->freight_total_source === 'document_grand_total')
+                        ? $updates['freight_grand_total']
+                        : $newBol->freight_charges;
                 }
                 if ($newBol->carrier_name) {
                     $updates['carrier_name'] = $newBol->carrier_name;
@@ -345,7 +359,11 @@ class ShippingDocumentController extends Controller
             } else {
                 // No B/L documents left - clear B/L-related fields
                 $updates['bill_of_lading_number'] = null;
+                $updates['booking_number'] = null;
                 $updates['freight_total'] = 0;
+                $updates['freight_base_amount'] = null;
+                $updates['freight_other_charges'] = null;
+                $updates['freight_grand_total'] = null;
                 $updates['carrier_name'] = null;
                 $updates['vessel_name'] = null;
                 $updates['voyage_number'] = null;

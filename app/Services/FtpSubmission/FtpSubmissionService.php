@@ -101,19 +101,17 @@ class FtpSubmissionService
             $ftpSettings = $country->getFtpSettings();
             $ftpCreds = $credentials->getFtpCredentials();
 
-            // Connect and upload
-            $this->connect($ftpSettings, $ftpCreds);
-            
+            // Per CAPS FTP Submission Guide 4.0 §1.9, the trader
+            // declaration may be uploaded first and attachments may be
+            // uploaded later with no time limit once the ETD is processed.
             $remotePath = $this->getRemotePath($ftpSettings, $ftpCreds['trader_id'], $t12Data['filename']);
-            
+
+            $this->connect($ftpSettings, $ftpCreds);
             $this->upload($t12Data['content'], $remotePath);
-            
             $this->disconnect();
 
-            // Mark credentials as used
             $credentials->markUsed();
 
-            // Update submission as successful
             $submission->update([
                 'status' => 'submitted',
                 'is_successful' => true,
@@ -125,7 +123,6 @@ class FtpSubmissionService
                 ],
             ]);
 
-            // Update declaration status
             $declaration->update([
                 'submission_status' => DeclarationForm::SUBMISSION_STATUS_SUBMITTED,
                 'submitted_at' => now(),
@@ -141,7 +138,7 @@ class FtpSubmissionService
                 'remote_path' => $remotePath,
             ]);
 
-            // Optionally upload attachments alongside the T12 (Spec 4.0 §1.9)
+            // Optionally upload attachments after the ETD is present.
             if ($autoAttach) {
                 try {
                     $this->attachmentUploader->uploadForSubmission($submission, $declaration, $country, $credentials);

@@ -35,6 +35,10 @@ class Shipment extends Model
         'notify_party_contact_id',
         'fob_total',
         'freight_total',
+        'freight_base_amount',
+        'freight_other_charges',
+        'freight_grand_total',
+        'freight_total_source',
         'insurance_total',
         'cif_total',
         'insurance_method',
@@ -42,6 +46,7 @@ class Shipment extends Model
         'bill_of_lading_number',
         'awb_number',
         'manifest_number',
+        'booking_number',
         'carrier_name',
         'vessel_name',
         'voyage_number',
@@ -64,6 +69,9 @@ class Shipment extends Model
     protected $casts = [
         'fob_total' => 'decimal:2',
         'freight_total' => 'decimal:2',
+        'freight_base_amount' => 'decimal:2',
+        'freight_other_charges' => 'decimal:2',
+        'freight_grand_total' => 'decimal:2',
         'insurance_total' => 'decimal:2',
         'cif_total' => 'decimal:2',
         'insurance_percentage' => 'decimal:2',
@@ -436,6 +444,9 @@ class Shipment extends Model
         if ($document->manifest_number) {
             $updates['manifest_number'] = $document->manifest_number;
         }
+        if ($document->booking_number) {
+            $updates['booking_number'] = $document->booking_number;
+        }
         if ($document->container_id) {
             $updates['container_id'] = $document->container_id;
         }
@@ -458,7 +469,25 @@ class Shipment extends Model
             $updates['final_destination'] = $document->final_destination;
         }
         if ($document->freight_charges) {
-            $updates['freight_total'] = $document->freight_charges;
+            $baseFreight = (float) $document->freight_charges;
+            $otherCharges = (float) ($document->other_charges ?? 0);
+            $grandTotal = $document->freight_grand_total !== null
+                ? (float) $document->freight_grand_total
+                : round($baseFreight + $otherCharges, 2);
+
+            $updates['freight_base_amount'] = $baseFreight;
+            $updates['freight_other_charges'] = $otherCharges;
+            $updates['freight_grand_total'] = $grandTotal;
+
+            $source = $this->freight_total_source ?: 'document_freight_only';
+            if ($source === 'document_grand_total') {
+                $updates['freight_total'] = $grandTotal;
+            } elseif ($source === 'manual') {
+                // Preserve a broker-entered freight_total.
+            } else {
+                $updates['freight_total'] = $baseFreight;
+                $updates['freight_total_source'] = 'document_freight_only';
+            }
         }
         if ($document->total_packages) {
             $updates['total_packages'] = $document->total_packages;

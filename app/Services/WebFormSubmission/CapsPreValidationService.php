@@ -15,8 +15,14 @@ class CapsPreValidationService
     protected array $tariffHeadingKnownCache = [];
     protected array $tariffResolvedCache = [];
 
-    public function __construct(protected WebFormDataMapper $tariffResolver)
-    {
+    public function __construct(
+        protected WebFormDataMapper $tariffResolver,
+        protected ?\App\Services\DutyPolicyResolver $policyResolver = null,
+    ) {
+        // Optional injection so older code paths constructing this service
+        // manually still work; in normal request flow the container provides
+        // the resolver and we use it.
+        $this->policyResolver = $policyResolver ?? app(\App\Services\DutyPolicyResolver::class);
     }
 
     public function validateWebPayload(array $payload, ?int $countryId = null): array
@@ -43,7 +49,7 @@ class CapsPreValidationService
         ]);
     }
 
-    public function validateT12Preview(array $preview, ?int $countryId = null): array
+    public function validateT12Preview(array $preview, ?int $countryId = null, ?string $effectiveDate = null): array
     {
         $this->resetCaches();
 
@@ -51,6 +57,13 @@ class CapsPreValidationService
         $warnings = [];
         $currentRecord = null;
         $records = 0;
+
+        // Resolve the duty basis once per validation pass so CUD R50 lines
+        // can be checked against the right base value (FOB or CIF) based on
+        // the country's policy on the declaration date.
+        $cudBasis = $this->policyResolver
+            ? $this->policyResolver->resolveBasis($countryId, $effectiveDate)
+            : 'cif';
 
         foreach ($preview['lines'] ?? [] as $lineIndex => $line) {
             $fields = $line['fields'] ?? str_getcsv($line['raw'] ?? '');
@@ -113,14 +126,27 @@ class CapsPreValidationService
                 );
 
                 if ($taxType === 'CUD') {
-                    $this->assertMoneyEquals("Record {$currentRecord['record']} CUD tax value must equal CIF", $currentRecord['cif'], $taxValue, $errors);
+                    // The expected CUD base depends on the active duty policy:
+                    // FOB during the BVI 2026 cost-of-living window, CIF otherwise.
+                    $expectedBaseValue = $cudBasis === 'fob'
+                        ? $currentRecord['fob']
+                        : $currentRecord['cif'];
+                    $expectedBaseLabel = strtoupper($cudBasis);
+                    $this->assertMoneyEquals(
+                        "Record {$currentRecord['record']} CUD tax value must equal {$expectedBaseLabel}",
+                        $expectedBaseValue,
+                        $taxValue,
+                        $errors
+                    );
                     $this->validateCudRateAgainstTariff(
                         $currentRecord['tariff'] ?? '',
                         $taxRate,
                         $currentRecord['cpc'] ?? '',
                         "Record {$currentRecord['record']}",
                         $errors,
-                        $warnings
+                        $warnings,
+                        $countryId,
+                        $effectiveDate
                     );
                 } elseif ($taxType === 'WHA') {
                     $this->assertMoneyEquals("Record {$currentRecord['record']} WHA tax value must equal FOB", $currentRecord['fob'], $taxValue, $errors);
@@ -141,7 +167,7 @@ class CapsPreValidationService
         ]);
     }
 
-    public function validateT12Content(string $content, ?int $countryId = null): array
+    public function validateT12Content(string $content, ?int $countryId = null, ?string $effectiveDate = null): array
     {
         $lines = preg_split('/\r\n|\n|\r/', trim($content));
         $previewLines = [];
@@ -162,7 +188,7 @@ class CapsPreValidationService
         return $this->validateT12Preview([
             'lines' => $previewLines,
             'line_count' => count($previewLines),
-        ], $countryId);
+        ], $countryId, $effectiveDate);
     }
 
     public function redactPayload(array $payload): array
@@ -379,7 +405,7 @@ class CapsPreValidationService
         }
     }
 
-    protected function validateCudRateAgainstTariff(string $sevenDigits, float $taxRate, string $cpc, string $label, array &$errors, array &$warnings): void
+    protected function validateCudRateAgainstTariff(string $sevenDigits, float $taxRate, string $cpc, string $label, array &$errors, array &$warnings, ?int $countryId = null, ?string $effectiveDate = null): void
     {
         if ($sevenDigits === '') {
             return;
@@ -390,7 +416,13 @@ class CapsPreValidationService
             return;
         }
 
-        $expectedRate = (float) $tariff->duty_rate;
+        // Use the policy resolver so SI 20 / time-bound rate overrides are
+        // honored. Falls back to the raw customs_codes.duty_rate if no
+        // resolver is wired.
+        $expectedRate = $this->policyResolver
+            ? (float) $this->policyResolver->resolveRate($tariff, $countryId, $effectiveDate)
+            : (float) $tariff->duty_rate;
+
         if (abs($expectedRate - $taxRate) <= 0.001) {
             return;
         }
@@ -447,13 +479,14 @@ class CapsPreValidationService
         $known = CustomsCode::where('code', $sevenDigits)->exists()
             || CustomsCode::where('code', $dotted7)->exists();
 
-        // 6-digit heading rendered as XXXXYY0 (e.g. 0804.10 -> CAPS form 0804100).
-        // CAPS accepts this — confirmed against approved legacy declarations.
-        if (!$known && substr($sevenDigits, -1) === '0') {
-            $dotted6 = substr($sevenDigits, 0, 4) . '.' . substr($sevenDigits, 4, 2);
-            $known = CustomsCode::where('code', $dotted6)->exists();
-        }
-
+        // We rely on the customs_codes table being a faithful mirror of the
+        // CAPS tariff schedule (see caps:import-tariff-schedule reading
+        // HMC_100V.3_2024_alpha.xlsx). Any 7-digit form CAPS accepts —
+        // including legitimate XXXXYY0 codes like 1008.000, 0712.000,
+        // 1109.000 where the heading has no national subdivision — must
+        // exist as a row in the table. No padding heuristics; per
+        // .cursor/rules/no-short-caps-tariffs.mdc the validator must block,
+        // not guess.
         return $this->tariffExactKnownCache[$sevenDigits] = $known;
     }
 

@@ -28,6 +28,7 @@ class DeclarationForm extends Model
         'form_number',
         'declaration_date',
         'total_duty',
+        'duty_basis',
         'fob_value',
         'freight_total',
         'insurance_total',

@@ -50,6 +50,12 @@
     </div>
     @endif
 
+    {{-- Auto-refresh while the parser job is still running so the broker sees
+         a friendly progress state instead of a frozen page. --}}
+    @if($submission->is_successful && $submission->is_caps_parsing)
+        <meta http-equiv="refresh" content="20">
+    @endif
+
     {{-- CAPS-side response panel: only meaningful for successful FTP uploads. --}}
     @if($submission->is_successful)
         <div class="card mb-4">
@@ -59,11 +65,46 @@
                 </h5>
             </div>
             <div class="card-body">
-                @if($submission->caps_accepted)
+                @if($submission->is_caps_parsing)
+                    <div class="d-flex align-items-center mb-2">
+                        <div class="spinner-border spinner-border-sm text-info me-2" role="status">
+                            <span class="visually-hidden">Parsing…</span>
+                        </div>
+                        <strong>Parsing the CAPS report in the background.</strong>
+                    </div>
+                    <p class="mb-2 text-muted">
+                        Large query reports take 2–5 minutes to extract. This page
+                        auto-refreshes every 20 seconds — you can safely navigate away
+                        and come back.
+                    </p>
+                    <p class="mb-0 small text-muted">
+                        Uploaded {{ $submission->formatLocalTime($submission->caps_response_received_at, 'd/m/Y H:i:s') }}
+                        {{ $submission->local_timezone_abbreviation }}
+                        @if($submission->caps_response_file_path)
+                            — <code>{{ basename($submission->caps_response_file_path) }}</code>
+                        @endif
+                    </p>
+                @elseif($submission->caps_parse_failed)
+                    <p class="mb-2 text-warning">
+                        <i class="fas fa-exclamation-triangle me-2"></i>
+                        We couldn't parse the uploaded report.
+                        @if(!empty($submission->caps_response_errors['parse_error']))
+                            <br><small class="text-muted">{{ $submission->caps_response_errors['parse_error'] }}</small>
+                        @endif
+                    </p>
+                    <form action="{{ route('ftp-submission.reparse', $submission) }}" method="POST"
+                        class="d-inline">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-warning">
+                            <i class="fas fa-redo me-2"></i>Try parsing again
+                        </button>
+                    </form>
+                @elseif($submission->caps_accepted)
                     <p class="mb-3 text-success">
                         <i class="fas fa-check-circle me-2"></i>
                         CAPS accepted this declaration on
-                        {{ $submission->caps_response_received_at?->format('d/m/Y H:i') }}.
+                        {{ $submission->formatLocalTime($submission->caps_response_received_at, 'd/m/Y H:i') }}
+                        {{ $submission->local_timezone_abbreviation }}.
                     </p>
                     <form action="{{ route('ftp-submission.amendment', $submission) }}" method="POST"
                         onsubmit="return confirm('Submit an amendment T12 (XXXXXXDDMMYYYYA.SSS) for this accepted declaration?');">
@@ -118,15 +159,24 @@
                         flow.
                     </p>
                     <form action="{{ route('ftp-submission.mark-rejected', $submission) }}" method="POST"
-                        enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center">
+                        enctype="multipart/form-data" class="d-flex flex-wrap gap-2 align-items-center"
+                        id="caps-report-upload-form">
                         @csrf
                         <input type="file" name="caps_response_file" accept="application/pdf,.pdf,.txt,text/plain"
                             class="form-control" style="max-width: 380px" required>
-                        <button type="submit" class="btn btn-outline-danger">
+                        <button type="submit" class="btn btn-outline-danger" id="caps-report-upload-btn">
                             <i class="fas fa-file-upload me-2"></i>Upload CAPS Report
                         </button>
                         <small class="text-muted ms-2">PDF or TXT, max 20 MB</small>
                     </form>
+                    <script>
+                        document.getElementById('caps-report-upload-form')?.addEventListener('submit', function () {
+                            var btn = document.getElementById('caps-report-upload-btn');
+                            if (!btn) return;
+                            btn.disabled = true;
+                            btn.innerHTML = '<span class="spinner-border spinner-border-sm me-2" role="status"></span>Uploading…';
+                        });
+                    </script>
                 @endif
             </div>
         </div>
@@ -221,7 +271,10 @@
                         </tr>
                         <tr>
                             <th>Submitted At:</th>
-                            <td>{{ $submission->submitted_at?->format('d/m/Y H:i:s') ?? $submission->created_at->format('d/m/Y H:i:s') }}</td>
+                            <td>
+                                {{ $submission->formatLocalTime($submission->submitted_at ?? $submission->created_at, 'd/m/Y H:i:s') }}
+                                <small class="text-muted">{{ $submission->local_timezone_abbreviation }}</small>
+                            </td>
                         </tr>
                         <tr>
                             <th>Submitted By:</th>

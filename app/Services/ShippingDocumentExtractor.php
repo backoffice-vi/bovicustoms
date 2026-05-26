@@ -106,7 +106,8 @@ You are extracting structured data from a shipping document image ({$this->getDo
 Return ONLY valid JSON in this format:
 {
   "document_number": "string or null (B/L number, AWB number, etc.)",
-  "manifest_number": "string or null",
+  "manifest_number": "string or null (only an explicit Manifest No. / MF# value; do NOT put Booking No. here)",
+  "booking_number": "string or null (Booking No. / Booking Number)",
   "container_id": "string or null (container number like MSCU1234567, may be empty for LCL shipments)",
   
   "shipper": {
@@ -155,7 +156,8 @@ Return ONLY valid JSON in this format:
   "freight_charges": number or null,
   "freight_terms": "prepaid or collect or null",
   "insurance_amount": number or null,
-  "other_charges": number or null,
+  "other_charges": number or null (sum of handling, documentation, fuel surcharge, and other B/L charges excluding the base freight charge),
+  "freight_grand_total": number or null (the B/L GRAND TOTAL / total freight invoice amount, including freight_charges plus other_charges),
   "currency": "USD or other currency code",
   
   "total_packages": number or null,
@@ -170,9 +172,13 @@ Return ONLY valid JSON in this format:
 
 Rules:
 - Extract ALL visible information from the document.
+- Treat "Booking No." as booking_number, not manifest_number.
+- Treat a handwritten/printed "MF#" or "Manifest No." as manifest_number.
+- If there is no explicit MF#/Manifest No., leave manifest_number null rather than copying Booking No.
 - For weights, convert to kilograms if shown in pounds (1 lb = 0.453592 kg).
 - For addresses, try to parse into components but also preserve the full address.
 - If freight shows "COLLECT", set freight_terms to "collect"; if "PREPAID", set to "prepaid".
+- For B/L freight totals, extract both the base freight charge and the grand total when visible. For example: base "Freight Charges (Collect)" goes in freight_charges; handling/documentation/fuel fees go in other_charges; the displayed GRAND TOTAL goes in freight_grand_total.
 - Look for invoice numbers mentioned in remarks or description sections.
 - For country_of_origin, use the 2-letter ISO code. Infer from the port of loading or shipper address if not explicitly stated.
 - Do not include explanations, only JSON.
@@ -195,7 +201,8 @@ You are extracting structured data from a shipping document ({$this->getDocument
 Return ONLY valid JSON in this format:
 {
   "document_number": "string or null (B/L number, AWB number, etc.)",
-  "manifest_number": "string or null",
+  "manifest_number": "string or null (only an explicit Manifest No. / MF# value; do NOT put Booking No. here)",
+  "booking_number": "string or null (Booking No. / Booking Number)",
   "container_id": "string or null (container number like MSCU1234567, may be empty for LCL shipments)",
   
   "shipper": {
@@ -244,7 +251,8 @@ Return ONLY valid JSON in this format:
   "freight_charges": number or null,
   "freight_terms": "prepaid or collect or null",
   "insurance_amount": number or null,
-  "other_charges": number or null,
+  "other_charges": number or null (sum of handling, documentation, fuel surcharge, and other B/L charges excluding the base freight charge),
+  "freight_grand_total": number or null (the B/L GRAND TOTAL / total freight invoice amount, including freight_charges plus other_charges),
   "currency": "USD or other currency code",
   
   "total_packages": number or null,
@@ -259,7 +267,11 @@ Return ONLY valid JSON in this format:
 
 Rules:
 - Extract ALL information you can find.
+- Treat "Booking No." as booking_number, not manifest_number.
+- Treat a handwritten/printed "MF#" or "Manifest No." as manifest_number.
+- If there is no explicit MF#/Manifest No., leave manifest_number null rather than copying Booking No.
 - For weights, convert to kilograms if shown in pounds.
+- For B/L freight totals, extract both the base freight charge and the grand total when visible. For example: base "Freight Charges (Collect)" goes in freight_charges; handling/documentation/fuel fees go in other_charges; the displayed GRAND TOTAL goes in freight_grand_total.
 - Look for invoice numbers in remarks, references, or description sections.
 - For country_of_origin, use the 2-letter ISO code. Infer from the port of loading or shipper address if not explicitly stated.
 - Do not include explanations, only JSON.
@@ -276,7 +288,7 @@ PROMPT;
     {
         return match ($documentType) {
             ShippingDocument::TYPE_BILL_OF_LADING => 
-                'This is a Bill of Lading (B/L). Focus on extracting the B/L number, shipper (exporter), consignee (importer), notify party, vessel/carrier details, ports, and cargo information.',
+                'This is a Bill of Lading (B/L). Focus on extracting the B/L number, explicit MF#/manifest number if present, booking number separately, shipper (exporter), consignee (importer), notify party, vessel/carrier details, ports, cargo information, and freight charge breakdown.',
             
             ShippingDocument::TYPE_AIR_WAYBILL => 
                 'This is an Air Waybill (AWB). Focus on extracting the AWB number, shipper, consignee, airline/carrier, airports, and cargo details.',
@@ -320,9 +332,20 @@ PROMPT;
             $invoiceRefs = [];
         }
 
+        $bookingNumber = $this->normalizeString($json['booking_number'] ?? null);
+        $manifestNumber = $this->normalizeString($json['manifest_number'] ?? null);
+
+        // Common B/L layout: "Booking No." is present but no explicit MF#.
+        // Do not let booking references become CAPS Manifest No.
+        if ($manifestNumber && !$bookingNumber && $this->looksLikeBookingNumber($manifestNumber)) {
+            $bookingNumber = $manifestNumber;
+            $manifestNumber = null;
+        }
+
         return [
             'document_number' => $this->normalizeString($json['document_number'] ?? null),
-            'manifest_number' => $this->normalizeString($json['manifest_number'] ?? null),
+            'manifest_number' => $manifestNumber,
+            'booking_number' => $bookingNumber,
             'container_id' => $this->normalizeString($json['container_id'] ?? null),
             
             'shipper_details' => $shipper,
@@ -344,6 +367,7 @@ PROMPT;
             'freight_terms' => $this->normalizeString($json['freight_terms'] ?? null),
             'insurance_amount' => $this->normalizeNumber($json['insurance_amount'] ?? null),
             'other_charges' => $this->normalizeNumber($json['other_charges'] ?? null),
+            'freight_grand_total' => $this->normalizeNumber($json['freight_grand_total'] ?? null),
             'currency' => strtoupper($this->normalizeString($json['currency'] ?? null) ?: 'USD'),
             
             'total_packages' => $this->normalizeInteger($json['total_packages'] ?? null),
@@ -400,6 +424,15 @@ PROMPT;
         
         $trimmed = trim($value);
         return $trimmed === '' ? null : $trimmed;
+    }
+
+    protected function looksLikeBookingNumber(string $value): bool
+    {
+        $normalized = strtoupper(preg_replace('/[^A-Z0-9]/', '', $value));
+
+        // Booking numbers from the scanned B/Ls commonly look like
+        // SJU202643006. MF# values are usually short numeric stamps.
+        return (bool) preg_match('/^[A-Z]{2,5}\d{5,}$/', $normalized);
     }
 
     /**
@@ -474,6 +507,7 @@ PROMPT;
         $document->update([
             'document_number' => $extracted['document_number'],
             'manifest_number' => $extracted['manifest_number'],
+            'booking_number' => $extracted['booking_number'],
             'container_id' => $extracted['container_id'],
             'shipper_details' => $extracted['shipper_details'],
             'consignee_details' => $extracted['consignee_details'],
@@ -491,6 +525,7 @@ PROMPT;
             'freight_terms' => $extracted['freight_terms'],
             'insurance_amount' => $extracted['insurance_amount'],
             'other_charges' => $extracted['other_charges'],
+            'freight_grand_total' => $extracted['freight_grand_total'],
             'currency' => $extracted['currency'],
             'total_packages' => $extracted['total_packages'],
             'package_type' => $extracted['package_type'],

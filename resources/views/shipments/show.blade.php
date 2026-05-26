@@ -402,6 +402,9 @@
                         <dt class="col-5">Manifest #</dt>
                         <dd class="col-7">{{ $shipment->manifest_number ?? '-' }}</dd>
 
+                        <dt class="col-5">Booking #</dt>
+                        <dd class="col-7">{{ $shipment->booking_number ?? '-' }}</dd>
+
                         <dt class="col-5">Carrier</dt>
                         <dd class="col-7">{{ $shipment->carrier_name ?? '-' }}</dd>
 
@@ -531,6 +534,25 @@
                             </div>
                         </div>
                     </div>
+                    @if($shipment->freight_base_amount !== null || $shipment->freight_other_charges !== null || $shipment->freight_grand_total !== null)
+                        <div class="small text-muted mb-2">
+                            Source:
+                            @switch($shipment->freight_total_source)
+                                @case('document_grand_total')
+                                    B/L grand total
+                                    @break
+                                @case('manual')
+                                    Manual override
+                                    @break
+                                @default
+                                    B/L freight charge only
+                            @endswitch
+                            <br>
+                            Base freight: ${{ number_format($shipment->freight_base_amount ?? 0, 2) }}
+                            &middot; Other charges: ${{ number_format($shipment->freight_other_charges ?? 0, 2) }}
+                            &middot; Grand total: ${{ number_format($shipment->freight_grand_total ?? 0, 2) }}
+                        </div>
+                    @endif
                     <div class="d-flex justify-content-between align-items-center mb-2">
                         <span>Insurance</span>
                         <div class="d-flex align-items-center">
@@ -688,6 +710,21 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
+                            <label class="form-label">Booking Number</label>
+                            <input type="text" name="booking_number" class="form-control"
+                                   value="{{ $shipment->booking_number }}">
+                        </div>
+                        <div class="col-md-6 mb-3">
+                            <label class="form-label">Freight Source</label>
+                            <select name="freight_total_source" class="form-select">
+                                <option value="document_freight_only" @selected($shipment->freight_total_source === 'document_freight_only')>B/L freight charge only</option>
+                                <option value="document_grand_total" @selected($shipment->freight_total_source === 'document_grand_total')>B/L grand total</option>
+                                <option value="manual" @selected($shipment->freight_total_source === 'manual')>Manual override</option>
+                            </select>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-6 mb-3">
                             <label class="form-label">Carrier</label>
                             <input type="text" name="carrier_name" class="form-control" 
                                    value="{{ $shipment->carrier_name }}">
@@ -712,7 +749,7 @@
                     </div>
                     <div class="row">
                         <div class="col-md-6 mb-3">
-                            <label class="form-label">Freight ($)</label>
+                            <label class="form-label">Freight Used on Declaration ($)</label>
                             <input type="number" step="0.01" name="freight_total" class="form-control" 
                                    value="{{ $shipment->freight_total }}">
                         </div>
@@ -720,6 +757,23 @@
                             <label class="form-label">ETA</label>
                             <input type="date" name="estimated_arrival_date" class="form-control" 
                                    value="{{ $shipment->estimated_arrival_date?->format('Y-m-d') }}">
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">B/L Freight Charge</label>
+                            <input type="number" step="0.01" name="freight_base_amount" class="form-control"
+                                   value="{{ $shipment->freight_base_amount }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">Other B/L Charges</label>
+                            <input type="number" step="0.01" name="freight_other_charges" class="form-control"
+                                   value="{{ $shipment->freight_other_charges }}">
+                        </div>
+                        <div class="col-md-4 mb-3">
+                            <label class="form-label">B/L Grand Total</label>
+                            <input type="number" step="0.01" name="freight_grand_total" class="form-control"
+                                   value="{{ $shipment->freight_grand_total }}">
                         </div>
                     </div>
                     <div class="row">
@@ -837,7 +891,7 @@ document.addEventListener('DOMContentLoaded', function() {
                     'Accept': 'application/json',
                     'X-Requested-With': 'XMLHttpRequest',
                 },
-                body: JSON.stringify({ _method: 'PATCH', freight_total: newValue })
+                body: JSON.stringify({ _method: 'PATCH', freight_total: newValue, freight_total_source: 'manual' })
             });
             
             const data = await response.json();

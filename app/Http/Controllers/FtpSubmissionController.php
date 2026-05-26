@@ -433,42 +433,71 @@ class FtpSubmissionController extends Controller
 
         $file = $request->file('caps_response_file');
 
+        // Persist the file synchronously — that's the only fast step. The
+        // actual Claude-based parse can take 1–5 minutes for large query
+        // reports, so we hand it off to a background job and redirect
+        // immediately so the broker never sees a stuck page.
         try {
             $storedPath = $parser->storeUploadedFile($file, $submission->id);
-            $parsed = $parser->parseUploadedFile($file);
         } catch (\Throwable $e) {
-            Log::error('CAPS response parsing failed', [
+            Log::error('CAPS response upload failed', [
                 'submission_id' => $submission->id,
                 'error' => $e->getMessage(),
             ]);
             return redirect()->back()
-                ->with('error', 'Could not parse the CAPS report: ' . $e->getMessage());
+                ->with('error', 'Could not save the CAPS report: ' . $e->getMessage());
         }
 
-        $overall = $parsed['overall_status'] ?? 'rejected';
-
-        if ($overall === 'accepted') {
-            $submission->markCapsAccepted(
-                WebFormSubmission::CAPS_SOURCE_MANUAL_UPLOAD,
-                $storedPath
-            );
-            return redirect()->back()
-                ->with('success', 'CAPS report parsed: declaration was accepted by CAPS.');
-        }
-
-        $submission->markCapsRejected(
-            $parsed,
+        $submission->markCapsParsing(
             WebFormSubmission::CAPS_SOURCE_MANUAL_UPLOAD,
-            $storedPath,
-            $overall === 'partial'
+            $storedPath
         );
 
-        $errorCount = count($parsed['errors'] ?? []);
-        return redirect()->route('ftp-submission.fix', $submission)
-            ->with(
-                'warning',
-                "CAPS rejected the declaration with {$errorCount} error(s). Review the suggestions and apply fixes before resubmitting."
-            );
+        // dispatchAfterResponse flushes the redirect to the browser first,
+        // then runs the parser in the same PHP process. With a real queue
+        // worker (production) this would fan out to a separate worker.
+        \App\Jobs\ParseCapsResponse::dispatchAfterResponse(
+            $submission->id,
+            $storedPath,
+            WebFormSubmission::CAPS_SOURCE_MANUAL_UPLOAD,
+        );
+
+        return redirect()->route('ftp-submission.result', [
+            'declaration' => $submission->declaration_form_id,
+            'submission' => $submission->id,
+        ])->with(
+            'success',
+            'CAPS report uploaded. Parsing is running in the background — this page will refresh automatically every 20 seconds while we extract the errors. Large reports can take 2–5 minutes.'
+        );
+    }
+
+    /**
+     * Manually re-trigger the CAPS response parser for a submission whose
+     * upload is stuck in "parsing" or whose previous parse failed. Useful in
+     * dev where dispatchAfterResponse is the only "background" we have.
+     */
+    public function reparse(WebFormSubmission $submission)
+    {
+        if (!$submission->caps_response_file_path) {
+            return redirect()->back()
+                ->with('error', 'No CAPS report file is attached to this submission.');
+        }
+
+        $submission->markCapsParsing(
+            $submission->caps_response_source ?? WebFormSubmission::CAPS_SOURCE_MANUAL_UPLOAD,
+            $submission->caps_response_file_path
+        );
+
+        \App\Jobs\ParseCapsResponse::dispatchAfterResponse(
+            $submission->id,
+            $submission->caps_response_file_path,
+            $submission->caps_response_source ?? WebFormSubmission::CAPS_SOURCE_MANUAL_UPLOAD,
+        );
+
+        return redirect()->route('ftp-submission.result', [
+            'declaration' => $submission->declaration_form_id,
+            'submission' => $submission->id,
+        ])->with('success', 'Re-parsing the CAPS report. The page will refresh while it runs.');
     }
 
     /**
@@ -479,6 +508,13 @@ class FtpSubmissionController extends Controller
     {
         if (!$submission->is_ftp) {
             return redirect()->back()->with('error', 'This is not an FTP submission.');
+        }
+
+        if ($submission->is_caps_parsing) {
+            return redirect()->route('ftp-submission.result', [
+                'declaration' => $submission->declaration_form_id,
+                'submission' => $submission->id,
+            ])->with('info', 'CAPS report is still being parsed. We\'ll show the fix page once the errors are extracted.');
         }
 
         if (!$submission->caps_rejected) {

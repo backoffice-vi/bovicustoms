@@ -21,6 +21,8 @@ use App\Http\Controllers\Admin\ProhibitedRestrictedController;
 use App\Http\Controllers\Admin\ClassificationTesterController;
 use App\Http\Controllers\Admin\CountryDocumentController;
 use App\Http\Controllers\Admin\CountryLevyController;
+use App\Http\Controllers\Admin\CountryDutyPolicyController;
+use App\Http\Controllers\Admin\CustomsCodeRateOverrideController;
 use App\Http\Controllers\Admin\TariffDatabaseController;
 use App\Http\Controllers\Admin\AnalyticsController;
 use App\Http\Controllers\TradeContactController;
@@ -157,6 +159,7 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
 
     // CAPS rejection -> fix -> resubmit loop
     Route::post('ftp-submission/{submission}/mark-rejected', [App\Http\Controllers\FtpSubmissionController::class, 'markRejected'])->name('ftp-submission.mark-rejected');
+    Route::post('ftp-submission/{submission}/reparse', [App\Http\Controllers\FtpSubmissionController::class, 'reparse'])->name('ftp-submission.reparse');
     Route::get('ftp-submission/{submission}/fix', [App\Http\Controllers\FtpSubmissionController::class, 'showFixPage'])->name('ftp-submission.fix');
     Route::post('ftp-submission/{submission}/fix', [App\Http\Controllers\FtpSubmissionController::class, 'applyFixAndResubmit'])->name('ftp-submission.fix.apply');
     Route::post('ftp-submission/{submission}/amendment', [App\Http\Controllers\FtpSubmissionController::class, 'submitAmendment'])->name('ftp-submission.amendment');
@@ -320,6 +323,20 @@ Route::middleware(['auth', 'onboarded', 'tenant'])->group(function () {
         
         // Country Levies (Wharfage, etc.)
         Route::resource('country-levies', CountryLevyController::class);
+
+        // Country Duty Policies (FOB vs CIF basis for Customs Duty per date window)
+        Route::resource('country-duty-policies', CountryDutyPolicyController::class)
+            ->except(['show']);
+
+        // Customs Code Rate Overrides (temporary "basket of goods" rate changes)
+        Route::get('customs-code-rate-overrides/bulk', [CustomsCodeRateOverrideController::class, 'bulkCreate'])
+            ->name('customs-code-rate-overrides.bulk');
+        Route::post('customs-code-rate-overrides/bulk', [CustomsCodeRateOverrideController::class, 'bulkStore'])
+            ->name('customs-code-rate-overrides.bulk.store');
+        Route::get('customs-code-rate-overrides/search-codes', [CustomsCodeRateOverrideController::class, 'searchCustomsCodes'])
+            ->name('customs-code-rate-overrides.search-codes');
+        Route::resource('customs-code-rate-overrides', CustomsCodeRateOverrideController::class)
+            ->except(['show']);
         
         // Tariff Database Viewer
         Route::prefix('tariff-database')->name('tariff-database.')->group(function () {

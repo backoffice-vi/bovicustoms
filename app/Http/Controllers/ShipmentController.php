@@ -156,7 +156,12 @@ class ShipmentController extends Controller
             'insurance_percentage' => 'nullable|numeric|min:0|max:100',
             'insurance_total' => 'nullable|numeric|min:0',
             'manifest_number' => 'nullable|string|max:100',
+            'booking_number' => 'nullable|string|max:100',
             'bill_of_lading_number' => 'nullable|string|max:100',
+            'freight_base_amount' => 'nullable|numeric|min:0',
+            'freight_other_charges' => 'nullable|numeric|min:0',
+            'freight_grand_total' => 'nullable|numeric|min:0',
+            'freight_total_source' => 'nullable|in:document_freight_only,document_grand_total,manual',
             'carrier_name' => 'nullable|string|max:255',
             'vessel_name' => 'nullable|string|max:255',
             'port_of_loading' => 'nullable|string|max:255',
@@ -170,6 +175,14 @@ class ShipmentController extends Controller
             'gross_weight_kg' => 'nullable|numeric|min:0',
             'notes' => 'nullable|string|max:1000',
         ]);
+
+        if (($validated['freight_total_source'] ?? null) === 'document_freight_only' && array_key_exists('freight_base_amount', $validated)) {
+            $validated['freight_total'] = $validated['freight_base_amount'] ?? $validated['freight_total'] ?? 0;
+        } elseif (($validated['freight_total_source'] ?? null) === 'document_grand_total' && array_key_exists('freight_grand_total', $validated)) {
+            $validated['freight_total'] = $validated['freight_grand_total'] ?? $validated['freight_total'] ?? 0;
+        } elseif (array_key_exists('freight_total', $validated) && !array_key_exists('freight_total_source', $validated)) {
+            $validated['freight_total_source'] = 'manual';
+        }
 
         $shipment->update($validated);
         $shipment->recalculateTotals();

@@ -341,7 +341,13 @@
                                 <li class="list-group-item d-flex justify-content-between align-items-center px-0">
                                     <div>
                                         <div class="fw-bold">{{ $filledForm->template?->name ?? 'Unknown Form' }}</div>
-                                        <small class="text-muted">{{ $filledForm->created_at->format('M d, Y H:i') }}</small>
+                                        <small class="text-muted">
+                                            @if($declarationForm->country)
+                                                {{ $declarationForm->country->formatLocalTime($filledForm->created_at, 'M d, Y H:i') }}
+                                            @else
+                                                {{ $filledForm->created_at->format('M d, Y H:i') }}
+                                            @endif
+                                        </small>
                                         <span class="badge bg-{{ $filledForm->status === 'complete' ? 'success' : ($filledForm->status === 'error' ? 'danger' : 'warning') }} ms-2">
                                             {{ $filledForm->status_label }}
                                         </span>
