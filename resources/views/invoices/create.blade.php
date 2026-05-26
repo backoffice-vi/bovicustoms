@@ -72,7 +72,7 @@
                                     <i class="fas fa-folder-open me-2"></i>Select File
                                 </button>
                                 <input type="file" class="d-none" id="invoice_file" name="invoice_file" 
-                                       accept=".pdf,.jpg,.jpeg,.png,.tiff,.xls,.xlsx" required>
+                                       accept=".pdf,.jpg,.jpeg,.png,.tiff,.xls,.xlsx,.csv" required>
                             </div>
                             @error('invoice_file')
                             <div class="text-danger small mt-1">{{ $message }}</div>
@@ -134,8 +134,8 @@
                             <div class="d-flex align-items-center">
                                 <i class="fas fa-file-excel fa-2x text-success me-3"></i>
                                 <div>
-                                    <strong>Excel</strong>
-                                    <small class="d-block text-muted">XLS, XLSX</small>
+                                    <strong>Spreadsheets</strong>
+                                    <small class="d-block text-muted">XLS, XLSX, CSV</small>
                                 </div>
                             </div>
                         </div>

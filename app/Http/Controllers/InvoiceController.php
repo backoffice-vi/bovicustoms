@@ -66,7 +66,7 @@ class InvoiceController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'invoice_file' => 'required|file|mimes:pdf,jpg,jpeg,png,tiff,xls,xlsx|max:10240',
+            'invoice_file' => 'required|file|mimes:pdf,jpg,jpeg,png,tiff,xls,xlsx,csv|max:10240',
             'country_id' => 'required|exists:countries,id',
         ]);
 
@@ -401,7 +401,7 @@ class InvoiceController extends Controller
         }
 
         // Spawn background artisan process — returns immediately so the browser can poll
-        $php = PHP_BINARY ?: 'php';
+        $php = config('app.php_cli_binary') ?: (PHP_BINARY ?: 'php');
         $artisan = base_path('artisan');
         $cmd = "\"{$php}\" \"{$artisan}\" classify:invoice {$invoice->id} {$user->id} {$pending['country_id']}";
 

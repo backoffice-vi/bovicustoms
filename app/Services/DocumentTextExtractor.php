@@ -16,7 +16,7 @@ class DocumentTextExtractor
     }
 
     /**
-     * Extract plain text from PDF or Excel. Throws on unsupported types.
+     * Extract plain text from PDF, spreadsheet, or CSV. Throws on unsupported types.
      *
      * NOTE: PdfParser can be memory intensive; callers should guard by file size.
      */
@@ -27,6 +27,7 @@ class DocumentTextExtractor
         return match ($fileType) {
             'pdf' => $this->extractFromPdf($fullPath),
             'xlsx', 'xls' => $this->extractFromExcel($fullPath),
+            'csv' => $this->extractFromCsv($fullPath),
             'txt' => (string) file_get_contents($fullPath),
             default => throw new \InvalidArgumentException("Unsupported file type for text extraction: {$fileType}"),
         };
@@ -89,6 +90,32 @@ class DocumentTextExtractor
                 }
             }
             $text .= "\n";
+        }
+
+        return $text;
+    }
+
+    protected function extractFromCsv(string $path): string
+    {
+        $handle = fopen($path, 'r');
+        if ($handle === false) {
+            return '';
+        }
+
+        $text = "=== CSV Invoice ===\n";
+        try {
+            while (($row = fgetcsv($handle)) !== false) {
+                $values = array_values(array_filter(array_map(
+                    fn ($value) => trim((string) $value),
+                    $row
+                ), fn ($value) => $value !== ''));
+
+                if ($values !== []) {
+                    $text .= implode(' | ', $values) . "\n";
+                }
+            }
+        } finally {
+            fclose($handle);
         }
 
         return $text;

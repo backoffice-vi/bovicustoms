@@ -68,6 +68,8 @@ return [
 
     'asset_url' => env('ASSET_URL'),
 
+    'php_cli_binary' => env('PHP_CLI_BINARY'),
+
     /*
     |--------------------------------------------------------------------------
     | Application Timezone

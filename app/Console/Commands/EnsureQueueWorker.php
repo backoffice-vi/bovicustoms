@@ -83,7 +83,7 @@ class EnsureQueueWorker extends Command
         // Use manual values if set (programmatic invocation), otherwise use console options
         $timeout = $this->manualTimeout ?? $this->option('timeout');
         $memory = $this->manualMemory ?? $this->option('memory');
-        $phpBinary = PHP_BINARY;
+        $phpBinary = config('app.php_cli_binary') ?: PHP_BINARY;
         $artisan = base_path('artisan');
 
         if (PHP_OS_FAMILY === 'Windows') {

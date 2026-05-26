@@ -35,7 +35,7 @@ class InvoiceDocumentExtractor
 
         $isImage = str_starts_with($mime, 'image/') || in_array($ext, ['jpg', 'jpeg', 'png', 'webp'], true);
         $isPdf = $ext === 'pdf' || $mime === 'application/pdf';
-        $isExcel = in_array($ext, ['xls', 'xlsx'], true);
+        $isSpreadsheet = in_array($ext, ['xls', 'xlsx', 'csv'], true);
 
         $meta = [
             'file_ext' => $ext,
@@ -50,7 +50,7 @@ class InvoiceDocumentExtractor
             return $this->normalizeInvoiceResult($json, null, array_merge($meta, ['mode' => 'vision']));
         }
 
-        if ($isExcel) {
+        if ($isSpreadsheet) {
             $text = $this->textExtractor->extractText($file->getPathname(), $ext);
             $prompt = $this->buildInvoiceTextPrompt($text);
             $json = $this->claude->promptForJson($prompt);
@@ -148,7 +148,7 @@ class InvoiceDocumentExtractor
 
         return $this->normalizeInvoiceResult([], null, array_merge($meta, [
             'mode' => 'unsupported',
-            'error' => 'Unsupported invoice file type. Upload PDF, Excel, or image.',
+            'error' => 'Unsupported invoice file type. Upload PDF, Excel, CSV, or image.',
         ]));
     }
 
