@@ -265,7 +265,8 @@ class OrganizationCredentialController extends Controller
 
         return response()->json([
             'success' => true,
-            'message' => 'Credentials appear valid. Full test requires submission attempt.',
+            'title' => 'Credential Format Check Complete',
+            'message' => 'Username and password are saved. This does not log in to CAPS; full verification happens during a submission attempt.',
         ]);
     }
 
@@ -331,7 +332,8 @@ class OrganizationCredentialController extends Controller
         // Web credential test (placeholder)
         return response()->json([
             'success' => true,
-            'message' => 'Web credentials format appears valid. Full verification requires a submission attempt.',
+            'title' => 'Credential Format Check Complete',
+            'message' => 'Username and password are present. This does not log in to CAPS; full verification happens during a submission attempt.',
         ]);
     }
 

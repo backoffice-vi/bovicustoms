@@ -3,6 +3,7 @@
 namespace App\Services\WebFormSubmission;
 
 use App\Models\DeclarationForm;
+use App\Models\OrganizationSubmissionCredential;
 use App\Models\WebFormTarget;
 use App\Models\WebFormFieldMapping;
 use App\Services\ClaudeJsonClient;
@@ -255,11 +256,67 @@ class WebFormDataMapper
         return [
             'headerData' => $headerData,
             'items' => $items,
-            'credentials' => $target->getPlaywrightCredentials(),
+            'credentials' => $this->resolveCapsSubmissionCredentials($declaration, $target),
             'loginUrl' => $target->full_login_url,
             'ai_assisted' => $aiResult['ai_assisted'] ?? false,
             'ai_notes' => $aiResult['ai_notes'] ?? null,
         ];
+    }
+
+    /**
+     * Prefer tenant-managed submission credentials over admin target defaults.
+     */
+    protected function resolveCapsSubmissionCredentials(DeclarationForm $declaration, WebFormTarget $target): array
+    {
+        $targetCredentials = $target->getPlaywrightCredentials();
+        $organizationId = $declaration->organization_id;
+        $countryId = $target->country_id ?? $declaration->country_id;
+
+        if (!$organizationId || !$countryId) {
+            return $targetCredentials;
+        }
+
+        $credentials = OrganizationSubmissionCredential::query()
+            ->where('organization_id', $organizationId)
+            ->where('country_id', $countryId)
+            ->active()
+            ->where(function ($query) use ($target) {
+                $query->where(function ($webQuery) use ($target) {
+                    $webQuery->where('credential_type', OrganizationSubmissionCredential::TYPE_WEB)
+                        ->where(function ($targetQuery) use ($target) {
+                            $targetQuery->where('web_form_target_id', $target->id)
+                                ->orWhereNull('web_form_target_id');
+                        });
+                })->orWhere('credential_type', OrganizationSubmissionCredential::TYPE_CAPS);
+            })
+            ->get()
+            ->sortBy(function (OrganizationSubmissionCredential $credential) use ($target) {
+                if ($credential->isWeb() && (int) $credential->web_form_target_id === (int) $target->id) {
+                    return 0;
+                }
+
+                if ($credential->isWeb() && $credential->web_form_target_id === null) {
+                    return 1;
+                }
+
+                if ($credential->isCaps()) {
+                    return 2;
+                }
+
+                return 3;
+            });
+
+        foreach ($credentials as $credential) {
+            $resolved = $credential->isCaps()
+                ? array_merge($targetCredentials, $credential->getCapsCredentials())
+                : array_merge($targetCredentials, $credential->getPlaywrightCredentials());
+
+            if (!empty($resolved['username']) && !empty($resolved['password'])) {
+                return $resolved;
+            }
+        }
+
+        return $targetCredentials;
     }
 
     /**

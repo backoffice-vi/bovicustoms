@@ -511,7 +511,7 @@
             
             if (data.success) {
                 header.className = 'modal-header bg-success text-white';
-                content.innerHTML = '<div class="text-center"><i class="fas fa-check-circle fa-3x text-success mb-3"></i><h5>Connection Successful!</h5><p>' + data.message + '</p></div>';
+                content.innerHTML = '<div class="text-center"><i class="fas fa-check-circle fa-3x text-success mb-3"></i><h5>' + (data.title || 'Connection Successful!') + '</h5><p>' + data.message + '</p></div>';
             } else {
                 header.className = 'modal-header bg-danger text-white';
                 content.innerHTML = '<div class="text-center"><i class="fas fa-times-circle fa-3x text-danger mb-3"></i><h5>Connection Failed</h5><p>' + data.message + '</p></div>';
@@ -570,7 +570,7 @@
 
             if (data.success) {
                 header.className = 'modal-header bg-success text-white';
-                content.innerHTML = '<div class="text-center"><i class="fas fa-check-circle fa-3x text-success mb-3"></i><h5>Connection Successful!</h5><p>' + data.message + '</p></div>';
+                content.innerHTML = '<div class="text-center"><i class="fas fa-check-circle fa-3x text-success mb-3"></i><h5>' + (data.title || 'Connection Successful!') + '</h5><p>' + data.message + '</p></div>';
             } else {
                 header.className = 'modal-header bg-danger text-white';
                 content.innerHTML = '<div class="text-center"><i class="fas fa-times-circle fa-3x text-danger mb-3"></i><h5>Connection Failed</h5><p>' + (data.message || 'Unknown error') + '</p></div>';
