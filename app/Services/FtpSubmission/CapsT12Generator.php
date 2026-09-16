@@ -71,7 +71,12 @@ class CapsT12Generator
     /**
      * Generate a T12 file content from a declaration
      */
-    public function generate(DeclarationForm $declaration, OrganizationSubmissionCredential $credentials, bool $isAmendment = false): array
+    public function generate(
+        DeclarationForm $declaration,
+        OrganizationSubmissionCredential $credentials,
+        bool $isAmendment = false,
+        ?string $amendsReference = null
+    ): array
     {
         $declaration->load([
             'country',
@@ -168,10 +173,17 @@ class CapsT12Generator
         $lines[] = $trailerLine;
 
         $content = implode(self::LINE_ENDING, $lines);
-        $sequence = $this->getNextSequence($traderId, $declaration, $isAmendment);
-        $filename = $isAmendment
-            ? $this->generateAmendmentFilename($traderId, $declaration, $sequence)
-            : $this->generateFilename($traderId, $declaration, $sequence);
+        if ($isAmendment) {
+            if (!$amendsReference) {
+                throw new \InvalidArgumentException('The original T12 reference is required for an amendment.');
+            }
+
+            $filename = $this->generateAmendmentFilenameFromReference($traderId, $amendsReference);
+            $sequence = (int) substr($filename, -3);
+        } else {
+            $sequence = $this->getNextSequence($traderId, $declaration);
+            $filename = $this->generateFilename($traderId, $declaration, $sequence);
+        }
 
         return [
             'content' => $content,
@@ -211,19 +223,39 @@ class CapsT12Generator
     }
 
     /**
-     * Determine the next available sequence number for a specific declaration form
-     * by checking previously submitted filenames in web_form_submissions.
-     * Scoped per declaration so brokers submitting multiple forms for the same
-     * trader on the same day each get their own sequence starting at .001.
+     * Insert the amendment marker into an existing T12 reference while
+     * preserving that declaration's original date and sequence.
      */
-    public function getNextSequence(string $traderId, DeclarationForm $declaration, bool $isAmendment = false): int
+    public function generateAmendmentFilenameFromReference(string $traderId, string $originalReference): string
+    {
+        $reference = trim(basename($originalReference));
+
+        if (!preg_match('/^(\d{6})(\d{8})(?:A)?\.(\d{3})$/', $reference, $matches)) {
+            throw new \InvalidArgumentException(
+                "Cannot create an amendment filename from invalid T12 reference '{$originalReference}'."
+            );
+        }
+
+        $paddedTraderId = str_pad(substr($traderId, 0, 6), 6, '0', STR_PAD_LEFT);
+        if ($matches[1] !== $paddedTraderId) {
+            throw new \InvalidArgumentException(
+                "Original T12 reference '{$originalReference}' does not belong to trader {$paddedTraderId}."
+            );
+        }
+
+        return "{$matches[1]}{$matches[2]}A.{$matches[3]}";
+    }
+
+    /**
+     * Determine the next sequence for a new T12. Amendments never call this:
+     * they must retain the original declaration's sequence.
+     */
+    public function getNextSequence(string $traderId, DeclarationForm $declaration): int
     {
         $paddedTraderId = str_pad(substr($traderId, 0, 6), 6, '0', STR_PAD_LEFT);
         $date = Carbon::parse($declaration->declaration_date ?? now())->format('dmY');
 
-        $prefix = $isAmendment
-            ? "{$paddedTraderId}{$date}A."
-            : "{$paddedTraderId}{$date}.";
+        $prefix = "{$paddedTraderId}{$date}.";
 
         // Search ALL FTP submissions for this trader+date, not just this declaration,
         // because CAPS enforces filename uniqueness globally

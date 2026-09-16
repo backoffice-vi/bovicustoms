@@ -80,6 +80,16 @@ class FtpSubmissionController extends Controller
      */
     public function preview(DeclarationForm $declaration)
     {
+        if ($existing = $this->latestSuccessfulOriginalSubmission($declaration)) {
+            return redirect()->route('ftp-submission.result', [
+                'declaration' => $declaration,
+                'submission' => $existing,
+            ])->with(
+                'warning',
+                "This declaration was already uploaded as {$existing->external_reference}. Use the amendment workflow; a new normal T12 would create a duplicate TD."
+            );
+        }
+
         $declaration->load([
             'country',
             'organization',
@@ -145,6 +155,16 @@ class FtpSubmissionController extends Controller
      */
     public function submit(Request $request, DeclarationForm $declaration)
     {
+        if ($existing = $this->latestSuccessfulOriginalSubmission($declaration)) {
+            return redirect()->route('ftp-submission.result', [
+                'declaration' => $declaration,
+                'submission' => $existing,
+            ])->with(
+                'error',
+                "Normal submission blocked: {$existing->external_reference} already exists. Submit an amendment against the queried T12 instead."
+            );
+        }
+
         $declaration->load(['country', 'organization']);
 
         $country = $declaration->country;
@@ -611,8 +631,7 @@ class FtpSubmissionController extends Controller
 
     /**
      * Submit an amendment T12 (filename pattern XXXXXXDDMMYYYYA.SSS) for a
-     * declaration whose original submission was already accepted by CAPS.
-     * Used when the broker needs to correct a declaration after acceptance.
+     * declaration in response to a CAPS query or after acceptance.
      */
     public function submitAmendment(WebFormSubmission $submission)
     {
@@ -620,9 +639,9 @@ class FtpSubmissionController extends Controller
             return redirect()->back()->with('error', 'This is not an FTP submission.');
         }
 
-        if (!$submission->caps_accepted) {
+        if (!$submission->caps_accepted && !$submission->caps_rejected) {
             return redirect()->back()
-                ->with('error', 'Amendments can only be filed after CAPS has accepted the original submission.');
+                ->with('error', 'Amendments require either a CAPS Query Report or an accepted original submission.');
         }
 
         $declaration = $submission->declaration;
@@ -642,12 +661,9 @@ class FtpSubmissionController extends Controller
                 $credentials,
                 true,   // saveLocally
                 true,   // autoAttach
-                true    // isAmendment
+                true,   // isAmendment
+                $submission
             );
-
-            $newSubmission->update([
-                'parent_submission_id' => $submission->id,
-            ]);
         } catch (\Throwable $e) {
             Log::error('Amendment submission failed', [
                 'submission_id' => $submission->id,
@@ -661,5 +677,19 @@ class FtpSubmissionController extends Controller
             'declaration' => $declaration->id,
             'submission' => $newSubmission->id,
         ])->with('success', 'Amendment ' . $newSubmission->external_reference . ' submitted successfully.');
+    }
+
+    /**
+     * A normal T12 can only be uploaded once. Subsequent corrections must
+     * retain that T12 sequence and use the CAPS amendment marker.
+     */
+    protected function latestSuccessfulOriginalSubmission(DeclarationForm $declaration): ?WebFormSubmission
+    {
+        return WebFormSubmission::ftp()
+            ->forDeclaration($declaration->id)
+            ->successful()
+            ->latest()
+            ->get()
+            ->first(fn (WebFormSubmission $submission) => !($submission->request_data['is_amendment'] ?? false));
     }
 }

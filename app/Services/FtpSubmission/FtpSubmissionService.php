@@ -46,7 +46,8 @@ class FtpSubmissionService
         OrganizationSubmissionCredential $credentials,
         bool $saveLocally = true,
         bool $autoAttach = true,
-        bool $isAmendment = false
+        bool $isAmendment = false,
+        ?WebFormSubmission $amendsSubmission = null
     ): WebFormSubmission {
         $declaration->load(['country', 'organization']);
         
@@ -60,8 +61,22 @@ class FtpSubmissionService
             throw new \RuntimeException('FTP credentials are incomplete');
         }
 
+        if ($isAmendment) {
+            if (!$amendsSubmission || !$amendsSubmission->external_reference) {
+                throw new \RuntimeException('The original T12 submission is required for an amendment');
+            }
+            if ($amendsSubmission->declaration_form_id !== $declaration->id) {
+                throw new \RuntimeException('The amendment source belongs to a different declaration');
+            }
+        }
+
         // Generate the T12 file (amendment vs original chooses filename pattern)
-        $t12Data = $this->generator->generate($declaration, $credentials, $isAmendment);
+        $t12Data = $this->generator->generate(
+            $declaration,
+            $credentials,
+            $isAmendment,
+            $amendsSubmission?->external_reference
+        );
         $preValidation = $this->capsPreValidation->validateT12Content(
             $t12Data['content'],
             $declaration->country_id,
@@ -86,8 +101,10 @@ class FtpSubmissionService
                 'line_count' => $t12Data['line_count'],
                 'item_count' => $t12Data['item_count'],
                 'is_amendment' => $isAmendment,
+                'amends_reference' => $amendsSubmission?->external_reference,
                 'caps_pre_validation' => $preValidation,
             ],
+            'parent_submission_id' => $amendsSubmission?->id,
         ]);
 
         try {

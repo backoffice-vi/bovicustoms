@@ -106,11 +106,18 @@
                         {{ $submission->formatLocalTime($submission->caps_response_received_at, 'd/m/Y H:i') }}
                         {{ $submission->local_timezone_abbreviation }}.
                     </p>
+                    @php
+                        $acceptedAmendmentReference = preg_replace(
+                            '/A?\.(\d{3})$/',
+                            'A.$1',
+                            $submission->external_reference ?? ''
+                        );
+                    @endphp
                     <form action="{{ route('ftp-submission.amendment', $submission) }}" method="POST"
-                        onsubmit="return confirm('Submit an amendment T12 (XXXXXXDDMMYYYYA.SSS) for this accepted declaration?');">
+                        onsubmit="return confirm('Submit amendment {{ $acceptedAmendmentReference }} for this accepted declaration?');">
                         @csrf
                         <button type="submit" class="btn btn-outline-primary">
-                            <i class="fas fa-edit me-2"></i>Submit Amendment
+                            <i class="fas fa-edit me-2"></i>Submit Amendment {{ $acceptedAmendmentReference }}
                         </button>
                     </form>
                 @elseif($submission->caps_rejected)
@@ -150,6 +157,22 @@
                     <a href="{{ route('ftp-submission.fix', $submission) }}" class="btn btn-warning">
                         <i class="fas fa-tools me-2"></i>Fix and Resubmit
                     </a>
+                    @php
+                        $queryAmendmentReference = preg_replace(
+                            '/A?\.(\d{3})$/',
+                            'A.$1',
+                            $submission->external_reference ?? ''
+                        );
+                    @endphp
+                    <form action="{{ route('ftp-submission.amendment', $submission) }}" method="POST"
+                        class="d-inline"
+                        onsubmit="return confirm('Submit query amendment {{ $queryAmendmentReference }}? This will upload the corrected T12 and attachments to CAPS.');">
+                        @csrf
+                        <button type="submit" class="btn btn-outline-primary">
+                            <i class="fas fa-file-signature me-2"></i>
+                            Submit Query Amendment {{ $queryAmendmentReference }}
+                        </button>
+                    </form>
                 @else
                     {{-- Still awaiting CAPS response: offer manual upload. --}}
                     <p class="mb-3 text-muted">

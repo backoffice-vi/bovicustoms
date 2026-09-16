@@ -105,7 +105,14 @@ class FixAndResubmitService
         $declaration->refresh();
 
         try {
-            $newSubmission = $this->ftp->submit($declaration, $credentials, true, $autoAttach);
+            $newSubmission = $this->ftp->submit(
+                $declaration,
+                $credentials,
+                true,
+                $autoAttach,
+                true,
+                $parent
+            );
         } catch (\Throwable $e) {
             Log::error('FixAndResubmitService: FTP resubmission failed', [
                 'parent_submission_id' => $parent->id,
@@ -116,7 +123,6 @@ class FixAndResubmitService
         }
 
         $newSubmission->update([
-            'parent_submission_id' => $parent->id,
             'retry_count' => $parent->retry_count + 1,
         ]);
 

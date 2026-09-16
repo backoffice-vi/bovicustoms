@@ -9,6 +9,7 @@ use App\Models\Invoice;
 use App\Models\OrganizationSubmissionCredential;
 use App\Models\Shipment;
 use App\Models\User;
+use App\Models\WebFormSubmission;
 use App\Services\FtpSubmission\CapsT12Generator;
 use App\Services\WebFormSubmission\CapsPreValidationService;
 use Carbon\Carbon;
@@ -106,6 +107,87 @@ class CapsQueryReportRegressionTest extends TestCase
 
         $septemberContent = $this->generateWithRate($declaration, $credentials, '2026-09-16', 10.0);
         $this->assertRates($septemberContent, 2.0, 10.0);
+    }
+
+    public function test_amendment_filename_preserves_the_original_t12_sequence(): void
+    {
+        $generator = app(CapsT12Generator::class);
+
+        $this->assertSame(
+            '10018403072026A.006',
+            $generator->generateAmendmentFilenameFromReference('100184', '10018403072026.006')
+        );
+        $this->assertSame(
+            '10018403072026A.006',
+            $generator->generateAmendmentFilenameFromReference('100184', '10018403072026A.006')
+        );
+    }
+
+    public function test_amendment_generation_uses_the_queried_submission_reference(): void
+    {
+        $declaration = DeclarationForm::withoutGlobalScopes()->find(68);
+        if (!$declaration) {
+            $this->markTestSkipped('Declaration 68 fixture is not present.');
+        }
+
+        $result = app(CapsT12Generator::class)->generate(
+            $declaration,
+            $this->makeCredentials($declaration),
+            true,
+            '10018403072026.006'
+        );
+
+        $this->assertSame('10018403072026A.006', $result['filename']);
+        $this->assertSame(6, $result['sequence']);
+        $this->assertTrue($result['is_amendment']);
+    }
+
+    public function test_normal_preview_is_blocked_after_an_original_was_uploaded(): void
+    {
+        $declaration = DeclarationForm::withoutGlobalScopes()->find(68);
+        $submission = WebFormSubmission::where('declaration_form_id', 68)
+            ->where('external_reference', '10018403072026.007')
+            ->first();
+        $user = User::withoutGlobalScopes()->find(2);
+
+        if (!$declaration || !$submission || !$user) {
+            $this->markTestSkipped('TD 004656658 submission fixtures are not present.');
+        }
+
+        $response = $this->actingAs($user)
+            ->get(route('ftp-submission.preview', $declaration));
+
+        $response->assertRedirect(route('ftp-submission.result', [
+            'declaration' => $declaration,
+            'submission' => $submission,
+        ]));
+        $response->assertSessionHas('warning');
+    }
+
+    public function test_rejected_query_report_offers_the_exact_amendment_reference(): void
+    {
+        $declaration = DeclarationForm::withoutGlobalScopes()->find(68);
+        $submission = WebFormSubmission::where('declaration_form_id', 68)
+            ->where('external_reference', '10018403072026.006')
+            ->first();
+        $user = User::withoutGlobalScopes()->find(2);
+
+        if (!$declaration || !$submission || !$user) {
+            $this->markTestSkipped('TD 004656658 submission fixtures are not present.');
+        }
+
+        $submission->update([
+            'caps_response_status' => WebFormSubmission::CAPS_RESPONSE_REJECTED,
+            'caps_response_errors' => ['errors' => []],
+        ]);
+
+        $this->actingAs($user)
+            ->get(route('ftp-submission.result', [
+                'declaration' => $declaration,
+                'submission' => $submission,
+            ]))
+            ->assertOk()
+            ->assertSee('Submit Query Amendment 10018403072026A.006');
     }
 
     private function generateWithRate(
