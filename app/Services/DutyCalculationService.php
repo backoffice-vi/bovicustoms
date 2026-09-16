@@ -70,7 +70,10 @@ class DutyCalculationService
             $cifTotal,
             $customsDutyTotal,
             $this->getTotalQuantity($invoices),
-            (float) $shipment->gross_weight_kg
+            (float) $shipment->gross_weight_kg,
+            null,
+            null,
+            $effectiveDate
         );
 
         // Extract wharfage from levies
@@ -492,7 +495,12 @@ class DutyCalculationService
             $countryId,
             $fobTotal,
             $cifTotal,
-            $customsDutyTotal
+            $customsDutyTotal,
+            1,
+            0,
+            null,
+            null,
+            $effectiveDate
         );
 
         $wharfageTotal = collect($levyResult['levies'])

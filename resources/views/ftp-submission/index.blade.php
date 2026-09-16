@@ -97,6 +97,49 @@
                     </table>
                 </div>
             </div>
+
+            <div class="card mt-3">
+                <div class="card-header">
+                    <h5 class="mb-0"><i class="fas fa-link me-2"></i>Linked Shipment</h5>
+                </div>
+                <div class="card-body">
+                    @if($declaration->shipment)
+                        <p class="mb-2">
+                            <strong>{{ $declaration->shipment->bill_of_lading_number ?? 'Shipment #' . $declaration->shipment->id }}</strong>
+                            @if($declaration->shipment->voyage_number)
+                                <br><span class="text-muted">Voyage {{ $declaration->shipment->voyage_number }}</span>
+                            @endif
+                        </p>
+                    @else
+                        <div class="alert alert-warning py-2">
+                            No shipment is linked. Supplier, voyage, and shipment city may be missing from the T12.
+                        </div>
+                    @endif
+
+                    @if($availableShipments->isNotEmpty())
+                        <form action="{{ route('declaration-forms.link-shipment', $declaration) }}" method="POST"
+                              onsubmit="return confirm('Link this shipment? Existing declaration totals will not be changed.')">
+                            @csrf
+                            <label for="shipment_id" class="form-label">Select shipment</label>
+                            <select name="shipment_id" id="shipment_id" class="form-select mb-2" required>
+                                <option value="">Choose a shipment</option>
+                                @foreach($availableShipments as $shipment)
+                                    <option value="{{ $shipment->id }}" @selected($declaration->shipment_id === $shipment->id)>
+                                        {{ $shipment->bill_of_lading_number ?? 'Shipment #' . $shipment->id }}
+                                        — {{ $shipment->vessel_name ?? 'Unknown vessel' }}
+                                        @if($shipment->voyage_number) / {{ $shipment->voyage_number }} @endif
+                                    </option>
+                                @endforeach
+                            </select>
+                            <button type="submit" class="btn btn-outline-primary btn-sm">
+                                <i class="fas fa-link me-1"></i>Link to Shipment
+                            </button>
+                        </form>
+                    @else
+                        <p class="text-muted mb-0">No shipments are available for this country.</p>
+                    @endif
+                </div>
+            </div>
         </div>
 
         <!-- FTP Submission -->

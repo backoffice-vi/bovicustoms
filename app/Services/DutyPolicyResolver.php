@@ -64,16 +64,14 @@ class DutyPolicyResolver
     }
 
     /**
-     * Resolve basis from a DeclarationForm — uses declaration_date if set,
-     * otherwise today. Convenience wrapper over resolveBasis().
+     * Resolve basis from the declaration's shared CAPS effective date.
      */
     public function resolveBasisForDeclaration(DeclarationForm $declaration): string
     {
-        $date = $declaration->declaration_date
-            ? Carbon::parse($declaration->declaration_date)->toDateString()
-            : null;
-
-        return $this->resolveBasis($declaration->country_id, $date);
+        return $this->resolveBasis(
+            $declaration->country_id,
+            $declaration->effectiveDutyDate()
+        );
     }
 
     /**

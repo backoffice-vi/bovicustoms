@@ -8,6 +8,7 @@ use App\Models\DeclarationForm;
 use App\Models\DeclarationFormItem;
 use App\Models\CustomsCode;
 use App\Models\Country;
+use App\Models\Shipment;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use App\Services\InvoiceDocumentExtractor;
@@ -620,6 +621,33 @@ class InvoiceController extends Controller
         DeclarationForm::where('invoice_id', $invoice->id)->delete();
         DeclarationFormItem::where('invoice_id', $invoice->id)->delete();
 
+        // Link the declaration to a shipment whenever the invoice relationship
+        // or an exact shipping-document number makes the match unambiguous.
+        $matchedShipment = $invoice->shipments()
+            ->orderByDesc('shipments.id')
+            ->first();
+
+        if (!$matchedShipment) {
+            $documentNumber = collect([
+                $invoiceHeader['bill_of_lading_number'] ?? null,
+                $invoiceHeader['manifest_number'] ?? null,
+                $invoiceHeader['awb_number'] ?? null,
+            ])->filter()->first();
+
+            if ($documentNumber) {
+                $matchedShipment = Shipment::withoutGlobalScopes()
+                    ->where('organization_id', $user->organization_id)
+                    ->where('country_id', $countryId)
+                    ->where(function ($query) use ($documentNumber) {
+                        $query->where('bill_of_lading_number', $documentNumber)
+                            ->orWhere('manifest_number', $documentNumber)
+                            ->orWhere('awb_number', $documentNumber);
+                    })
+                    ->orderByDesc('id')
+                    ->first();
+            }
+        }
+
         // Create the Declaration Form
         $declarationForm = DeclarationForm::create([
             'organization_id' => $user->organization_id,
@@ -634,6 +662,11 @@ class InvoiceController extends Controller
             'extracted_text' => $invoice->extracted_text,
             'extraction_meta' => $invoice->extraction_meta,
         ]);
+
+        if ($matchedShipment) {
+            $declarationForm->populateFromShipment($matchedShipment);
+            $declarationForm->save();
+        }
 
         // Create Declaration Form Items (for historical precedent tracking)
         foreach ($validatedData['items'] as $index => $item) {

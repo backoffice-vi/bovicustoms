@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class CountryLevy extends Model
 {
@@ -117,14 +118,19 @@ class CountryLevy extends Model
 
     public function scopeCurrentlyEffective($query)
     {
-        $today = now()->toDateString();
-        
-        return $query->where(function ($q) use ($today) {
+        return $query->effectiveOn(now()->toDateString());
+    }
+
+    public function scopeEffectiveOn($query, string $date)
+    {
+        $date = Carbon::parse($date)->toDateString();
+
+        return $query->where(function ($q) use ($date) {
             $q->whereNull('effective_from')
-              ->orWhere('effective_from', '<=', $today);
-        })->where(function ($q) use ($today) {
+              ->orWhere('effective_from', '<=', $date);
+        })->where(function ($q) use ($date) {
             $q->whereNull('effective_until')
-              ->orWhere('effective_until', '>=', $today);
+              ->orWhere('effective_until', '>=', $date);
         });
     }
 
@@ -264,13 +270,25 @@ class CountryLevy extends Model
     /**
      * Get all active levies for a country
      */
-    public static function getForCountry(int $countryId): \Illuminate\Database\Eloquent\Collection
+    public static function getForCountry(
+        int $countryId,
+        ?string $effectiveDate = null
+    ): \Illuminate\Database\Eloquent\Collection
     {
+        $effectiveDate = $effectiveDate
+            ? Carbon::parse($effectiveDate)->toDateString()
+            : now()->toDateString();
+
         return static::active()
             ->forCountry($countryId)
-            ->currentlyEffective()
-            ->ordered()
-            ->get();
+            ->effectiveOn($effectiveDate)
+            ->orderBy('display_order')
+            ->orderBy('levy_code')
+            ->orderByDesc('effective_from')
+            ->orderByDesc('id')
+            ->get()
+            ->unique('levy_code')
+            ->values();
     }
 
     /**
@@ -284,9 +302,10 @@ class CountryLevy extends Model
         float $quantity = 1,
         float $weight = 0,
         ?string $tariffCode = null,
-        ?string $organizationType = null
+        ?string $organizationType = null,
+        ?string $effectiveDate = null
     ): array {
-        $levies = static::getForCountry($countryId);
+        $levies = static::getForCountry($countryId, $effectiveDate);
         $results = [];
         $totalLevies = 0;
 

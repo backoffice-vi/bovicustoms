@@ -62,7 +62,11 @@ class FtpSubmissionService
 
         // Generate the T12 file (amendment vs original chooses filename pattern)
         $t12Data = $this->generator->generate($declaration, $credentials, $isAmendment);
-        $preValidation = $this->capsPreValidation->validateT12Content($t12Data['content'], $declaration->country_id);
+        $preValidation = $this->capsPreValidation->validateT12Content(
+            $t12Data['content'],
+            $declaration->country_id,
+            $declaration->effectiveDutyDate()
+        );
 
         if (!$preValidation['valid']) {
             throw new \RuntimeException('CAPS T12 pre-validation failed: ' . implode('; ', array_slice($preValidation['errors'], 0, 8)));
@@ -308,7 +312,11 @@ class FtpSubmissionService
 
     public function validatePreview(array $preview, DeclarationForm $declaration): array
     {
-        return $this->capsPreValidation->validateT12Preview($preview, $declaration->country_id);
+        return $this->capsPreValidation->validateT12Preview(
+            $preview,
+            $declaration->country_id,
+            $declaration->effectiveDutyDate()
+        );
     }
 
     /**
@@ -345,7 +353,7 @@ class FtpSubmissionService
 
         // Check shipper/consignee
         if (!$declaration->shipperContact && !$declaration->shipment?->shipperContact) {
-            $warnings[] = 'Shipper contact information is missing';
+            $errors[] = 'Shipper contact information is missing';
         }
 
         if (!$declaration->consigneeContact && !$declaration->shipment?->consigneeContact) {

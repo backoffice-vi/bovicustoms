@@ -4,6 +4,7 @@ namespace App\Http\Controllers;
 
 use App\Models\DeclarationForm;
 use App\Models\OrganizationSubmissionCredential;
+use App\Models\Shipment;
 use App\Models\WebFormSubmission;
 use App\Services\FtpSubmission\CapsErrorAgent;
 use App\Services\FtpSubmission\CapsResponseParser;
@@ -55,13 +56,22 @@ class FtpSubmissionController extends Controller
             ->latest()
             ->get();
 
+        $availableShipments = Shipment::where('organization_id', $declaration->organization_id)
+            ->where('country_id', $declaration->country_id)
+            ->orderByDesc('actual_arrival_date')
+            ->orderByDesc('estimated_arrival_date')
+            ->orderByDesc('id')
+            ->limit(50)
+            ->get();
+
         return view('ftp-submission.index', compact(
             'declaration',
             'country',
             'credentials',
             'submissions',
             'consignee',
-            'consigneeTraderId'
+            'consigneeTraderId',
+            'availableShipments'
         ));
     }
 

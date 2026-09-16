@@ -4,6 +4,7 @@ namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Support\Carbon;
 
 class DeclarationForm extends Model
 {
@@ -284,6 +285,18 @@ class DeclarationForm extends Model
     // ==========================================
     // Methods
     // ==========================================
+
+    /**
+     * Date that controls CAPS duty basis, tariff rates, and levies.
+     */
+    public function effectiveDutyDate(): string
+    {
+        $date = $this->arrival_date ?? $this->declaration_date;
+
+        return $date
+            ? Carbon::parse($date)->toDateString()
+            : Carbon::now()->toDateString();
+    }
 
     /**
      * Calculate CIF value from components

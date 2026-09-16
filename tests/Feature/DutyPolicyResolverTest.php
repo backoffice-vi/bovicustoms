@@ -26,7 +26,7 @@ use Tests\TestCase;
  *   - Rate override picks the in-window override rate
  *   - Override scoped per country and per customs_code
  *   - flush() clears memoised caches
- *   - resolveBasisForDeclaration uses declaration_date (not today)
+ *   - resolveBasisForDeclaration prioritizes arrival_date over declaration_date
  *   - pickDutyBaseValue selects FOB or CIF
  */
 class DutyPolicyResolverTest extends TestCase
@@ -128,13 +128,20 @@ class DutyPolicyResolverTest extends TestCase
         $this->assertSame('cif', $this->resolver->resolveBasis($this->country->id, '2026-06-15'));
     }
 
-    public function test_resolve_basis_for_declaration_uses_declaration_date(): void
+    public function test_resolve_basis_for_declaration_uses_arrival_date_then_declaration_date(): void
     {
         $this->createPolicy('fob', '2026-05-01', '2026-07-31');
 
         $declaration = new DeclarationForm();
         $declaration->country_id = $this->country->id;
+        $declaration->arrival_date = Carbon::parse('2026-06-15');
+        $declaration->declaration_date = Carbon::parse('2026-09-16');
+
+        $this->assertSame('fob', $this->resolver->resolveBasisForDeclaration($declaration));
+
+        $declaration->arrival_date = null;
         $declaration->declaration_date = Carbon::parse('2026-06-15');
+        $this->resolver->flush();
 
         $this->assertSame('fob', $this->resolver->resolveBasisForDeclaration($declaration));
 

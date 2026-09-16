@@ -33,8 +33,19 @@ class CapsT12HeaderRollupTest extends TestCase
             $declaration->organization_id,
             $declaration->country_id
         )->first();
-        if (! $credentials) {
-            $this->markTestSkipped('No FTP credentials seeded for declaration 63.');
+        if (! $credentials || empty($credentials->getFtpCredentials()['trader_id'])) {
+            $credentials = new OrganizationSubmissionCredential([
+                'organization_id' => $declaration->organization_id,
+                'country_id' => $declaration->country_id,
+                'credential_type' => OrganizationSubmissionCredential::TYPE_FTP,
+                'trader_id' => '100184',
+            ]);
+            $credentials->credentials = [
+                'trader_id' => '100184',
+                'declarant_name' => 'CAPS Test',
+                'username' => 'test',
+                'password' => 'test',
+            ];
         }
 
         $result = app(CapsT12Generator::class)->generate($declaration, $credentials);

@@ -2,6 +2,7 @@
 
 namespace App\Services\FtpSubmission;
 
+use App\Models\CountryLevy;
 use App\Models\CountryReferenceData;
 use App\Models\DeclarationForm;
 use App\Models\OrganizationSubmissionCredential;
@@ -57,6 +58,11 @@ class CapsT12Generator
      */
     protected ?string $resolvedDutyBasis = null;
 
+    /**
+     * Resolved wharfage percentage for the current declaration.
+     */
+    protected ?float $resolvedWharfageRate = null;
+
     public function __construct(
         protected \App\Services\DutyPolicyResolver $policyResolver,
     ) {
@@ -92,6 +98,7 @@ class CapsT12Generator
         // column existed).
         $this->resolvedDutyBasis = $declaration->duty_basis
             ?: $this->policyResolver->resolveBasisForDeclaration($declaration);
+        $this->resolvedWharfageRate = $this->resolveWharfageRate($declaration);
 
         $ftpCreds = $credentials->getFtpCredentials();
         $traderId = $ftpCreds['trader_id'] ?? '';
@@ -478,14 +485,15 @@ class CapsT12Generator
         ];
         $lines[] = implode(',', $fields);
 
-        // Wharfage — based on FOB value at 2% per CAPS spec
+        // Wharfage — based on FOB at the rate effective for this declaration.
         if (!empty($item['wharfage']) && $item['wharfage'] > 0) {
+            $wharfageRate = (float) ($item['wharfage_rate'] ?? $this->resolvedWharfageRate ?? 2.0);
             $fields = [
                 'R50',                                              // Record Type
                 $this->mapTaxType('WHA'),                           // Tax Type (Wharfage)
                 '',                                                 // Exemption Indicator
                 $this->formatDecimal($item['fob_value'] ?? 0, 11, 2), // Value for Tax (FOB, not CIF)
-                $this->formatDecimal(2.00, 7, 3),                   // Tax Rate (2%)
+                $this->formatDecimal($wharfageRate, 7, 3),          // Date-effective wharfage rate
                 $this->formatDecimal($item['wharfage'], 11, 2),     // Tax Amount
             ];
             $lines[] = implode(',', $fields);
@@ -589,6 +597,7 @@ class CapsT12Generator
                     'customs_duty' => $dutyData['customs_duty'] ?? 0,
                     'duty_rate' => $dutyData['duty_rate'] ?? 0,
                     'wharfage' => $dutyData['wharfage'] ?? 0,
+                    'wharfage_rate' => $dutyData['wharfage_rate'] ?? $this->resolvedWharfageRate,
                     'net_weight' => $dutyData['net_weight'] ?? 0,
                     'packages' => $dutyData['packages'] ?? 1,
                     'package_type' => $dutyData['package_type'] ?? '',
@@ -618,6 +627,7 @@ class CapsT12Generator
                     'customs_duty' => $dutyData['customs_duty'] ?? 0,
                     'duty_rate' => $dutyData['duty_rate'] ?? 0,
                     'wharfage' => $dutyData['wharfage'] ?? 0,
+                    'wharfage_rate' => $dutyData['wharfage_rate'] ?? $this->resolvedWharfageRate,
                     'net_weight' => $invoiceItem->weight ?? 0,
                     'packages' => 1,
                     'package_type' => '',
@@ -646,6 +656,7 @@ class CapsT12Generator
                     'customs_duty' => $dutyData['customs_duty'] ?? $item['customs_duty'] ?? 0,
                     'duty_rate' => $dutyData['duty_rate'] ?? $item['duty_rate'] ?? 0,
                     'wharfage' => $dutyData['wharfage'] ?? $item['wharfage'] ?? 0,
+                    'wharfage_rate' => $dutyData['wharfage_rate'] ?? $item['wharfage_rate'] ?? $this->resolvedWharfageRate,
                     'net_weight' => $item['net_weight'] ?? 0,
                     'packages' => $item['packages'] ?? 1,
                     'package_type' => $item['package_type'] ?? '',
@@ -755,6 +766,19 @@ class CapsT12Generator
     }
 
     /**
+     * Resolve the WHA percentage for the declaration's effective date.
+     */
+    protected function resolveWharfageRate(DeclarationForm $declaration): float
+    {
+        $levy = CountryLevy::getForCountry(
+            $declaration->country_id,
+            $declaration->effectiveDutyDate()
+        )->firstWhere('levy_code', CountryLevy::CODE_WHARFAGE);
+
+        return $levy ? (float) $levy->rate : 2.0;
+    }
+
+    /**
      * Resolve a currency code per item using the cascade:
      *   item-level (AI invoice scan / TD creation)
      *   -> declaration.currency (header AI extraction)
@@ -784,7 +808,7 @@ class CapsT12Generator
      * The CUD base (FOB or CIF) follows the country's active duty policy on
      * the declaration date — the same basis already locked in
      * $this->resolvedDutyBasis at the top of generate(). Wharfage stays on
-     * FOB at 2% per CAPS spec.
+     * FOB and uses the rate effective for the declaration date.
      */
     protected function buildDutyLookup(DeclarationForm $declaration): array
     {
@@ -794,7 +818,7 @@ class CapsT12Generator
             return $lookup;
         }
 
-        $wharfageRate = 0.02;
+        $wharfageRate = ($this->resolvedWharfageRate ?? $this->resolveWharfageRate($declaration)) / 100;
         $basis = $this->resolvedDutyBasis
             ?: ($declaration->duty_basis
                 ?: $this->policyResolver->resolveBasisForDeclaration($declaration));
@@ -824,7 +848,7 @@ class CapsT12Generator
                     $dutyBaseValue = $this->policyResolver->pickDutyBaseValue($basis, $fobValue, $cifValue);
                     $itemDuty = $dutyBaseValue * ($dutyRate / 100);
 
-                    // Wharfage stays on FOB at 2% per CAPS spec.
+                    // Wharfage stays on FOB at the date-effective rate.
                     $itemWharfage = $fobValue * $wharfageRate;
 
                     $dutyEntry = [
@@ -837,6 +861,7 @@ class CapsT12Generator
                         'duty_basis' => $basis,
                         'customs_duty' => round($itemDuty, 2),
                         'wharfage' => round($itemWharfage, 2),
+                        'wharfage_rate' => $wharfageRate * 100,
                         'freight_amount' => round($itemFreight, 2),
                         'insurance_amount' => round($itemInsurance, 2),
                         'total_due' => round($itemDuty + $itemWharfage, 2),

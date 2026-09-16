@@ -2,6 +2,7 @@
 
 namespace App\Services\WebFormSubmission;
 
+use App\Models\CountryLevy;
 use App\Models\CountryReferenceData;
 use App\Models\CustomsCode;
 
@@ -64,6 +65,7 @@ class CapsPreValidationService
         $cudBasis = $this->policyResolver
             ? $this->policyResolver->resolveBasis($countryId, $effectiveDate)
             : 'cif';
+        $expectedWharfageRate = $this->resolveWharfageRate($countryId, $effectiveDate);
 
         foreach ($preview['lines'] ?? [] as $lineIndex => $line) {
             $fields = $line['fields'] ?? str_getcsv($line['raw'] ?? '');
@@ -150,8 +152,10 @@ class CapsPreValidationService
                     );
                 } elseif ($taxType === 'WHA') {
                     $this->assertMoneyEquals("Record {$currentRecord['record']} WHA tax value must equal FOB", $currentRecord['fob'], $taxValue, $errors);
-                    if (abs($taxRate - 2.0) > 0.001) {
-                        $errors[] = "Record {$currentRecord['record']} WHA tax rate must be 2.000, got " . number_format($taxRate, 3, '.', '') . '.';
+                    if (abs($taxRate - $expectedWharfageRate) > 0.001) {
+                        $errors[] = "Record {$currentRecord['record']} WHA tax rate must be "
+                            . number_format($expectedWharfageRate, 3, '.', '')
+                            . ', got ' . number_format($taxRate, 3, '.', '') . '.';
                     }
                 }
             }
@@ -307,6 +311,16 @@ class CapsPreValidationService
 
     protected function validateT12Header(array $fields, ?int $countryId, array &$errors, array &$warnings): void
     {
+        foreach ([
+            2 => 'T12 supplier name (Box 1a)',
+            13 => 'T12 carrier/voyage number (Box 3a)',
+            19 => 'T12 city of direct shipment (Box 5a)',
+        ] as $fieldIndex => $label) {
+            if (trim((string) ($fields[$fieldIndex] ?? '')) === '') {
+                $errors[] = "{$label} is missing.";
+            }
+        }
+
         $this->checkReference($countryId, CountryReferenceData::TYPE_CARRIER, $fields[12] ?? null, 'T12 carrier ID', true, $errors, $warnings);
         $this->checkReference($countryId, CountryReferenceData::TYPE_PORT, $fields[14] ?? null, 'T12 port of arrival', true, $errors, $warnings);
         $this->checkReference($countryId, CountryReferenceData::TYPE_PAYMENT_METHOD, $fields[28] ?? null, 'T12 payment method', false, $errors, $warnings);
@@ -442,6 +456,18 @@ class CapsPreValidationService
         } else {
             $warnings[] = $message . " (CPC {$cpc} may apply a concessionary rate; verify before submission).";
         }
+    }
+
+    protected function resolveWharfageRate(?int $countryId, ?string $effectiveDate): float
+    {
+        if (!$countryId) {
+            return 2.0;
+        }
+
+        $levy = CountryLevy::getForCountry($countryId, $effectiveDate)
+            ->firstWhere('levy_code', CountryLevy::CODE_WHARFAGE);
+
+        return $levy ? (float) $levy->rate : 2.0;
     }
 
     protected function findExactTariff(string $sevenDigits): ?CustomsCode

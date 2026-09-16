@@ -6,6 +6,7 @@ use App\Models\DeclarationForm;
 use App\Models\DeclarationFormItem;
 use App\Models\CountryFormTemplate;
 use App\Models\FilledDeclarationForm;
+use App\Models\Shipment;
 use App\Models\TradeContact;
 use App\Services\FormFieldExtractor;
 use App\Services\FormDataMapper;
@@ -372,6 +373,33 @@ class DeclarationFormController extends Controller
     public function store(Request $request)
     {
         return back()->with('error', 'Please use the "Generate Official Forms" button to create declaration forms.');
+    }
+
+    /**
+     * Link a declaration to a shipment without replacing its calculated totals.
+     */
+    public function linkShipment(Request $request, DeclarationForm $declarationForm)
+    {
+        $validated = $request->validate([
+            'shipment_id' => ['required', 'integer', 'exists:shipments,id'],
+        ]);
+
+        $shipment = Shipment::withoutGlobalScopes()
+            ->where('id', $validated['shipment_id'])
+            ->where('organization_id', $declarationForm->organization_id)
+            ->where('country_id', $declarationForm->country_id)
+            ->firstOrFail();
+
+        $declarationForm->update([
+            'shipment_id' => $shipment->id,
+            'shipper_contact_id' => $shipment->shipper_contact_id,
+            'consignee_contact_id' => $shipment->consignee_contact_id,
+        ]);
+
+        return back()->with(
+            'success',
+            'Declaration linked to shipment ' . ($shipment->bill_of_lading_number ?: "#{$shipment->id}") . '. Calculated totals were not changed.'
+        );
     }
 
     /**
