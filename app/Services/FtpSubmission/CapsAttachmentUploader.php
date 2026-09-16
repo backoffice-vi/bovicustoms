@@ -57,9 +57,7 @@ class CapsAttachmentUploader
         Country $country,
         OrganizationSubmissionCredential $credentials
     ): array {
-        $t12Filename = $submission->external_reference
-            ?? $submission->request_data['filename']
-            ?? null;
+        $t12Filename = $this->attachmentBaseFilename($submission);
 
         if (empty($t12Filename)) {
             throw new \RuntimeException('Cannot upload attachments: T12 filename is unknown for submission ' . $submission->id);
@@ -226,9 +224,7 @@ class CapsAttachmentUploader
             return false;
         }
 
-        $t12Filename = $submission->external_reference
-            ?? $submission->request_data['filename']
-            ?? null;
+        $t12Filename = $this->attachmentBaseFilename($submission);
 
         if (empty($t12Filename)) {
             return false;
@@ -401,6 +397,22 @@ class CapsAttachmentUploader
     }
 
     /**
+     * CAPS requires amendment attachments to retain the exact original ETD
+     * filename. The amendment marker belongs only on the T12 amendment itself.
+     */
+    public function attachmentBaseFilename(WebFormSubmission $submission): ?string
+    {
+        $requestData = $submission->request_data ?? [];
+
+        if (($requestData['is_amendment'] ?? false) && !empty($requestData['amends_reference'])) {
+            return $requestData['amends_reference'];
+        }
+
+        return $submission->external_reference
+            ?? ($requestData['filename'] ?? null);
+    }
+
+    /**
      * Reconcile DB attachment rows with the current declaration attachments.
      * Returns one row per attachment in upload order (existing + newly created).
      *
@@ -452,6 +464,25 @@ class CapsAttachmentUploader
 
             if ($existing->has($key)) {
                 $attachment = $existing->get($key);
+                $expectedRemoteFilename = $this->buildRemoteFilename(
+                    $t12Filename,
+                    $attachment->letter,
+                    $extension
+                );
+
+                // Repair attachment rows created before amendment filenames
+                // were handled separately from their original ETD base.
+                if ($attachment->remote_filename !== $expectedRemoteFilename) {
+                    $attachment->update([
+                        'remote_filename' => $expectedRemoteFilename,
+                        'status' => FtpSubmissionAttachment::STATUS_PENDING,
+                        'uploaded_at' => null,
+                        'response_received_at' => null,
+                        'error_message' => null,
+                        'caps_response_text' => null,
+                    ]);
+                }
+
                 $rows[] = [
                     'attachment' => $attachment,
                     'localPath' => $entry['filePath'],
